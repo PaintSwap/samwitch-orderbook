@@ -25,6 +25,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   error NotERC1155();
   error NoQuantity();
+  error OrderNotFound();
 
   enum OrderSide {
     Buy,
@@ -147,7 +148,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     quantityRemaining = _quantity;
     //    uint quantityBought = 0;
     while (quantityRemaining > 0) {
-      uint64 lowestAsk = asks[_tokenId].first();
+      uint64 lowestAsk = getLowestAsk(_tokenId);
       if (lowestAsk == 0 || lowestAsk > _price) {
         // No more orders left
         break;
@@ -185,7 +186,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         asks[_tokenId].remove(lowestAsk);
         delete askValues[_tokenId][lowestAsk];
       } else {
-        // Increase tombstone offset of this price for gas efficiency, instead of
+        // Increase tombstone offset of this price for gas efficiency
         asks[_tokenId].edit(lowestAsk, uint32(numFullyConsumed));
       }
     }
@@ -200,7 +201,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
     // Selling
     while (quantityRemaining > 0) {
-      uint64 highestBid = bids[_tokenId].last();
+      uint64 highestBid = getHighestBid(_tokenId);
       if (highestBid == 0 || highestBid < _price) {
         // No more orders left
         break;
@@ -243,7 +244,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         bids[_tokenId].remove(highestBid);
         delete bidValues[_tokenId][highestBid];
       } else {
-        // Increase tombstone offset of this price for gas efficiency, TODO: Needs to be higher
+        // Increase tombstone offset of this price for gas efficiency
         bids[_tokenId].edit(highestBid, uint32(numFullyConsumed));
       }
     }
@@ -366,16 +367,20 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
     uint mid = begin + len / 2;
     uint v = data[mid].id;
-    if (value < v) return find(data, begin, mid, value);
-    else if (value > v) return find(data, mid + 1, end, value);
-    else return mid;
+    if (value < v) {
+      return find(data, begin, mid, value);
+    } else if (value > v) {
+      return find(data, mid + 1, end, value);
+    }
+    return mid;
   }
 
   function _cancelOrder(OrderBookEntry[] storage orderBookEntries, uint _orderId, uint _index) private {
     require(orderBookEntries[_index].owner == msg.sender);
-    // Remove it by shifting everything to the left
-    for (uint i = _index; _index < orderBookEntries.length - 1; ++i) {
-      orderBookEntries[_index] = orderBookEntries[_index + 1];
+    // Remove it by shifting everything else to the left
+    uint length = orderBookEntries.length;
+    for (uint i = _index; i < length - 1; ++i) {
+      orderBookEntries[i] = orderBookEntries[i + 1];
     }
     orderBookEntries.pop();
     emit OrderCancelled(_orderId);
@@ -384,25 +389,28 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function cancelOrder(OrderSide _side, uint _orderId, uint _tokenId, uint64 _price) external {
     // Loop through all of them until we hit ours.
     if (_side == OrderSide.Buy) {
-      require(bids[_tokenId].exists(_price));
+      //      require(bids[_tokenId].exists(_price));
       OrderBookEntry[] storage orderBookEntries = bidValues[_tokenId][_price];
       uint index = find(orderBookEntries, 0, orderBookEntries.length, _orderId);
-      OrderBookEntry memory entry = orderBookEntries[index];
-      if (index != type(uint).max) {
-        _cancelOrder(orderBookEntries, _orderId, index);
-        // Send the remaining token back to them
-        _safeTransferFromUs(msg.sender, uint(entry.quantity) * _price);
+      if (index == type(uint).max) {
+        revert OrderNotFound();
       }
+
+      // Send the remaining token back to them
+      OrderBookEntry memory entry = orderBookEntries[index];
+      _cancelOrder(orderBookEntries, _orderId, index);
+      _safeTransferFromUs(msg.sender, uint(entry.quantity) * _price);
     } else {
-      require(asks[_tokenId].exists(_price));
+      //      require(asks[_tokenId].exists(_price));
       OrderBookEntry[] storage orderBookEntries = askValues[_tokenId][_price];
       uint index = find(orderBookEntries, 0, orderBookEntries.length, _orderId);
-      OrderBookEntry memory entry = orderBookEntries[index];
-      if (index != type(uint).max) {
-        _cancelOrder(orderBookEntries, _orderId, index);
-        // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(msg.sender, _tokenId, entry.quantity);
+      if (index == type(uint).max) {
+        revert OrderNotFound();
       }
+      OrderBookEntry memory entry = orderBookEntries[index];
+      _cancelOrder(orderBookEntries, _orderId, index);
+      // Send the remaining NFTs back to them
+      _safeTransferNFTsFromUs(msg.sender, _tokenId, entry.quantity);
     }
   }
 
@@ -419,6 +427,28 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   function _safeTransferNFTsFromUs(address _to, uint _tokenId, uint _amount) private {
     nft.safeTransferFrom(address(this), _to, _tokenId, _amount, "");
+  }
+
+  function allOrdersAtPrice(
+    OrderSide _side,
+    uint _tokenId,
+    uint _price
+  ) external view returns (OrderBookEntry[] memory) {
+    // TODO: Take into account tombstones
+
+    if (_side == OrderSide.Buy) {
+      return bidValues[_tokenId][_price];
+    } else {
+      return askValues[_tokenId][_price];
+    }
+  }
+
+  function getHighestBid(uint _tokenId) public view returns (uint64) {
+    return bids[_tokenId].last();
+  }
+
+  function getLowestAsk(uint _tokenId) public view returns (uint64) {
+    return asks[_tokenId].first();
   }
 
   // solhint-disable-next-line no-empty-blocks
