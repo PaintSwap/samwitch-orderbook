@@ -28,11 +28,17 @@ describe("OrderBook", function () {
     await brush.mint(owner.address, initialBrush);
     await brush.approve(orderBook, initialBrush);
 
+    await brush.connect(alice).mint(alice.address, initialBrush);
+    await brush.connect(alice).approve(orderBook, initialBrush);
+
     const initialQuantity = 100;
+    await erc1155.mint(initialQuantity * 2);
     await erc1155.setApprovalForAll(orderBook, true);
-    await erc1155.mint(initialQuantity);
 
     const tokenId = 1;
+    await erc1155.safeTransferFrom(owner, alice, tokenId, initialQuantity, "0x");
+    await erc1155.connect(alice).setApprovalForAll(orderBook, true);
+
     return {
       orderBook,
       erc1155,
@@ -64,7 +70,7 @@ describe("OrderBook", function () {
   });
 
   it("Take from order book", async function () {
-    const {orderBook, erc1155, brush, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, brush, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
@@ -77,10 +83,10 @@ describe("OrderBook", function () {
     await brush.connect(alice).approve(orderBook, 1000000);
     const numToBuy = 2;
     await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 1, numToBuy);
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(numToBuy);
+    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
 
     await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 2, quantity - numToBuy); // Buy the rest
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(quantity);
+    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
 
     // There's nothing left, this adds to the buy order side
     await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 2, 1);
@@ -142,6 +148,73 @@ describe("OrderBook", function () {
     expect(orders[0].id).to.eq(orderId + 1);
   });
 
+  it("Full order consumption, sell side", async function () {
+    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+
+    // Buy
+    const numToBuy = 14; // Finish one and eat into the next
+
+    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, numToBuy);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
+    const orderId = 1;
+    expect(orders.length).to.eq(2);
+    expect(orders[0].id).to.eq(orderId + 1);
+    expect(orders[1].id).to.eq(orderId + 2);
+
+    const node = await orderBook.getNode(OrderSide.Sell, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
+
+    const remainderQuantity = quantity * 3 - numToBuy;
+    // Try to buy too many
+    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, remainderQuantity + 1);
+
+    orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
+    expect(orders.length).to.eq(0);
+  });
+
+  it("Full order consumption, buy side", async function () {
+    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+
+    // Sell
+    const numToSell = 14; // Finish one and eat into the next
+    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, numToSell);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+    const orderId = 1;
+    expect(orders.length).to.eq(2);
+    expect(orders[0].id).to.eq(orderId + 1);
+    expect(orders[1].id).to.eq(orderId + 2);
+
+    const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
+
+    const remainderQuantity = quantity * 3 - numToSell;
+    // Try to sell too many
+    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, remainderQuantity + 1);
+
+    orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+    expect(orders.length).to.eq(0);
+  });
+
+  it("Partial order consumption", async function () {});
+
+  it("Edit order", async function () {});
+
   // Test dev fee
   // Test royalty is paid
   // Test multiple tokenIds
@@ -153,4 +226,5 @@ describe("OrderBook", function () {
   // Remove id and only allow 1 order per address?
   // Test gas with a large amount of orders
   // Fuzz test of many orders
+  // Can take from yourself?
 });

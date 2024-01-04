@@ -79,14 +79,14 @@ library BokkyPooBahsRedBlackTreeLibrary {
     function getEmpty() internal pure returns (uint) {
         return EMPTY;
     }
-    function getNode(Tree storage self, uint64 key) internal view returns (uint64 _returnKey, uint64 _parent, uint64 _left, uint64 _right, bool _red) {
+    function getNode(Tree storage self, uint64 key) internal view returns (Node memory node) {
         require(exists(self, key));
-        return(key, self.nodes[key].parent, self.nodes[key].left, self.nodes[key].right, self.nodes[key].red);
+        return self.nodes[key];
     }
 
-    function edit(Tree storage self, uint64 key, uint32 tombstoneOffset) internal {
+    function edit(Tree storage self, uint64 key, uint56 extraTombstoneOffset) internal {
         require(exists(self, key));       
-        self.nodes[key].tombstoneOffset += tombstoneOffset;
+        self.nodes[key].tombstoneOffset += extraTombstoneOffset;
     }
 
     function insert(Tree storage self, uint64 key) internal {
