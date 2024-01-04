@@ -22,10 +22,16 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event PartialRemovedFromBook(uint id, uint quantityRemoved);
   event ClaimedTokens(address owner, uint tokenId);
   event ClaimedNFTs(address owner, uint tokenId);
+  event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] _tokenIdInfos);
 
   error NotERC1155();
   error NoQuantity();
   error OrderNotFound();
+  error PriceNotMultipleOfTick(uint tick);
+  error TokenDoesntExist(uint tokenId);
+  error PriceZero();
+  error LengthMismatch();
+  error QuantityRemainingTooLow();
 
   enum OrderSide {
     Buy,
@@ -44,11 +50,18 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   IERC1155 public nft;
   IERC20 public token;
 
-  address devAddr;
-  uint8 devFee; // Base 10000, max 2.55%
-  uint16 maxOrdersPerPrice;
+  address public devAddr;
+  uint8 public devFee; // Base 10000, max 2.55%
+  uint16 public maxOrdersPerPrice;
   bool public supportsERC2981;
-  uint64 nextOrderEntryId;
+  uint64 public nextOrderEntryId;
+
+  struct TokenIdInfo {
+    uint128 tick;
+    uint128 minQuantity;
+  }
+
+  mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
 
   mapping(uint tokenId => mapping(uint price => OrderBookEntry[])) public askValues;
   mapping(uint tokenId => mapping(uint price => OrderBookEntry[])) public bidValues;
@@ -85,8 +98,26 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       revert NoQuantity();
     }
 
+    if (_price == 0) {
+      revert PriceZero();
+    }
+
+    TokenIdInfo memory tokenIdInfo = tokenIdInfos[_tokenId];
+    uint tick = tokenIdInfo.tick;
+    if (_price % tick != 0) {
+      revert PriceNotMultipleOfTick(tick);
+    }
+
+    if (tokenIdInfos[_tokenId].tick == 0) {
+      revert TokenDoesntExist(_tokenId);
+    }
+
     bool isBuy = _side == OrderSide.Buy;
     (uint32 quantityRemaining, uint cost) = takeFromOrderBook(isBuy, _tokenId, _price, _quantity);
+
+    if (quantityRemaining != 0 && quantityRemaining < tokenIdInfo.minQuantity) {
+      revert QuantityRemainingTooLow();
+    }
 
     // Add the rest to the order book
     if (quantityRemaining > 0) {
@@ -252,7 +283,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   }
 
   function addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint32 _quantity) private {
-    require(_price != 0, "Price cannot be 0 when adding to order book");
     OrderBookEntry memory orderBookEntry = OrderBookEntry(msg.sender, _quantity, nextOrderEntryId++);
     uint64 price = _price;
     if (_isBuy) {
@@ -260,20 +290,18 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       if (!bids[_tokenId].exists(price)) {
         bids[_tokenId].insert(price);
       } else {
+        uint tombstoneOffset = bids[_tokenId].getNode(price).tombstoneOffset;
         // Check if this would go over the max number of orders allowed at this price level
-        if ((bidValues[_tokenId][price].length - bids[_tokenId].getNode(price).tombstoneOffset) == maxOrdersPerPrice) {
+        if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
           // Loop until we find a suitable place to put this
+          uint tick = tokenIdInfos[_tokenId].tick;
           while (true) {
-            price = price - 1;
+            price = uint64(price - tick);
             if (!bids[_tokenId].exists(price)) {
               bids[_tokenId].insert(price);
               break;
-            } else {
-              if (
-                (bidValues[_tokenId][price].length - bids[_tokenId].getNode(price).tombstoneOffset) == maxOrdersPerPrice
-              ) {
-                break;
-              }
+            } else if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
+              break;
             }
           }
         }
@@ -285,20 +313,18 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       if (!asks[_tokenId].exists(price)) {
         asks[_tokenId].insert(price);
       } else {
+        uint tombstoneOffset = asks[_tokenId].getNode(price).tombstoneOffset;
         // Check if this would go over the max number of orders allowed at this price level
-        if ((askValues[_tokenId][price].length - asks[_tokenId].getNode(price).tombstoneOffset) == maxOrdersPerPrice) {
+        if ((askValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
+          uint tick = tokenIdInfos[_tokenId].tick;
           // Loop until we find a suitable place to put this
           while (true) {
-            price = price + 1;
+            price = uint64(price + tick);
             if (!asks[_tokenId].exists(price)) {
               asks[_tokenId].insert(price);
               break;
-            } else {
-              if (
-                (askValues[_tokenId][price].length - asks[_tokenId].getNode(price).tombstoneOffset) == maxOrdersPerPrice
-              ) {
-                break;
-              }
+            } else if ((askValues[_tokenId][price].length - tombstoneOffset) < maxOrdersPerPrice) {
+              break;
             }
           }
         }
@@ -488,6 +514,30 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     } else {
       return asks[_tokenId].getNode(_price);
     }
+  }
+
+  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) external onlyOwner {
+    maxOrdersPerPrice = _maxOrdersPerPrice;
+  }
+
+  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
+    if (_tokenIds.length != _tokenIdInfos.length) {
+      revert LengthMismatch();
+    }
+
+    for (uint i = 0; i < _tokenIds.length; ++i) {
+      tokenIdInfos[_tokenIds[i]] = _tokenIdInfos[i];
+    }
+
+    emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
+  }
+
+  function getTick(uint _tokenId) external view returns (uint) {
+    return tokenIdInfos[_tokenId].tick;
+  }
+
+  function getMinAmount(uint _tokenId) external view returns (uint) {
+    return tokenIdInfos[_tokenId].minQuantity;
   }
 
   // solhint-disable-next-line no-empty-blocks

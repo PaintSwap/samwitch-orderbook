@@ -39,6 +39,8 @@ describe("OrderBook", function () {
     await erc1155.safeTransferFrom(owner, alice, tokenId, initialQuantity, "0x");
     await erc1155.connect(alice).setApprovalForAll(orderBook, true);
 
+    await orderBook.setTokenIdInfos([tokenId], [{tick: 1, minQuantity: 1}]);
+
     return {
       orderBook,
       erc1155,
@@ -215,12 +217,57 @@ describe("OrderBook", function () {
 
   it("Edit order", async function () {});
 
+  it("Max number of orders for a price should increment it by the tick", async function () {
+    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    const maxOrdersPerPrice = await orderBook.maxOrdersPerPrice();
+
+    // Set up order book
+    const price = 100;
+    const quantity = 1;
+
+    for (let i = 0; i < maxOrdersPerPrice; ++i) {
+      await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    }
+
+    const tick = Number(await orderBook.getTick(tokenId));
+
+    // Try to add one more and it will be added to the next tick price
+    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, quantity);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
+    expect(orders.length).to.eq(maxOrdersPerPrice);
+
+    orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + tick);
+    expect(orders.length).to.eq(1);
+  });
+
+  it("Price must be modulus of tick quantity must be > min quantity", async function () {
+    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+    await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+
+    let price = 101;
+    let quantity = 20;
+    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity))
+      .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
+      .withArgs(10);
+
+    price = 100;
+    quantity = 19;
+    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity)).to.be.revertedWithCustomError(
+      orderBook,
+      "QuantityRemainingTooLow"
+    );
+
+    quantity = 20;
+    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity)).to.not.be.reverted;
+  });
+
   // Test dev fee
   // Test royalty is paid
   // Test multiple tokenIds
   // Test claiming nfts/brush (is gas more efficient by just sending the nft/brush directly?)
-  // Test max number of prices in the order book entry
-  // Test cancelling order
   // Test editing order (once implemented)
   // Test bulk insert/cancel/edit
   // Remove id and only allow 1 order per address?
