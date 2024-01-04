@@ -264,6 +264,32 @@ describe("OrderBook", function () {
     await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity)).to.not.be.reverted;
   });
 
+  it("Test gas costs", async function () {
+    const {orderBook, erc1155, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Create a bunch of orders at 5 different prices each with the maximum number of orders, so 500 in total
+
+    const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
+
+    // Set up order book
+    const price = 100;
+    const quantity = 1;
+
+    const prices = [price, price + 1, price + 2, price + 3, price + 4];
+    for (const price of prices) {
+      for (let i = 0; i < maxOrdersPerPrice; ++i) {
+        await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, quantity);
+      }
+    }
+
+    // Cancelling an order at the start will be very expensive
+    const orderId = 1;
+    await orderBook.connect(alice).cancelOrder(OrderSide.Buy, orderId, tokenId, price);
+
+    await erc1155.mintSpecificId(tokenId, 10000);
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity * maxOrdersPerPrice * prices.length);
+  });
+
   // Test dev fee
   // Test royalty is paid
   // Test multiple tokenIds

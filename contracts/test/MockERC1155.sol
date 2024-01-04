@@ -15,6 +15,10 @@ contract MockERC1155 is ERC1155, IERC2981 {
     _mint(_msgSender(), nextId++, _quantity, "");
   }
 
+  function mintSpecificId(uint _id, uint _quantity) external {
+    _mint(_msgSender(), _id, _quantity, "");
+  }
+
   function mintBatch(uint[] memory _amounts) external {
     uint[] memory ids = new uint[](_amounts.length);
     for (uint i = 0; i < _amounts.length; ++i) {
