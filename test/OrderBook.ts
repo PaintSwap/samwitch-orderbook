@@ -10,10 +10,10 @@ describe("OrderBook", function () {
   }
 
   async function deployContractsFixture() {
-    const [owner, alice, bob, charlie, dev, erin, frank] = await ethers.getSigners();
+    const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
     const brush = await ethers.deployContract("MockBrushToken");
-    const erc1155 = await ethers.deployContract("MockERC1155");
+    const erc1155 = await ethers.deployContract("MockERC1155", [royaltyRecipient.address]);
 
     const OrderBook = await ethers.getContractFactory("OrderBook");
     const orderBook = (await upgrades.deployProxy(
@@ -52,6 +52,7 @@ describe("OrderBook", function () {
       dev,
       erin,
       frank,
+      royaltyRecipient,
       initialBrush,
       tokenId,
       initialQuantity,
@@ -290,7 +291,9 @@ describe("OrderBook", function () {
   });
 
   it("Check all fees (buying into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, brush, owner, alice, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
+      deployContractsFixture
+    );
 
     await erc1155.setRoyaltyFee(1000); // 10%
 
@@ -309,18 +312,15 @@ describe("OrderBook", function () {
     const fees = royalty + burnt + devAmount;
     expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
     expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
-    expect(await brush.balanceOf(owner)).to.eq(initialBrush + royalty);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+    expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
     expect(await brush.amountBurnt()).to.eq(burnt);
-
-    expect(await orderBook.tokensClaimable(owner, false)).to.eq(cost);
-    expect(await orderBook.tokensClaimable(owner, true)).to.eq(cost - fees);
-    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
-    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
-    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
   });
 
   it("Check all fees (selling into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, brush, owner, alice, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
+      deployContractsFixture
+    );
 
     await erc1155.setRoyaltyFee(1000); // 10%
 
@@ -341,18 +341,70 @@ describe("OrderBook", function () {
     expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
     expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
     expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
-    expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost + royalty);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
+    expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
     expect(await brush.amountBurnt()).to.eq(burnt);
+  });
+
+  it("Claim tokens", async function () {
+    const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
+
+    await erc1155.setRoyaltyFee(1000); // 10%
+
+    // Set up order book
+    const price = 100;
+    const quantity = 100;
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    const cost = price * 10;
+    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, 10);
+
+    // Check fees
+    const royalty = cost / 10;
+    const burnt = (cost * 3) / 1000; // 0.3%
+    const devAmount = (cost * 3) / 1000; // 0.3%
+    const fees = royalty + burnt + devAmount;
+
+    expect(await orderBook.tokensClaimable(owner, false)).to.eq(cost);
+    expect(await orderBook.tokensClaimable(owner, true)).to.eq(cost - fees);
+    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
+    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
+    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
+
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+    await expect(orderBook.claimTokens())
+      .to.emit(orderBook, "ClaimedTokens")
+      .withArgs(owner.address, cost - fees);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+    expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
+
+    // Try to claim twice
+    await expect(orderBook.claimTokens()).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+  });
+
+  it("Claim NFTs", async function () {
+    const {orderBook, erc1155, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    await erc1155.setRoyaltyFee(1000); // 10%
+
+    // Set up order book
+    const price = 100;
+    const quantity = 100;
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, 10);
 
     expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
     expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
     expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(10);
     expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
+
+    await expect(orderBook.claimNFTs([tokenId]))
+      .to.emit(orderBook, "ClaimedNFTs")
+      .withArgs(owner.address, [tokenId], [10]);
+    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
+
+    // Try to claim twice
+    await expect(orderBook.claimNFTs([tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
   });
-
-  it("Claim tokens", async function () {});
-
-  it("Claim NFTs", async function () {});
 
   // Test dev fee
   // Test royalty is paid

@@ -22,8 +22,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event AddedToBook(bool isBuy, OrderBookEntry orderBookEntry, uint price);
   event RemovedFromBook(uint id);
   event PartialRemovedFromBook(uint id, uint quantityRemoved);
-  event ClaimedTokens(address maker);
-  event ClaimedNFTs(address maker, uint[] tokenIds);
+  event ClaimedTokens(address maker, uint amount);
+  event ClaimedNFTs(address maker, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] _tokenIdInfos);
 
   error NotERC1155();
@@ -35,6 +35,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   error LengthMismatch();
   error QuantityRemainingTooLow();
   error NotMaker();
+  error NothingToClaim();
 
   enum OrderSide {
     Buy,
@@ -144,7 +145,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       // Transfer tokens to the seller if any have sold
       if (cost > 0) {
         uint fees = _sendFees(_tokenId, cost);
-        _safeTransferFromUs(msg.sender, cost + uint(_price) * quantityRemaining - fees);
+        _safeTransferFromUs(msg.sender, cost - fees);
       }
     }
 
@@ -334,36 +335,35 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   function claimTokens() public {
     uint amount = brushClaimable[msg.sender];
-    if (amount > 0) {
-      brushClaimable[msg.sender] = 0;
-      uint fees = _sendFees(1, amount);
-      _safeTransferFromUs(msg.sender, fees - amount);
-      emit ClaimedTokens(msg.sender);
+    if (amount == 0) {
+      revert NothingToClaim();
     }
+    brushClaimable[msg.sender] = 0;
+    (address recipient, uint royalty, uint dev, uint burn) = _calcFees(1, amount);
+    uint fees = royalty + dev + burn;
+    uint amountExclFees;
+    if (amount > fees) {
+      amountExclFees = amount - fees;
+      _safeTransferFromUs(msg.sender, amountExclFees);
+    }
+    emit ClaimedTokens(msg.sender, amountExclFees);
   }
 
   function claimNFTs(uint[] calldata _tokenIds) public {
-    uint[] memory tokenIds = _tokenIds;
-    uint[] memory amounts = new uint[](tokenIds.length);
-    uint length;
-    for (uint i = 0; i < tokenIds.length; ++i) {
-      uint tokenId = tokenIds[i];
+    uint[] memory amounts = new uint[](_tokenIds.length);
+    for (uint i = 0; i < _tokenIds.length; ++i) {
+      uint tokenId = _tokenIds[i];
       uint amount = tokenIdsClaimable[msg.sender][tokenId];
-      if (amount > 0) {
-        tokenIds[length] = tokenId;
-        amounts[length++] = amount;
-        tokenIdsClaimable[msg.sender][tokenId] = 0;
+      if (amount == 0) {
+        revert NothingToClaim();
       }
+      amounts[i] = amount;
+      tokenIdsClaimable[msg.sender][tokenId] = 0;
     }
 
-    assembly ("memory-safe") {
-      mstore(tokenIds, length)
-      mstore(amounts, length)
-    }
+    emit ClaimedNFTs(msg.sender, _tokenIds, amounts);
 
-    emit ClaimedNFTs(msg.sender, tokenIds);
-
-    _safeBatchTransferNFTsFromUs(msg.sender, tokenIds, amounts);
+    _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
   }
 
   function cancelOrder(OrderSide _side, uint _orderId, uint _tokenId, uint64 _price) external {
@@ -483,10 +483,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   }
 
   function _safeTransferFromUs(address _to, uint _amount) private {
-    uint balance = token.balanceOf(address(this));
-    if (balance < _amount) {
-      _amount = balance;
-    }
     token.transfer(_to, _amount);
   }
 
