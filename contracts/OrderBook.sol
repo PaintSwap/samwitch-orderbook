@@ -355,58 +355,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint32 _quantity) private {
-    OrderBookEntry memory orderBookEntry = OrderBookEntry(msg.sender, _quantity, nextOrderEntryId++);
-    uint64 price = _price;
-    if (_isBuy) {
-      // Add to the bids section
-      if (!bids[_tokenId].exists(price)) {
-        bids[_tokenId].insert(price);
-      } else {
-        uint tombstoneOffset = bids[_tokenId].getNode(price).tombstoneOffset;
-        // Check if this would go over the max number of orders allowed at this price level
-        if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-          // Loop until we find a suitable place to put this
-          uint tick = tokenIdInfos[_tokenId].tick;
-          while (true) {
-            price = uint64(price - tick);
-            if (!bids[_tokenId].exists(price)) {
-              bids[_tokenId].insert(price);
-              break;
-            } else if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-              break;
-            }
-          }
-        }
-      }
-
-      bidValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
-    } else {
-      // Add to the asks section
-      if (!asks[_tokenId].exists(price)) {
-        asks[_tokenId].insert(price);
-      } else {
-        uint tombstoneOffset = asks[_tokenId].getNode(price).tombstoneOffset;
-        // Check if this would go over the max number of orders allowed at this price level
-        if ((askValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-          uint tick = tokenIdInfos[_tokenId].tick;
-          // Loop until we find a suitable place to put this
-          while (true) {
-            price = uint64(price + tick);
-            if (!asks[_tokenId].exists(price)) {
-              asks[_tokenId].insert(price);
-              break;
-            } else if ((askValues[_tokenId][price].length - tombstoneOffset) < maxOrdersPerPrice) {
-              break;
-            }
-          }
-        }
-      }
-      askValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
-    }
-    emit AddedToBook(_isBuy, orderBookEntry, price);
-  }
-
   function claimAll(uint[] calldata _tokenIds) external {
     claimTokens();
     claimNFTs(_tokenIds);
@@ -561,8 +509,60 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
     // Add the rest to the order book
     if (quantityRemaining > 0) {
-      addToBook(isBuy, _limitOrder.tokenId, _limitOrder.price, quantityRemaining);
+      _addToBook(isBuy, _limitOrder.tokenId, _limitOrder.price, quantityRemaining);
     }
+  }
+
+  function _addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint32 _quantity) private {
+    OrderBookEntry memory orderBookEntry = OrderBookEntry(msg.sender, _quantity, nextOrderEntryId++);
+    uint64 price = _price;
+    if (_isBuy) {
+      // Add to the bids section
+      if (!bids[_tokenId].exists(price)) {
+        bids[_tokenId].insert(price);
+      } else {
+        uint tombstoneOffset = bids[_tokenId].getNode(price).tombstoneOffset;
+        // Check if this would go over the max number of orders allowed at this price level
+        if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
+          // Loop until we find a suitable place to put this
+          uint tick = tokenIdInfos[_tokenId].tick;
+          while (true) {
+            price = uint64(price - tick);
+            if (!bids[_tokenId].exists(price)) {
+              bids[_tokenId].insert(price);
+              break;
+            } else if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
+              break;
+            }
+          }
+        }
+      }
+
+      bidValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
+    } else {
+      // Add to the asks section
+      if (!asks[_tokenId].exists(price)) {
+        asks[_tokenId].insert(price);
+      } else {
+        uint tombstoneOffset = asks[_tokenId].getNode(price).tombstoneOffset;
+        // Check if this would go over the max number of orders allowed at this price level
+        if ((askValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
+          uint tick = tokenIdInfos[_tokenId].tick;
+          // Loop until we find a suitable place to put this
+          while (true) {
+            price = uint64(price + tick);
+            if (!asks[_tokenId].exists(price)) {
+              asks[_tokenId].insert(price);
+              break;
+            } else if ((askValues[_tokenId][price].length - tombstoneOffset) < maxOrdersPerPrice) {
+              break;
+            }
+          }
+        }
+      }
+      askValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
+    }
+    emit AddedToBook(_isBuy, orderBookEntry, price);
   }
 
   function _calcFees(uint _tokenId, uint _cost) private view returns (uint royalty, uint dev, uint burn) {
