@@ -268,7 +268,6 @@ describe("OrderBook", function () {
     const {orderBook, erc1155, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Create a bunch of orders at 5 different prices each with the maximum number of orders, so 500 in total
-
     const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
 
     // Set up order book
@@ -290,8 +289,41 @@ describe("OrderBook", function () {
     await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity * maxOrdersPerPrice * prices.length);
   });
 
+  it("Check all fees (buying into order book)", async function () {
+    const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
+
+    await erc1155.setRoyaltyFee(1000); // 10%
+
+    // Set up order book
+    const price = 100;
+    const quantity = 100;
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    const cost = price * 10;
+    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, 10);
+
+    // Check fees
+    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
+    const royalty = cost / 10;
+    const burnt = (cost * 3) / 1000; // 0.3%
+    const devAmount = (cost * 3) / 1000; // 0.3%
+    expect(await brush.balanceOf(orderBook)).to.eq(cost - royalty - burnt - devAmount);
+    expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush + royalty);
+    expect(await brush.amountBurnt()).to.eq(burnt);
+    // Check balance of buyer/seller/orderbook contract too
+  });
+
+  it("Check all fees (selling into order book)", async function () {
+    // TODO Copy from above
+  });
+
+  it("Claim tokens", async function () {});
+
+  it("Claim NFTs", async function () {});
+
   // Test dev fee
   // Test royalty is paid
+  // Test burning fees
   // Test multiple tokenIds
   // Test claiming nfts/brush (is gas more efficient by just sending the nft/brush directly?)
   // Test editing order (once implemented)

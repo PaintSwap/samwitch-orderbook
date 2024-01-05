@@ -1,9 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IBrushToken} from "../interfaces/IBrushToken.sol";
 
-contract MockBrushToken is ERC20("PaintSwap Token", "BRUSH") {
+contract MockBrushToken is ERC20("PaintSwap Token", "BRUSH"), IBrushToken {
   uint public amountBurnt;
 
   function mint(address _to, uint256 _amount) external {

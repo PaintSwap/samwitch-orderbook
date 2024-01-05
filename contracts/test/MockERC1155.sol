@@ -8,6 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 contract MockERC1155 is ERC1155, IERC2981 {
   address public immutable owner = msg.sender;
   uint64 public nextId = 1;
+  uint64 public royaltyFee; // Base 10000
 
   constructor() ERC1155("") {}
 
@@ -31,9 +32,12 @@ contract MockERC1155 is ERC1155, IERC2981 {
     uint /*_tokenId*/,
     uint _salePrice
   ) external view override returns (address receiver, uint royaltyAmount) {
-    uint royaltyFee = 250; // 2.5%
-    uint amount = (_salePrice * royaltyFee) / 1000;
+    uint amount = (_salePrice * royaltyFee) / 10000;
     return (owner, amount);
+  }
+
+  function setRoyaltyFee(uint64 _fee) external {
+    royaltyFee = _fee;
   }
 
   function supportsInterface(bytes4 _interfaceId) public view override(ERC1155, IERC165) returns (bool) {
