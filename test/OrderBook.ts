@@ -9,6 +9,13 @@ describe("OrderBook", function () {
     Sell,
   }
 
+  type CancelOrderInfo = {
+    side: OrderSide;
+    orderId: number;
+    tokenId: number;
+    price: number;
+  };
+
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
@@ -97,7 +104,9 @@ describe("OrderBook", function () {
   });
 
   it("Cancel an order", async function () {
-    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} = await loadFixture(
+      deployContractsFixture
+    );
 
     // Set up order books
     const price = 100;
@@ -107,26 +116,32 @@ describe("OrderBook", function () {
 
     // Cancel buy
     const orderId = 1;
-    await orderBook.cancelOrder(OrderSide.Buy, orderId, tokenId, price);
+    await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
     // No longer exists
-    await expect(orderBook.cancelOrder(OrderSide.Buy, orderId, tokenId, price)).to.be.revertedWithCustomError(
-      orderBook,
-      "OrderNotFound"
-    );
+    await expect(
+      orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
+    ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
 
     // Cancel the sell
-    await orderBook.cancelOrder(OrderSide.Sell, orderId + 1, tokenId, price + 1);
+    await orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]);
 
     // No longer exists
-    await expect(orderBook.cancelOrder(OrderSide.Sell, orderId + 1, tokenId, price + 1)).to.be.revertedWithCustomError(
-      orderBook,
-      "OrderNotFound"
-    );
+    await expect(
+      orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
+    ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+
+    // Check you get the brush back
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+    expect(await brush.balanceOf(orderBook)).to.eq(0);
+    expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
+
+    expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
+    expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
   });
 
   it("Cancel an order at the beginning, middle and end", async function () {
-    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
@@ -138,17 +153,59 @@ describe("OrderBook", function () {
 
     // Cancel a buy in the middle
     const orderId = 2;
-    await orderBook.cancelOrder(OrderSide.Buy, orderId, tokenId, price);
+    await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
     // Cancel a buy at the start
-    await orderBook.cancelOrder(OrderSide.Buy, orderId - 1, tokenId, price);
+    await orderBook.cancelOrders([orderId - 1], [{side: OrderSide.Buy, tokenId, price}]);
 
     // Cancel a buy at the end
-    await orderBook.cancelOrder(OrderSide.Buy, orderId + 2, tokenId, price);
+    await orderBook.cancelOrders([orderId + 2], [{side: OrderSide.Buy, tokenId, price}]);
 
     // The only one left should be orderId 3
     const orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
     expect(orders.length).to.eq(1);
     expect(orders[0].id).to.eq(orderId + 1);
+    // Check you get the brush back
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush - price * quantity);
+    expect(await brush.balanceOf(orderBook)).to.eq(price * quantity);
+
+    expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
+    expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+  });
+
+  it("Bulk cancel orders", async function () {
+    const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} = await loadFixture(
+      deployContractsFixture
+    );
+
+    // Set up order books
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.limitOrder(OrderSide.Sell, tokenId, price + 1, quantity);
+
+    // Cancel buy
+    const orderId = 1;
+    await orderBook.cancelOrders(
+      [orderId, orderId + 1],
+      [
+        {side: OrderSide.Buy, tokenId, price},
+        {side: OrderSide.Sell, tokenId, price: price + 1},
+      ]
+    );
+
+    // Check both no longer exist
+    await expect(
+      orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
+    ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+    await expect(
+      orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
+    ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+    expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
+
+    expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
+    expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
   });
 
   it("Full order consumption, sell side", async function () {
@@ -284,7 +341,7 @@ describe("OrderBook", function () {
 
     // Cancelling an order at the start will be very expensive
     const orderId = 1;
-    await orderBook.connect(alice).cancelOrder(OrderSide.Buy, orderId, tokenId, price);
+    await orderBook.connect(alice).cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
     await erc1155.mintSpecificId(tokenId, 10000);
     await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity * maxOrdersPerPrice * prices.length);

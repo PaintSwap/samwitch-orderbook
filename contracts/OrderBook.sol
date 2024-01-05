@@ -18,7 +18,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event OrderPlaced(bool isBuy, address from, uint tokenId, uint quantity, uint price);
   // TODO: Bulk this event
   event OrderMatched(address maker, address taker, uint tokenId, uint quantity, uint price);
-  event OrderCancelled(uint id); // bool isBuy, address maker, uint tokenId, uint quantity, uint price); // Remaining?
+  event OrdersCancelled(uint[] ids);
   event AddedToBook(bool isBuy, OrderBookEntry orderBookEntry, uint price);
   event RemovedFromBook(uint id);
   event PartialRemovedFromBook(uint id, uint quantityRemoved);
@@ -51,6 +51,12 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   struct TokenIdInfo {
     uint128 tick;
     uint128 minQuantity;
+  }
+
+  struct CancelOrderInfo {
+    OrderSide side;
+    uint tokenId;
+    uint64 price;
   }
 
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public asks;
@@ -366,36 +372,56 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
   }
 
-  function cancelOrder(OrderSide _side, uint _orderId, uint _tokenId, uint64 _price) external {
-    // Loop through all of them until we hit ours.
-    if (_side == OrderSide.Buy) {
-      OrderBookEntry[] storage orderBookEntries = bidValues[_tokenId][_price];
-      uint begin = bids[_tokenId].getNode(_price).tombstoneOffset;
-      uint index = _find(orderBookEntries, begin, orderBookEntries.length, _orderId);
-      if (index == type(uint).max) {
-        revert OrderNotFound();
-      }
-
-      // Send the remaining token back to them
-      OrderBookEntry memory entry = orderBookEntries[index];
-      _cancelOrder(orderBookEntries, _orderId, index);
-      _safeTransferFromUs(msg.sender, uint(entry.quantity) * _price);
-    } else {
-      OrderBookEntry[] storage orderBookEntries = askValues[_tokenId][_price];
-      uint begin = asks[_tokenId].getNode(_price).tombstoneOffset;
-      uint index = _find(orderBookEntries, begin, orderBookEntries.length, _orderId);
-      if (index == type(uint).max) {
-        revert OrderNotFound();
-      }
-      OrderBookEntry memory entry = orderBookEntries[index];
-      _cancelOrder(orderBookEntries, _orderId, index);
-      // Send the remaining NFTs back to them
-      _safeTransferNFTsFromUs(msg.sender, _tokenId, entry.quantity);
+  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
+    if (_orderIds.length != _cancelOrderInfos.length) {
+      revert LengthMismatch();
     }
+
+    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
+      uint orderId = _orderIds[i];
+      OrderSide side = _cancelOrderInfos[i].side;
+      uint tokenId = _cancelOrderInfos[i].tokenId;
+      uint64 price = _cancelOrderInfos[i].price;
+
+      // Loop through all of them until we hit ours.
+      if (side == OrderSide.Buy) {
+        if (!bids[tokenId].exists(price)) {
+          revert OrderNotFound();
+        }
+
+        OrderBookEntry[] storage orderBookEntries = bidValues[tokenId][price];
+        uint tombstoneOffset = bids[tokenId].getNode(price).tombstoneOffset;
+        uint index = _find(orderBookEntries, tombstoneOffset, orderBookEntries.length, orderId);
+        if (index == type(uint).max) {
+          revert OrderNotFound();
+        }
+
+        // Send the remaining token back to them
+        OrderBookEntry memory entry = orderBookEntries[index];
+        _cancelOrder(orderBookEntries, price, index, tombstoneOffset, bids[tokenId]);
+        _safeTransferFromUs(msg.sender, uint(entry.quantity) * price);
+      } else {
+        if (!asks[tokenId].exists(price)) {
+          revert OrderNotFound();
+        }
+
+        OrderBookEntry[] storage orderBookEntries = askValues[tokenId][price];
+        uint tombstoneOffset = asks[tokenId].getNode(price).tombstoneOffset;
+        uint index = _find(orderBookEntries, tombstoneOffset, orderBookEntries.length, orderId);
+        if (index == type(uint).max) {
+          revert OrderNotFound();
+        }
+        OrderBookEntry memory entry = orderBookEntries[index];
+        _cancelOrder(orderBookEntries, price, index, tombstoneOffset, asks[tokenId]);
+        // Send the remaining NFTs back to them
+        _safeTransferNFTsFromUs(msg.sender, tokenId, entry.quantity);
+      }
+    }
+
+    emit OrdersCancelled(_orderIds);
   }
 
   // TODO: editOrder
-  // cancelOrders
 
   function allOrdersAtPrice(
     OrderSide _side,
@@ -469,7 +495,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     return mid;
   }
 
-  function _cancelOrder(OrderBookEntry[] storage orderBookEntries, uint _orderId, uint _index) private {
+  function _cancelOrder(
+    OrderBookEntry[] storage orderBookEntries,
+    uint64 _price,
+    uint _index,
+    uint _tombstoneOffset,
+    BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
+  ) private {
     if (orderBookEntries[_index].maker != msg.sender) {
       revert NotMaker();
     }
@@ -479,7 +511,11 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       orderBookEntries[i] = orderBookEntries[i + 1];
     }
     orderBookEntries.pop();
-    emit OrderCancelled(_orderId);
+
+    if (orderBookEntries.length - _tombstoneOffset == 0) {
+      // Last one at this price level so trash it
+      _tree.remove(_price);
+    }
   }
 
   function _safeTransferFromUs(address _to, uint _amount) private {
