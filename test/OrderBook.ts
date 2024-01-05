@@ -16,6 +16,13 @@ describe("OrderBook", function () {
     price: number;
   };
 
+  type LimitOrder = {
+    side: OrderSide;
+    tokenId: number;
+    price: number;
+    quantity: number;
+  };
+
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
@@ -72,10 +79,22 @@ describe("OrderBook", function () {
     const price = 100;
     const quantity = 10;
 
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
 
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price + 1, quantity);
+    expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
   });
 
@@ -85,21 +104,54 @@ describe("OrderBook", function () {
     // Set up order books
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price + 1, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
 
     // Buy
     await brush.mint(alice, 1000000);
     await brush.connect(alice).approve(orderBook, 1000000);
     const numToBuy = 2;
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 1, numToBuy);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 1,
+        quantity: numToBuy,
+      },
+    ]);
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
 
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 2, quantity - numToBuy); // Buy the rest
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 2,
+        quantity: quantity - numToBuy,
+      },
+    ]); // Buy the rest
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
 
     // There's nothing left, this adds to the buy order side
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price + 2, 1);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 2,
+        quantity: 1,
+      },
+    ]);
     expect(await orderBook.getHighestBid(tokenId)).to.equal(price + 2);
   });
 
@@ -111,8 +163,20 @@ describe("OrderBook", function () {
     // Set up order books
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price + 1, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
 
     // Cancel buy
     const orderId = 1;
@@ -146,10 +210,33 @@ describe("OrderBook", function () {
     // Set up order books
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
 
     // Cancel a buy in the middle
     const orderId = 2;
@@ -180,8 +267,20 @@ describe("OrderBook", function () {
     // Set up order books
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price + 1, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
 
     // Cancel buy
     const orderId = 1;
@@ -214,14 +313,37 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
 
     // Buy
     const numToBuy = 14; // Finish one and eat into the next
-
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, numToBuy);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: numToBuy,
+      },
+    ]);
 
     let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
     const orderId = 1;
@@ -234,7 +356,14 @@ describe("OrderBook", function () {
 
     const remainderQuantity = quantity * 3 - numToBuy;
     // Try to buy too many
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, remainderQuantity + 1);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: remainderQuantity + 1,
+      },
+    ]);
 
     orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
     expect(orders.length).to.eq(0);
@@ -246,13 +375,37 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 10;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
 
     // Sell
     const numToSell = 14; // Finish one and eat into the next
-    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, numToSell);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: numToSell,
+      },
+    ]);
 
     let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
     const orderId = 1;
@@ -265,7 +418,14 @@ describe("OrderBook", function () {
 
     const remainderQuantity = quantity * 3 - numToSell;
     // Try to sell too many
-    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, remainderQuantity + 1);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: remainderQuantity + 1,
+      },
+    ]);
 
     orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
     expect(orders.length).to.eq(0);
@@ -278,20 +438,26 @@ describe("OrderBook", function () {
   it("Max number of orders for a price should increment it by the tick", async function () {
     const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-    const maxOrdersPerPrice = await orderBook.maxOrdersPerPrice();
+    const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
 
     // Set up order book
     const price = 100;
     const quantity = 1;
 
-    for (let i = 0; i < maxOrdersPerPrice; ++i) {
-      await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
-    }
+    const limitOrder: LimitOrder = {
+      side: OrderSide.Sell,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    const limitOrders = new Array<LimitOrder>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
 
     const tick = Number(await orderBook.getTick(tokenId));
 
     // Try to add one more and it will be added to the next tick price
-    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.connect(alice).limitOrders([limitOrder]);
 
     let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
     expect(orders.length).to.eq(maxOrdersPerPrice);
@@ -307,19 +473,43 @@ describe("OrderBook", function () {
 
     let price = 101;
     let quantity = 20;
-    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity))
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ])
+    )
       .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
       .withArgs(10);
 
     price = 100;
     quantity = 19;
-    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity)).to.be.revertedWithCustomError(
-      orderBook,
-      "QuantityRemainingTooLow"
-    );
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ])
+    ).to.be.revertedWithCustomError(orderBook, "QuantityRemainingTooLow");
 
     quantity = 20;
-    await expect(orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity)).to.not.be.reverted;
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ])
+    ).to.not.be.reverted;
   });
 
   it("Test gas costs", async function () {
@@ -334,9 +524,15 @@ describe("OrderBook", function () {
 
     const prices = [price, price + 1, price + 2, price + 3, price + 4];
     for (const price of prices) {
-      for (let i = 0; i < maxOrdersPerPrice; ++i) {
-        await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, quantity);
-      }
+      const limitOrder: LimitOrder = {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      };
+
+      const limitOrders = new Array<LimitOrder>(maxOrdersPerPrice).fill(limitOrder);
+      await orderBook.connect(alice).limitOrders(limitOrders);
     }
 
     // Cancelling an order at the start will be very expensive
@@ -344,7 +540,14 @@ describe("OrderBook", function () {
     await orderBook.connect(alice).cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
     await erc1155.mintSpecificId(tokenId, 10000);
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity * maxOrdersPerPrice * prices.length);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: quantity * maxOrdersPerPrice * prices.length,
+      },
+    ]);
   });
 
   it("Check all fees (buying into order book)", async function () {
@@ -357,9 +560,23 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 100;
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
     const cost = price * 10;
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, 10);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: 10,
+      },
+    ]);
 
     // Check fees
     expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
@@ -384,10 +601,24 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 100;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
     const buyingCost = price * quantity;
     const cost = price * 10;
-    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, 10);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: 10,
+      },
+    ]);
 
     // Check fees
     const royalty = cost / 10;
@@ -411,9 +642,23 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 100;
-    await orderBook.limitOrder(OrderSide.Sell, tokenId, price, quantity);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
     const cost = price * 10;
-    await orderBook.connect(alice).limitOrder(OrderSide.Buy, tokenId, price, 10);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: 10,
+      },
+    ]);
 
     // Check fees
     const royalty = cost / 10;
@@ -446,8 +691,22 @@ describe("OrderBook", function () {
     // Set up order book
     const price = 100;
     const quantity = 100;
-    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
-    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, 10);
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: 10,
+      },
+    ]);
 
     expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
     expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);

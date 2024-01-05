@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [defaultConfig, lowRunsConfig, mediumRunsConfig, highRunsConfig],
     overrides: {
-      "contracts/OFTERC20.sol": highRunsConfig,
+      "contracts/OrderBook.sol": mediumRunsConfig,
     },
   },
   gasReporter: {
