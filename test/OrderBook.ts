@@ -306,15 +306,48 @@ describe("OrderBook", function () {
     const royalty = cost / 10;
     const burnt = (cost * 3) / 1000; // 0.3%
     const devAmount = (cost * 3) / 1000; // 0.3%
-    expect(await brush.balanceOf(orderBook)).to.eq(cost - royalty - burnt - devAmount);
+    const fees = royalty + burnt + devAmount;
+    expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
     expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
     expect(await brush.balanceOf(owner)).to.eq(initialBrush + royalty);
     expect(await brush.amountBurnt()).to.eq(burnt);
-    // Check balance of buyer/seller/orderbook contract too
+
+    expect(await orderBook.tokensClaimable(owner, false)).to.eq(cost);
+    expect(await orderBook.tokensClaimable(owner, true)).to.eq(cost - fees);
+    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
+    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
+    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
   });
 
   it("Check all fees (selling into order book)", async function () {
-    // TODO Copy from above
+    const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
+
+    await erc1155.setRoyaltyFee(1000); // 10%
+
+    // Set up order book
+    const price = 100;
+    const quantity = 100;
+    await orderBook.limitOrder(OrderSide.Buy, tokenId, price, quantity);
+    const buyingCost = price * quantity;
+    const cost = price * 10;
+    await orderBook.connect(alice).limitOrder(OrderSide.Sell, tokenId, price, 10);
+
+    // Check fees
+    const royalty = cost / 10;
+    const burnt = (cost * 3) / 1000; // 0.3%
+    const devAmount = (cost * 3) / 1000; // 0.3%
+    const fees = royalty + burnt + devAmount;
+
+    expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
+    expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
+    expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost + royalty);
+    expect(await brush.amountBurnt()).to.eq(burnt);
+
+    expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
+    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
+    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(10);
+    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
   });
 
   it("Claim tokens", async function () {});

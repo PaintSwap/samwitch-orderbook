@@ -22,8 +22,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event AddedToBook(bool isBuy, OrderBookEntry orderBookEntry, uint price);
   event RemovedFromBook(uint id);
   event PartialRemovedFromBook(uint id, uint quantityRemoved);
-  event ClaimedTokens(address owner);
-  event ClaimedNFTs(address owner, uint tokenId);
+  event ClaimedTokens(address maker);
+  event ClaimedNFTs(address maker, uint[] tokenIds);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] _tokenIdInfos);
 
   error NotERC1155();
@@ -34,6 +34,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   error PriceZero();
   error LengthMismatch();
   error QuantityRemainingTooLow();
+  error NotMaker();
 
   enum OrderSide {
     Buy,
@@ -41,9 +42,14 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   }
 
   struct OrderBookEntry {
-    address owner;
+    address maker;
     uint32 quantity;
     uint64 id;
+  }
+
+  struct TokenIdInfo {
+    uint128 tick;
+    uint128 minQuantity;
   }
 
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public asks;
@@ -58,11 +64,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   uint16 public maxOrdersPerPrice;
   bool public supportsERC2981;
   uint64 public nextOrderEntryId;
-
-  struct TokenIdInfo {
-    uint128 tick;
-    uint128 minQuantity;
-  }
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
 
@@ -150,7 +151,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit OrderPlaced(isBuy, msg.sender, _tokenId, _price, _quantity);
   }
 
-  //  function batchLimitOrder
+  // function batchLimitOrder
 
   // TODO, require minimums so that we can limit the amount of orders in the book?
   function buyTakeFromOrderBook(
@@ -159,7 +160,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint32 _quantity
   ) private returns (uint32 quantityRemaining, uint cost) {
     quantityRemaining = _quantity;
-    //    uint quantityBought = 0;
     while (quantityRemaining > 0) {
       uint64 lowestAsk = getLowestAsk(_tokenId);
       if (lowestAsk == 0 || lowestAsk > _price) {
@@ -173,27 +173,22 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       for (uint i = asks[_tokenId].getNode(lowestAsk).tombstoneOffset; i < askValues[_tokenId][lowestAsk].length; ++i) {
         uint32 quantityL3 = askValues[_tokenId][lowestAsk][i].quantity;
         uint quantityNFTClaimable = 0;
+        address maker = askValues[_tokenId][lowestAsk][i].maker;
         if (quantityRemaining >= quantityL3) {
           // Consume this whole order
           quantityRemaining -= quantityL3;
           ++numFullyConsumed;
           quantityNFTClaimable = quantityL3;
-          cost += quantityNFTClaimable * lowestAsk;
         } else {
           // Eat into the order
           askValues[_tokenId][lowestAsk][i].quantity -= quantityRemaining;
           quantityNFTClaimable = quantityRemaining;
-          cost += quantityNFTClaimable * lowestAsk;
           quantityRemaining = 0;
         }
-        emit OrderMatched(
-          askValues[_tokenId][lowestAsk][i].owner,
-          msg.sender,
-          _tokenId,
-          quantityNFTClaimable,
-          lowestAsk
-        );
-        tokenIdsClaimable[askValues[_tokenId][lowestAsk][i].owner][_tokenId] += quantityNFTClaimable;
+        cost += quantityNFTClaimable * lowestAsk;
+
+        brushClaimable[maker] += quantityNFTClaimable * lowestAsk;
+        emit OrderMatched(maker, msg.sender, _tokenId, quantityNFTClaimable, lowestAsk);
       }
       // We consumed all orders at this price, so remove all
       if (
@@ -215,12 +210,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   ) private returns (uint32 quantityRemaining, uint cost) {
     quantityRemaining = _quantity;
 
-    uint royaltyFee;
-    if (supportsERC2981) {
-      address recipient;
-      (recipient, royaltyFee) = IERC2981(address(nft)).royaltyInfo(_tokenId, 10000);
-    }
-
     // Selling
     while (quantityRemaining > 0) {
       uint64 highestBid = getHighestBid(_tokenId);
@@ -238,45 +227,32 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       ) {
         uint32 quantityL3 = bidValues[_tokenId][highestBid][i].quantity;
         uint amountBrushClaimable = 0;
-        if (quantityRemaining >= quantityL3) {
-          // Consume this whole order
+        bool consumeWholeOrder = quantityRemaining >= quantityL3;
+        uint quantityMatched;
+        if (consumeWholeOrder) {
           quantityRemaining -= quantityL3;
+          quantityMatched = quantityL3;
           ++numFullyConsumed;
 
-          uint _amountBrushClaimable = quantityL3 * highestBid;
-          amountBrushClaimable = _amountBrushClaimable;
-          // Subtract the fees
-          amountBrushClaimable -= (_amountBrushClaimable * devFee) / 10000;
-          amountBrushClaimable -= (_amountBrushClaimable * royaltyFee) / 10000;
-          amountBrushClaimable -= (_amountBrushClaimable * burntFee) / 10000;
-          cost += amountBrushClaimable;
-          emit OrderMatched(bidValues[_tokenId][highestBid][i].owner, msg.sender, _tokenId, quantityL3, highestBid);
+          amountBrushClaimable = quantityL3 * highestBid;
         } else {
           // Eat into the order
           bidValues[_tokenId][highestBid][i].quantity -= quantityRemaining;
-          uint _amountBrushClaimable = quantityRemaining * highestBid;
-          amountBrushClaimable = _amountBrushClaimable;
-          // Subtract the fees
-          amountBrushClaimable -= (_amountBrushClaimable * devFee) / 10000;
-          amountBrushClaimable -= (_amountBrushClaimable * royaltyFee) / 10000;
-          amountBrushClaimable -= (_amountBrushClaimable * burntFee) / 10000;
-          cost += amountBrushClaimable;
-          emit OrderMatched(
-            bidValues[_tokenId][highestBid][i].owner,
-            msg.sender,
-            _tokenId,
-            quantityRemaining,
-            highestBid
-          );
+          amountBrushClaimable = quantityRemaining * highestBid;
+          quantityMatched = quantityRemaining;
           quantityRemaining = 0;
         }
-        brushClaimable[bidValues[_tokenId][highestBid][i].owner] += amountBrushClaimable;
+
+        cost += amountBrushClaimable;
+        address maker = bidValues[_tokenId][highestBid][i].maker;
+        tokenIdsClaimable[maker][_tokenId] += quantityMatched;
+        emit OrderMatched(maker, msg.sender, _tokenId, quantityMatched, highestBid);
       }
-      // We consumed all orders at this price, so remove all
+      // We consumed all orders at this price level, so remove all
       if (
         numFullyConsumed == bidValues[_tokenId][highestBid].length - bids[_tokenId].getNode(highestBid).tombstoneOffset
       ) {
-        bids[_tokenId].remove(highestBid);
+        bids[_tokenId].remove(highestBid); // TODO: A ranged delete would be nice
         delete bidValues[_tokenId][highestBid];
       } else {
         // Increase tombstone offset of this price for gas efficiency
@@ -360,7 +336,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint amount = brushClaimable[msg.sender];
     if (amount > 0) {
       brushClaimable[msg.sender] = 0;
-      _safeTransferFromUs(msg.sender, amount);
+      uint fees = _sendFees(1, amount);
+      _safeTransferFromUs(msg.sender, fees - amount);
       emit ClaimedTokens(msg.sender);
     }
   }
@@ -376,7 +353,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         tokenIds[length] = tokenId;
         amounts[length++] = amount;
         tokenIdsClaimable[msg.sender][tokenId] = 0;
-        emit ClaimedNFTs(msg.sender, tokenId);
       }
     }
 
@@ -385,13 +361,14 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       mstore(amounts, length)
     }
 
+    emit ClaimedNFTs(msg.sender, tokenIds);
+
     _safeBatchTransferNFTsFromUs(msg.sender, tokenIds, amounts);
   }
 
   function cancelOrder(OrderSide _side, uint _orderId, uint _tokenId, uint64 _price) external {
     // Loop through all of them until we hit ours.
     if (_side == OrderSide.Buy) {
-      //      require(bids[_tokenId].exists(_price));
       OrderBookEntry[] storage orderBookEntries = bidValues[_tokenId][_price];
       uint begin = bids[_tokenId].getNode(_price).tombstoneOffset;
       uint index = _find(orderBookEntries, begin, orderBookEntries.length, _orderId);
@@ -404,7 +381,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       _cancelOrder(orderBookEntries, _orderId, index);
       _safeTransferFromUs(msg.sender, uint(entry.quantity) * _price);
     } else {
-      //      require(asks[_tokenId].exists(_price));
       OrderBookEntry[] storage orderBookEntries = askValues[_tokenId][_price];
       uint begin = asks[_tokenId].getNode(_price).tombstoneOffset;
       uint index = _find(orderBookEntries, begin, orderBookEntries.length, _orderId);
@@ -447,33 +423,34 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function _sendFees(uint _tokenId, uint _cost) private returns (uint) {
-    uint fees = 0;
-    if (_cost > 0) {
-      if (supportsERC2981) {
-        // Transfer royalty
-        (address recipient, uint amountRoyaltyFee) = IERC2981(address(nft)).royaltyInfo(_tokenId, _cost);
-        if (amountRoyaltyFee > 0) {
-          _safeTransferFromUs(recipient, amountRoyaltyFee);
-          fees += amountRoyaltyFee;
-        }
-      }
-
-      // Transfer any dev fees
-      uint amountDevFee = (_cost * devFee) / 10000;
-      if (amountDevFee > 0) {
-        _safeTransferFromUs(devAddr, amountDevFee);
-        fees += amountDevFee;
-      }
-
-      // Burn any brush fees
-      uint amountBurntFee = (_cost * burntFee) / 10000;
-      if (amountBurntFee > 0) {
-        token.burn(amountBurntFee);
-        fees += amountBurntFee;
-      }
+  function _calcFees(
+    uint _tokenId,
+    uint _cost
+  ) private view returns (address recipient, uint royalty, uint dev, uint burn) {
+    if (supportsERC2981) {
+      (recipient, royalty) = IERC2981(address(nft)).royaltyInfo(_tokenId, _cost);
     }
-    return fees;
+
+    dev = (_cost * devFee) / 10000;
+    burn = (_cost * burntFee) / 10000;
+  }
+
+  function _sendFees(uint _tokenId, uint _cost) private returns (uint fees) {
+    (address royaltyRecipient, uint royalty, uint dev, uint burn) = _calcFees(_tokenId, _cost);
+    if (royalty > 0) {
+      _safeTransferFromUs(royaltyRecipient, royalty);
+      fees += royalty;
+    }
+
+    if (dev > 0) {
+      _safeTransferFromUs(devAddr, dev);
+      fees += dev;
+    }
+
+    if (burn > 0) {
+      token.burn(burn);
+      fees += burn;
+    }
   }
 
   // TODO: See if iteration is less gas intensive
@@ -493,7 +470,9 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   }
 
   function _cancelOrder(OrderBookEntry[] storage orderBookEntries, uint _orderId, uint _index) private {
-    require(orderBookEntries[_index].owner == msg.sender);
+    if (orderBookEntries[_index].maker != msg.sender) {
+      revert NotMaker();
+    }
     // Remove it by shifting everything else to the left
     uint length = orderBookEntries.length;
     for (uint i = _index; i < length - 1; ++i) {
@@ -519,8 +498,12 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
   }
 
-  function tokensClaimable(address _account) external view returns (uint) {
-    return brushClaimable[_account];
+  function tokensClaimable(address _account, bool takeAwayFees) external view returns (uint amount) {
+    amount = brushClaimable[_account];
+    if (takeAwayFees) {
+      (, uint royalty, uint dev, uint burn) = _calcFees(1, amount);
+      amount -= royalty + dev + burn;
+    }
   }
 
   function nftClaimable(address _account, uint _tokenId) external view returns (uint) {
