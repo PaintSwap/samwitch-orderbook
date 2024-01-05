@@ -80,6 +80,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       gasPrice: 0,
       initialBaseFeePerGas: 0,
+      blockGasLimit: 99999999,
       allowUnlimitedContractSize: true,
     },
     fantom: {

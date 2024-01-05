@@ -722,15 +722,11 @@ describe("OrderBook", function () {
     await expect(orderBook.claimNFTs([tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
   });
 
-  // Test dev fee
-  // Test royalty is paid
-  // Test burning fees
   // Test multiple tokenIds
-  // Test claiming nfts/brush (is gas more efficient by just sending the nft/brush directly?)
+  // Test is gas more efficient by just sending the nft/brush directly instead of storing myself)
   // Test editing order (once implemented)
-  // Test bulk insert/cancel/edit
+  // Test bulk edit
   // Remove id and only allow 1 order per address?
-  // Test gas with a large amount of orders
   // Fuzz test of many orders
   // Can take from yourself?
 });
