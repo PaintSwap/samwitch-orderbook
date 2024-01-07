@@ -18,9 +18,9 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event OrdersPlaced(LimitOrder[] orders, address from);
   event OrdersMatched(uint[] orderIds, uint[] quantities, address taker);
   event OrdersCancelled(uint[] orderIds);
-  event AddedToBook(bool isBuy, OrderBookEntry orderBookEntry, uint price);
-  event ClaimedTokens(address maker, uint amount);
-  event ClaimedNFTs(address maker, uint[] tokenIds, uint[] amounts);
+  event AddedToBook(bool isBuy, uint orderId, uint quantity, uint price);
+  event ClaimedTokens(address maker, uint[] orderIds, uint amount);
+  event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
 
   error NotERC1155();
@@ -44,13 +44,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     OrderSide side;
     uint tokenId;
     uint64 price;
-    uint32 quantity;
+    uint24 quantity;
   }
 
-  struct OrderBookEntry {
+  struct OrderBookEntryHelper {
     address maker;
-    uint32 quantity;
-    uint64 id;
+    uint24 quantity;
+    uint40 id;
   }
 
   struct TokenIdInfo {
@@ -71,21 +71,24 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   uint8 public devFee; // Base 10000, max 2.55%
   uint8 public burntFee;
   uint16 public maxOrdersPerPrice;
+  //  address public royaltyRecipient; // TODO: Work out in advance
+  //  uint16 royaltyFee; TODO: Work out in advance
   bool public supportsERC2981;
-  uint64 public nextOrderEntryId;
+  uint40 public nextOrderId;
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
 
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public asks;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public bids;
-  mapping(uint tokenId => mapping(uint price => OrderBookEntry[])) public askValues;
-  mapping(uint tokenId => mapping(uint price => OrderBookEntry[])) public bidValues;
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public askValues; // quantity (uint24), id (uint40) 4x packed of these
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public bidValues; // quantity (uint24), id (uint40) 4x packed of these
+  mapping(uint orderId => address maker) public orderBookIdToMaker;
 
-  // Check has much gas changes if actually just transferring the tokens.
-  mapping(address user => uint amount) private brushClaimable;
-  mapping(address user => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
+  mapping(uint40 orderId => uint amount) private brushClaimable; // TODO Pack these?
+  mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
 
   uint private constant MAX_ORDERS_HIT = 500;
+  uint private constant NUM_ORDERS_PER_SEGMENT = 4;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -106,9 +109,9 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     devFee = 30; // 30 = 0.3% fee,
     devAddr = _devAddr;
     burntFee = 30; // 30 = 0.3% fee,
-    maxOrdersPerPrice = 100;
+    maxOrdersPerPrice = 100; // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
 
-    nextOrderEntryId = 1;
+    nextOrderId = 1;
   }
 
   function limitOrders(LimitOrder[] calldata _limitOrders) external {
@@ -133,7 +136,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       uint tokenId = _limitOrders[i].tokenId;
       uint quantity = _limitOrders[i].quantity;
       uint price = _limitOrders[i].price;
-      (uint32 quantityRemaining, uint cost) = _makeLimitOrder(_limitOrders[i], orderIdsPool, quantitiesPool);
+      (uint24 quantityRemaining, uint cost) = _makeLimitOrder(_limitOrders[i], orderIdsPool, quantitiesPool);
 
       if (side == OrderSide.Buy) {
         brushTransferToUs += cost + uint(price) * quantityRemaining;
@@ -190,13 +193,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit OrdersPlaced(_limitOrders, msg.sender);
   }
 
-  function buyTakeFromOrderBook(
+  function _buyTakeFromOrderBook(
     uint _tokenId,
-    uint80 _price,
-    uint32 _quantity,
+    uint64 _price,
+    uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint32 quantityRemaining, uint cost) {
+  ) private returns (uint24 quantityRemaining, uint cost) {
     quantityRemaining = _quantity;
 
     // reset the size
@@ -214,42 +217,73 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       }
 
       // Loop through all at this order
-      uint numFullyConsumed = 0;
+      uint numSegmentsFullyConsumed = 0;
       for (uint i = asks[_tokenId].getNode(lowestAsk).tombstoneOffset; i < askValues[_tokenId][lowestAsk].length; ++i) {
-        uint32 quantityL3 = askValues[_tokenId][lowestAsk][i].quantity;
-        uint quantityNFTClaimable = 0;
-        address maker = askValues[_tokenId][lowestAsk][i].maker;
-        if (quantityRemaining >= quantityL3) {
-          // Consume this whole order
-          quantityRemaining -= quantityL3;
-          ++numFullyConsumed;
-          quantityNFTClaimable = quantityL3;
-        } else {
-          // Eat into the order
-          askValues[_tokenId][lowestAsk][i].quantity -= quantityRemaining;
-          quantityNFTClaimable = quantityRemaining;
-          quantityRemaining = 0;
+        bytes32 packed = askValues[_tokenId][lowestAsk][i];
+        uint numOrdersWithinSegmentConsumed;
+        uint finalOffset;
+        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+          // get quantity from packed data
+          uint40 orderId = uint40(uint(packed >> (offset * 64)));
+          if (orderId == 0 || quantityRemaining == 0) {
+            // No more orders at this price level in this segment
+            if (orderId == 0) {
+              finalOffset = offset - 1;
+            }
+            break;
+          }
+          uint24 quantityL3 = uint24(uint(packed >> (offset * 64 + 40)));
+          uint quantityNFTClaimable = 0;
+          if (quantityRemaining >= quantityL3) {
+            // Consume this whole order
+            quantityRemaining -= quantityL3;
+            // Is the the last one in the segment being fully consumed?
+            if (offset == NUM_ORDERS_PER_SEGMENT - 1 || uint(packed >> ((offset + 1) * 64)) == 0) {
+              ++numSegmentsFullyConsumed;
+            }
+            ++numOrdersWithinSegmentConsumed;
+            quantityNFTClaimable = quantityL3;
+          } else {
+            // Eat into the order
+            bytes32 newPacked = bytes32(
+              (uint(packed) & ~(uint(0xffffff) << (offset * 64 + 40))) |
+                (uint(quantityL3 - quantityRemaining) << (offset * 64 + 40))
+            );
+            packed = newPacked;
+            quantityNFTClaimable = quantityRemaining;
+            quantityRemaining = 0;
+          }
+          finalOffset = offset;
+          cost += quantityNFTClaimable * lowestAsk;
+
+          brushClaimable[orderId] += quantityNFTClaimable * lowestAsk;
+
+          _orderIdsPool[length] = orderId;
+          _quantitiesPool[length++] = quantityNFTClaimable;
+
+          if (length >= MAX_ORDERS_HIT) {
+            revert TooManyOrdersHit();
+          }
         }
-        cost += quantityNFTClaimable * lowestAsk;
 
-        brushClaimable[maker] += quantityNFTClaimable * lowestAsk;
-
-        _orderIdsPool[length] = askValues[_tokenId][lowestAsk][i].id;
-        _quantitiesPool[length++] = quantityNFTClaimable;
-
-        if (length >= MAX_ORDERS_HIT) {
-          revert TooManyOrdersHit();
+        if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
+          askValues[_tokenId][lowestAsk][i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+        }
+        if (quantityRemaining == 0) {
+          break;
         }
       }
+
       // We consumed all orders at this price, so remove all
       if (
-        numFullyConsumed == askValues[_tokenId][lowestAsk].length - asks[_tokenId].getNode(lowestAsk).tombstoneOffset
+        numSegmentsFullyConsumed ==
+        askValues[_tokenId][lowestAsk].length - asks[_tokenId].getNode(lowestAsk).tombstoneOffset
       ) {
         asks[_tokenId].remove(lowestAsk);
         delete askValues[_tokenId][lowestAsk];
       } else {
         // Increase tombstone offset of this price for gas efficiency
-        asks[_tokenId].edit(lowestAsk, uint32(numFullyConsumed));
+        asks[_tokenId].edit(lowestAsk, uint32(numSegmentsFullyConsumed));
       }
     }
 
@@ -261,13 +295,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit OrdersMatched(_orderIdsPool, _quantitiesPool, msg.sender);
   }
 
-  function sellTakeFromOrderBook(
+  function _sellTakeFromOrderBook(
     uint _tokenId,
     uint _price,
-    uint32 _quantity,
+    uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint32 quantityRemaining, uint cost) {
+  ) private returns (uint24 quantityRemaining, uint cost) {
     quantityRemaining = _quantity;
 
     // reset the size
@@ -284,50 +318,77 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       }
 
       // Loop through all at this order
-      uint numFullyConsumed = 0;
+      uint numSegmentsFullyConsumed = 0;
       for (
         uint i = bids[_tokenId].getNode(highestBid).tombstoneOffset;
         i < bidValues[_tokenId][highestBid].length;
         ++i
       ) {
-        uint32 quantityL3 = bidValues[_tokenId][highestBid][i].quantity;
-        uint amountBrushClaimable = 0;
-        bool consumeWholeOrder = quantityRemaining >= quantityL3;
-        uint quantityMatched;
-        if (consumeWholeOrder) {
-          quantityRemaining -= quantityL3;
-          quantityMatched = quantityL3;
-          ++numFullyConsumed;
+        bytes32 packed = bidValues[_tokenId][highestBid][i];
+        uint numOrdersWithinSegmentConsumed;
+        uint finalOffset;
+        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+          // get quantity from packed data
+          uint40 orderId = uint40(uint(packed >> (offset * 64)));
+          if (orderId == 0 || quantityRemaining == 0) {
+            // No more orders at this price level in this segment
+            if (orderId == 0) {
+              finalOffset = offset - 1;
+            }
+            break;
+          }
+          uint24 quantityL3 = uint24(uint(packed >> (offset * 64 + 40)));
+          uint quantityNFTClaimable = 0;
+          if (quantityRemaining >= quantityL3) {
+            // Consume this whole order
+            quantityRemaining -= quantityL3;
+            // Is the the last one in the segment being fully consumed?
+            if (offset == NUM_ORDERS_PER_SEGMENT - 1 || uint(packed >> ((offset + 1) * 64)) == 0) {
+              ++numSegmentsFullyConsumed;
+            }
+            ++numOrdersWithinSegmentConsumed;
+            quantityNFTClaimable = quantityL3;
+          } else {
+            // Eat into the order
+            bytes32 newPacked = bytes32(
+              (uint(packed) & ~(uint(0xffffff) << (offset * 64 + 40))) |
+                (uint(quantityL3 - quantityRemaining) << (offset * 64 + 40))
+            );
+            packed = newPacked;
+            quantityNFTClaimable = quantityRemaining;
+            quantityRemaining = 0;
+          }
+          finalOffset = offset;
+          cost += quantityNFTClaimable * highestBid;
 
-          amountBrushClaimable = quantityL3 * highestBid;
-        } else {
-          // Eat into the order
-          bidValues[_tokenId][highestBid][i].quantity -= quantityRemaining;
-          amountBrushClaimable = quantityRemaining * highestBid;
-          quantityMatched = quantityRemaining;
-          quantityRemaining = 0;
+          tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
+
+          _orderIdsPool[length] = orderId;
+          _quantitiesPool[length++] = quantityNFTClaimable;
+
+          if (length >= MAX_ORDERS_HIT) {
+            revert TooManyOrdersHit();
+          }
         }
 
-        cost += amountBrushClaimable;
-        address maker = bidValues[_tokenId][highestBid][i].maker;
-        tokenIdsClaimable[maker][_tokenId] += quantityMatched;
-
-        _orderIdsPool[length] = bidValues[_tokenId][highestBid][i].id;
-        _quantitiesPool[length++] = quantityMatched;
-
-        if (length >= MAX_ORDERS_HIT) {
-          revert TooManyOrdersHit();
+        if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
+          bidValues[_tokenId][highestBid][i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+        }
+        if (quantityRemaining == 0) {
+          break;
         }
       }
+
       // We consumed all orders at this price level, so remove all
       if (
-        numFullyConsumed == bidValues[_tokenId][highestBid].length - bids[_tokenId].getNode(highestBid).tombstoneOffset
+        numSegmentsFullyConsumed ==
+        bidValues[_tokenId][highestBid].length - bids[_tokenId].getNode(highestBid).tombstoneOffset
       ) {
         bids[_tokenId].remove(highestBid); // TODO: A ranged delete would be nice
         delete bidValues[_tokenId][highestBid];
       } else {
         // Increase tombstone offset of this price for gas efficiency
-        bids[_tokenId].edit(highestBid, uint32(numFullyConsumed));
+        bids[_tokenId].edit(highestBid, uint32(numSegmentsFullyConsumed));
       }
     }
 
@@ -339,33 +400,52 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit OrdersMatched(_orderIdsPool, _quantitiesPool, msg.sender);
   }
 
-  function takeFromOrderBook(
+  function _takeFromOrderBook(
     bool _isBuy,
     uint _tokenId,
     uint64 _price,
-    uint32 _quantity,
+    uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint32 quantityRemaining, uint cost) {
+  ) private returns (uint24 quantityRemaining, uint cost) {
     // Take as much as possible from the order book
     if (_isBuy) {
-      (quantityRemaining, cost) = buyTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
+      (quantityRemaining, cost) = _buyTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
     } else {
-      (quantityRemaining, cost) = sellTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
+      (quantityRemaining, cost) = _sellTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
     }
   }
 
-  function claimAll(uint[] calldata _tokenIds) external {
-    claimTokens();
-    claimNFTs(_tokenIds);
+  function claimAll(
+    uint[] calldata _brushOrderIds,
+    uint[] calldata _tokenOrderIds,
+    uint[] calldata _tokenIds
+  ) external {
+    claimTokens(_brushOrderIds);
+    claimNFTs(_tokenOrderIds, _tokenIds);
   }
 
-  function claimTokens() public {
-    uint amount = brushClaimable[msg.sender];
+  function claimTokens(uint[] calldata _orderIds) public {
+    uint amount;
+    for (uint i = 0; i < _orderIds.length; ++i) {
+      uint40 orderId = uint40(_orderIds[i]);
+      uint orderAmount = brushClaimable[orderId];
+      if (orderAmount == 0) {
+        revert NothingToClaim();
+      }
+
+      address maker = orderBookIdToMaker[orderId];
+      if (maker != msg.sender) {
+        revert NotMaker();
+      }
+      amount += orderAmount;
+      brushClaimable[orderId] = 0;
+    }
+
     if (amount == 0) {
       revert NothingToClaim();
     }
-    brushClaimable[msg.sender] = 0;
+
     (uint royalty, uint dev, uint burn) = _calcFees(1, amount);
     uint fees = royalty + dev + burn;
     uint amountExclFees;
@@ -373,22 +453,27 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       amountExclFees = amount - fees;
       _safeTransferFromUs(msg.sender, amountExclFees);
     }
-    emit ClaimedTokens(msg.sender, amountExclFees);
+    emit ClaimedTokens(msg.sender, _orderIds, amountExclFees);
   }
 
-  function claimNFTs(uint[] calldata _tokenIds) public {
+  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public {
+    if (_orderIds.length != _tokenIds.length) {
+      revert LengthMismatch();
+    }
+
     uint[] memory amounts = new uint[](_tokenIds.length);
     for (uint i = 0; i < _tokenIds.length; ++i) {
+      uint40 orderId = uint40(_orderIds[i]);
       uint tokenId = _tokenIds[i];
-      uint amount = tokenIdsClaimable[msg.sender][tokenId];
+      uint amount = tokenIdsClaimable[orderId][tokenId];
       if (amount == 0) {
         revert NothingToClaim();
       }
       amounts[i] = amount;
-      tokenIdsClaimable[msg.sender][tokenId] = 0;
+      tokenIdsClaimable[orderId][tokenId] = 0;
     }
 
-    emit ClaimedNFTs(msg.sender, _tokenIds, amounts);
+    emit ClaimedNFTs(msg.sender, _orderIds, _tokenIds, amounts);
 
     _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
   }
@@ -399,43 +484,18 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
-      uint orderId = _orderIds[i];
       OrderSide side = _cancelOrderInfos[i].side;
       uint tokenId = _cancelOrderInfos[i].tokenId;
       uint64 price = _cancelOrderInfos[i].price;
 
-      // Loop through all of them until we hit ours.
       if (side == OrderSide.Buy) {
-        if (!bids[tokenId].exists(price)) {
-          revert OrderNotFound();
-        }
-
-        OrderBookEntry[] storage orderBookEntries = bidValues[tokenId][price];
-        uint tombstoneOffset = bids[tokenId].getNode(price).tombstoneOffset;
-        uint index = _find(orderBookEntries, tombstoneOffset, orderBookEntries.length, orderId);
-        if (index == type(uint).max) {
-          revert OrderNotFound();
-        }
-
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
         // Send the remaining token back to them
-        OrderBookEntry memory entry = orderBookEntries[index];
-        _cancelOrder(orderBookEntries, price, index, tombstoneOffset, bids[tokenId]);
-        _safeTransferFromUs(msg.sender, uint(entry.quantity) * price);
+        _safeTransferFromUs(msg.sender, quantity * price);
       } else {
-        if (!asks[tokenId].exists(price)) {
-          revert OrderNotFound();
-        }
-
-        OrderBookEntry[] storage orderBookEntries = askValues[tokenId][price];
-        uint tombstoneOffset = asks[tokenId].getNode(price).tombstoneOffset;
-        uint index = _find(orderBookEntries, tombstoneOffset, orderBookEntries.length, orderId);
-        if (index == type(uint).max) {
-          revert OrderNotFound();
-        }
-        OrderBookEntry memory entry = orderBookEntries[index];
-        _cancelOrder(orderBookEntries, price, index, tombstoneOffset, asks[tokenId]);
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
         // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(msg.sender, tokenId, entry.quantity);
+        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
       }
     }
 
@@ -448,33 +508,74 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     OrderSide _side,
     uint _tokenId,
     uint64 _price
-  ) external view returns (OrderBookEntry[] memory orderBookEntries) {
+  ) external view returns (OrderBookEntryHelper[] memory orderBookEntries) {
     if (_side == OrderSide.Buy) {
-      if (!bids[_tokenId].exists(_price)) {
-        return orderBookEntries;
-      }
-      uint tombstoneOffset = bids[_tokenId].getNode(_price).tombstoneOffset;
-      orderBookEntries = new OrderBookEntry[](bidValues[_tokenId][_price].length - tombstoneOffset);
-      for (uint i; i < orderBookEntries.length; ++i) {
-        orderBookEntries[i] = bidValues[_tokenId][_price][i + tombstoneOffset];
-      }
+      return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
     } else {
-      if (!asks[_tokenId].exists(_price)) {
-        return orderBookEntries;
-      }
-      uint tombstoneOffset = asks[_tokenId].getNode(_price).tombstoneOffset;
-      orderBookEntries = new OrderBookEntry[](askValues[_tokenId][_price].length - tombstoneOffset);
-      for (uint i; i < orderBookEntries.length; ++i) {
-        orderBookEntries[i] = askValues[_tokenId][_price][i + tombstoneOffset];
+      return _allOrdersAtPriceSide(askValues[_tokenId][_price], asks[_tokenId], _price);
+    }
+  }
+
+  function _allOrdersAtPriceSide(
+    bytes32[] storage packedOrderBookEntries,
+    BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
+    uint64 _price
+  ) private view returns (OrderBookEntryHelper[] memory orderBookEntries) {
+    if (!_tree.exists(_price)) {
+      return orderBookEntries;
+    }
+    uint tombstoneOffset = _tree.getNode(_price).tombstoneOffset;
+    orderBookEntries = new OrderBookEntryHelper[](
+      (packedOrderBookEntries.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT
+    );
+    uint length;
+    for (uint i; i < orderBookEntries.length; ++i) {
+      uint packed = uint(packedOrderBookEntries[i / NUM_ORDERS_PER_SEGMENT]);
+      uint offset = i % NUM_ORDERS_PER_SEGMENT;
+      uint40 id = uint40(packed >> (offset * 64));
+      if (id != 0) {
+        uint24 quantity = uint24(packed >> (offset * 64 + 40));
+        orderBookEntries[length++] = OrderBookEntryHelper({maker: orderBookIdToMaker[id], quantity: quantity, id: id});
       }
     }
+
+    assembly ("memory-safe") {
+      mstore(orderBookEntries, length)
+    }
+  }
+
+  function _cancelOrdersSide(
+    uint _orderId,
+    uint64 _price,
+    bytes32[] storage _packedOrderBookEntries,
+    BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
+  ) private returns (uint24 quantity) {
+    // Loop through all of them until we hit ours.
+    if (!_tree.exists(_price)) {
+      revert OrderNotFound();
+    }
+
+    uint tombstoneOffset = _tree.getNode(_price).tombstoneOffset;
+
+    (uint index, uint offset) = _find(
+      _packedOrderBookEntries,
+      tombstoneOffset,
+      _packedOrderBookEntries.length,
+      _orderId
+    );
+    if (index == type(uint).max) {
+      revert OrderNotFound();
+    }
+
+    quantity = uint24(uint(_packedOrderBookEntries[index]) >> (offset * 64 + 40));
+    _cancelOrder(_packedOrderBookEntries, _price, index, offset, tombstoneOffset, _tree);
   }
 
   function _makeLimitOrder(
     LimitOrder calldata _limitOrder,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint32 quantityRemaining, uint cost) {
+  ) private returns (uint24 quantityRemaining, uint cost) {
     if (_limitOrder.quantity == 0) {
       revert NoQuantity();
     }
@@ -494,7 +595,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     bool isBuy = _limitOrder.side == OrderSide.Buy;
-    (quantityRemaining, cost) = takeFromOrderBook(
+    (quantityRemaining, cost) = _takeFromOrderBook(
       isBuy,
       _limitOrder.tokenId,
       _limitOrder.price,
@@ -513,56 +614,88 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function _addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint32 _quantity) private {
-    OrderBookEntry memory orderBookEntry = OrderBookEntry(msg.sender, _quantity, nextOrderEntryId++);
-    uint64 price = _price;
-    if (_isBuy) {
-      // Add to the bids section
-      if (!bids[_tokenId].exists(price)) {
-        bids[_tokenId].insert(price);
-      } else {
-        uint tombstoneOffset = bids[_tokenId].getNode(price).tombstoneOffset;
-        // Check if this would go over the max number of orders allowed at this price level
-        if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-          // Loop until we find a suitable place to put this
-          uint tick = tokenIdInfos[_tokenId].tick;
-          while (true) {
-            price = uint64(price - tick);
-            if (!bids[_tokenId].exists(price)) {
-              bids[_tokenId].insert(price);
-              break;
-            } else if ((bidValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-              break;
-            }
-          }
-        }
-      }
-
-      bidValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
+  function _addToBookSide(
+    mapping(uint price => bytes32[]) storage _packedOrdersPriceMap,
+    BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
+    uint _tokenId,
+    uint64 _price,
+    uint _orderId,
+    uint _quantity,
+    OrderSide _side
+  ) private returns (uint64 price) {
+    // Add to the bids section
+    price = _price;
+    if (!_tree.exists(price)) {
+      _tree.insert(price);
     } else {
-      // Add to the asks section
-      if (!asks[_tokenId].exists(price)) {
-        asks[_tokenId].insert(price);
-      } else {
-        uint tombstoneOffset = asks[_tokenId].getNode(price).tombstoneOffset;
-        // Check if this would go over the max number of orders allowed at this price level
-        if ((askValues[_tokenId][price].length - tombstoneOffset) >= maxOrdersPerPrice) {
-          uint tick = tokenIdInfos[_tokenId].tick;
-          // Loop until we find a suitable place to put this
-          while (true) {
-            price = uint64(price + tick);
-            if (!asks[_tokenId].exists(price)) {
-              asks[_tokenId].insert(price);
-              break;
-            } else if ((askValues[_tokenId][price].length - tombstoneOffset) < maxOrdersPerPrice) {
-              break;
-            }
+      uint tombstoneOffset = _tree.getNode(price).tombstoneOffset;
+      // Check if this would go over the max number of orders allowed at this price level
+
+      bool lastSegmentFilled = uint(
+        _packedOrdersPriceMap[price][_packedOrdersPriceMap[price].length - 1] >> ((NUM_ORDERS_PER_SEGMENT - 1) * 64)
+      ) != 0;
+
+      // Check if last segment is full
+      if (
+        (_packedOrdersPriceMap[price].length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT >= maxOrdersPerPrice &&
+        lastSegmentFilled
+      ) {
+        // Loop until we find a suitable place to put this
+        uint tick = tokenIdInfos[_tokenId].tick;
+        while (true) {
+          price = uint64(_side == OrderSide.Buy ? price - tick : price + tick);
+          if (!_tree.exists(price)) {
+            _tree.insert(price);
+            break;
+          } else if (
+            (_packedOrdersPriceMap[price].length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT >= maxOrdersPerPrice &&
+            uint(
+              _packedOrdersPriceMap[price][_packedOrdersPriceMap[price].length - 1] >>
+                ((NUM_ORDERS_PER_SEGMENT - 1) * 64)
+            ) !=
+            0
+          ) {
+            break;
           }
         }
       }
-      askValues[_tokenId][price].push(orderBookEntry); // push to existing price entry
     }
-    emit AddedToBook(_isBuy, orderBookEntry, price);
+
+    // Read last one
+    bytes32[] storage packedOrders = _packedOrdersPriceMap[price];
+    bool pushToEnd = true;
+    if (packedOrders.length != 0) {
+      bytes32 lastPacked = packedOrders[packedOrders.length - 1];
+      // Are there are free entries in this segment
+      for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
+        uint orderId = uint40(uint(lastPacked >> (i * 64)));
+        if (orderId == 0) {
+          // Found one, so add to an existing segment
+          bytes32 newPacked = lastPacked | (bytes32(_orderId) << (i * 64)) | (bytes32(_quantity) << (i * 64 + 40));
+          packedOrders[packedOrders.length - 1] = newPacked;
+          pushToEnd = false;
+          break;
+        }
+      }
+    }
+
+    if (pushToEnd) {
+      bytes32 packedOrder = bytes32(_orderId) | (bytes32(_quantity) << 40);
+      packedOrders.push(packedOrder);
+    }
+  }
+
+  function _addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint24 _quantity) private {
+    uint40 orderId = nextOrderId++;
+    orderBookIdToMaker[orderId] = msg.sender;
+    uint64 price;
+    // Price can update if the price level is at capacity
+    if (_isBuy) {
+      price = _addToBookSide(bidValues[_tokenId], bids[_tokenId], _tokenId, _price, orderId, _quantity, OrderSide.Buy);
+    } else {
+      price = _addToBookSide(askValues[_tokenId], asks[_tokenId], _tokenId, _price, orderId, _quantity, OrderSide.Sell);
+    }
+    emit AddedToBook(_isBuy, orderId, _quantity, price);
   }
 
   function _calcFees(uint _tokenId, uint _cost) private view returns (uint royalty, uint dev, uint burn) {
@@ -590,43 +723,77 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  // TODO: See if iteration is less gas intensive
-  function _find(OrderBookEntry[] storage data, uint begin, uint end, uint value) internal returns (uint) {
-    uint len = end - begin;
-    if (len == 0 || (len == 1 && data[begin].id != value)) {
-      return type(uint).max;
-    }
-    uint mid = begin + len / 2;
-    uint v = data[mid].id;
-    if (value < v) {
-      return _find(data, begin, mid, value);
-    } else if (value > v) {
-      return _find(data, mid + 1, end, value);
+  function _find(
+    bytes32[] storage packedData,
+    uint begin,
+    uint end,
+    uint value
+  ) internal view returns (uint mid, uint offset) {
+    while (begin < end) {
+      mid = begin + (end - begin) / 2;
+      uint packed = uint(packedData[mid]);
+      offset = 0;
+
+      for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; i++) {
+        uint40 id = uint40(packed >> (offset * 8));
+        if (id == value) {
+          return (mid, i); // Return the index where the ID is found
+        } else if (id < value) {
+          offset += 8; // Move to the next segment
+        } else {
+          break; // Break if the searched value is smaller, as it's a binary search
+        }
+      }
+
+      if (offset == NUM_ORDERS_PER_SEGMENT * 8) {
+        begin = mid + 1;
+      } else {
+        end = mid;
+      }
     }
 
-    return mid;
+    return (type(uint).max, type(uint).max); // ID not found in any segment of the packed data
   }
 
   function _cancelOrder(
-    OrderBookEntry[] storage orderBookEntries,
+    bytes32[] storage orderBookEntries,
     uint64 _price,
     uint _index,
+    uint _offset,
     uint _tombstoneOffset,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
   ) private {
-    if (orderBookEntries[_index].maker != msg.sender) {
+    bytes32 packed = orderBookEntries[_index];
+    uint40 orderId = uint40(uint(packed) >> (_offset * 64));
+
+    address maker = orderBookIdToMaker[orderId];
+    if (maker == address(0) || maker != msg.sender) {
       revert NotMaker();
     }
-    // Remove it by shifting everything else to the left
-    uint length = orderBookEntries.length;
-    for (uint i = _index; i < length - 1; ++i) {
-      orderBookEntries[i] = orderBookEntries[i + 1];
-    }
-    orderBookEntries.pop();
 
-    if (orderBookEntries.length - _tombstoneOffset == 0) {
-      // Last one at this price level so trash it
-      _tree.remove(_price);
+    if (_offset == 0 && packed >> 64 == bytes32(0)) {
+      // Remove the entire segment by shifting all other segments to the left. Not very efficient, but this at least only affects the user cancelling
+      uint length = orderBookEntries.length;
+      for (uint i = _index; i < length - 1; ++i) {
+        orderBookEntries[i] = orderBookEntries[i + 1];
+      }
+      orderBookEntries.pop();
+      if (orderBookEntries.length - _tombstoneOffset == 0) {
+        // Last one at this price level so trash it
+        _tree.remove(_price);
+      }
+    } else {
+      // Just shift orders in the segment
+      for (uint i = _offset; i < NUM_ORDERS_PER_SEGMENT - 1; ++i) {
+        // Shift the next one into this one
+        uint nextSection = uint64(uint(packed) >> ((i + 1) * 64));
+        packed = packed & ~(bytes32(uint(0xffffffffffffffff) << (i * 64)));
+        packed = packed | (bytes32(nextSection) << (i * 64));
+      }
+
+      // Last one set to 0
+      packed = packed & ~(bytes32(uint(0xffffffffffffffff) << ((NUM_ORDERS_PER_SEGMENT - 1) * 64)));
+      orderBookEntries[_index] = packed;
     }
   }
 
@@ -642,16 +809,20 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
   }
 
-  function tokensClaimable(address _account, bool takeAwayFees) external view returns (uint amount) {
-    amount = brushClaimable[_account];
+  function tokensClaimable(uint40[] calldata _orderIds, bool takeAwayFees) external view returns (uint amount) {
+    for (uint i = 0; i < _orderIds.length; ++i) {
+      amount += brushClaimable[_orderIds[i]];
+    }
     if (takeAwayFees) {
       (uint royalty, uint dev, uint burn) = _calcFees(1, amount);
       amount -= royalty + dev + burn;
     }
   }
 
-  function nftClaimable(address _account, uint _tokenId) external view returns (uint) {
-    return tokenIdsClaimable[_account][_tokenId];
+  function nftClaimable(uint40[] calldata _orderIds, uint _tokenId) external view returns (uint amount) {
+    for (uint i = 0; i < _orderIds.length; ++i) {
+      amount += tokenIdsClaimable[_orderIds[i]][_tokenId];
+    }
   }
 
   function getHighestBid(uint _tokenId) public view returns (uint64) {
