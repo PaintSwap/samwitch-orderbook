@@ -144,24 +144,25 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint brushTransferToUs;
     uint brushTransferFromUs;
     uint lengthToUs;
-    uint[] memory idsToUs = new uint[](_orders.length);
-    uint[] memory amountsToUs = new uint[](_orders.length);
+    uint ordersLength = _orders.length;
+    uint[] memory idsToUs = new uint[](ordersLength);
+    uint[] memory amountsToUs = new uint[](ordersLength);
     uint lengthFromUs;
-    uint[] memory idsFromUs = new uint[](_orders.length);
-    uint[] memory amountsFromUs = new uint[](_orders.length);
+    uint[] memory idsFromUs = new uint[](ordersLength);
+    uint[] memory amountsFromUs = new uint[](ordersLength);
 
     // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
     uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
 
-    uint ordersLength = _orders.length;
     for (uint i = 0; i < ordersLength; ++i) {
-      OrderSide side = _orders[i].side;
-      uint tokenId = _orders[i].tokenId;
-      uint quantity = _orders[i].quantity;
-      uint price = _orders[i].price;
+      LimitOrder calldata limitOrder = _orders[i];
+      OrderSide side = limitOrder.side;
+      uint tokenId = limitOrder.tokenId;
+      uint quantity = limitOrder.quantity;
+      uint price = limitOrder.price;
       (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
-        _orders[i],
+        limitOrder,
         orderIdsPool,
         quantitiesPool
       );
@@ -236,9 +237,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
-      OrderSide side = _cancelOrderInfos[i].side;
-      uint tokenId = _cancelOrderInfos[i].tokenId;
-      uint72 price = _cancelOrderInfos[i].price;
+      CancelOrderInfo calldata cancelOrderInfo = _cancelOrderInfos[i];
+      (OrderSide side, uint tokenId, uint72 price) = (
+        cancelOrderInfo.side,
+        cancelOrderInfo.tokenId,
+        cancelOrderInfo.price
+      );
 
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
@@ -301,12 +305,13 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     for (uint i = 0; i < _tokenIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
       uint tokenId = _tokenIds[i];
-      uint amount = tokenIdsClaimable[orderId][tokenId];
+      mapping(uint => uint) storage tokenIdsClaimableForOrder = tokenIdsClaimable[orderId];
+      uint amount = tokenIdsClaimableForOrder[tokenId];
       if (amount == 0) {
         revert NothingToClaim();
       }
       amounts[i] = amount;
-      tokenIdsClaimable[orderId][tokenId] = 0;
+      tokenIdsClaimableForOrder[tokenId] = 0;
     }
 
     emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, amounts);
@@ -462,6 +467,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       uint numSegmentsFullyConsumed = 0;
       bytes32[] storage highestBidValues = bidValues[_tokenId][highestBid];
       BokkyPooBahsRedBlackTreeLibrary.Tree storage bidTree = bids[_tokenId];
+
       for (uint i = bidTree.getNode(highestBid).tombstoneOffset; i < highestBidValues.length; ++i) {
         bytes32 packed = highestBidValues[i];
         uint numOrdersWithinSegmentConsumed;
@@ -815,7 +821,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       // Remove the entire segment by shifting all other segments to the left. Not very efficient, but this at least only affects the user cancelling
       uint limit = orderBookEntries.length.sub(1);
       for (uint i = _index; i < limit; ++i) {
-        orderBookEntries[i] = orderBookEntries[i + 1];
+        orderBookEntries[i] = orderBookEntries[i.inc()];
       }
       orderBookEntries.pop();
       if (orderBookEntries.length - _tombstoneOffset == 0) {
