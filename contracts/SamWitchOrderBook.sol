@@ -154,7 +154,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
     uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
 
-    for (uint i = 0; i < _orders.length; ++i) {
+    uint ordersLength = _orders.length;
+    for (uint i = 0; i < ordersLength; ++i) {
       OrderSide side = _orders[i].side;
       uint tokenId = _orders[i].tokenId;
       uint quantity = _orders[i].quantity;
@@ -816,8 +817,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
     if (_offset == 0 && packed >> 64 == bytes32(0)) {
       // Remove the entire segment by shifting all other segments to the left. Not very efficient, but this at least only affects the user cancelling
-      uint length = orderBookEntries.length;
-      for (uint i = _index; i < length - 1; ++i) {
+      uint limit = orderBookEntries.length.sub(1);
+      for (uint i = _index; i < limit; ++i) {
         orderBookEntries[i] = orderBookEntries[i + 1];
       }
       orderBookEntries.pop();
@@ -864,7 +865,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @param _orderIds The order IDs to get the claimable tokens for
   /// @param takeAwayFees Whether to take away the fees from the claimable amount
   function tokensClaimable(uint40[] calldata _orderIds, bool takeAwayFees) external view returns (uint amount) {
-    for (uint i = 0; i < _orderIds.length; ++i) {
+    uint limit = _orderIds.length;
+    for (uint i = 0; i < limit; ++i) {
       amount += brushClaimable[_orderIds[i]];
     }
     if (takeAwayFees) {
@@ -877,7 +879,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @param _orderIds The order IDs to get the claimable NFTs for
   /// @param _tokenIds The token IDs to get the claimable NFTs for
   function nftClaimable(uint40[] calldata _orderIds, uint[] calldata _tokenIds) external view returns (uint amount) {
-    for (uint i = 0; i < _orderIds.length; ++i) {
+    uint limit = _orderIds.length;
+    for (uint i = 0; i < limit; ++i) {
       amount += tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
     }
   }
@@ -962,11 +965,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
   /// @param _tokenIdInfos Array of TokenIdInfo to be set
   function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
-    if (_tokenIds.length != _tokenIdInfos.length) {
+    uint limit = _tokenIds.length;
+    if (limit != _tokenIdInfos.length) {
       revert LengthMismatch();
     }
 
-    for (uint i = 0; i < _tokenIds.length; ++i) {
+    for (uint i = 0; i < limit; ++i) {
       tokenIdInfos[_tokenIds[i]] = _tokenIdInfos[i];
     }
 
