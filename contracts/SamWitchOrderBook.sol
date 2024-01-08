@@ -39,6 +39,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   error NotMaker();
   error NothingToClaim();
   error TooManyOrdersHit();
+  error TransferToUsFailed();
+  error TransferFromUsFailed();
 
   enum OrderSide {
     Buy,
@@ -200,7 +202,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     if (brushTransferToUs > 0) {
-      token.transferFrom(msg.sender, address(this), brushTransferToUs);
+      _safeTransferToUs(msg.sender, brushTransferToUs);
     }
 
     if (brushTransferFromUs > 0) {
@@ -832,8 +834,16 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
   }
 
+  function _safeTransferToUs(address _from, uint _amount) private {
+    if (!token.transferFrom(_from, address(this), _amount)) {
+      revert TransferToUsFailed();
+    }
+  }
+
   function _safeTransferFromUs(address _to, uint _amount) private {
-    token.transfer(_to, _amount);
+    if (!token.transfer(_to, _amount)) {
+      revert TransferFromUsFailed();
+    }
   }
 
   function _safeTransferNFTsFromUs(address _to, uint _tokenId, uint _amount) private {
