@@ -769,9 +769,6 @@ describe("OrderBook", function () {
   it("Claim NFTs", async function () {
     const {orderBook, erc1155, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-    await erc1155.setRoyaltyFee(1000); // 10%
-    await orderBook.updateRoyaltyFee();
-
     // Set up order book
     const price = 100;
     const quantity = 100;
@@ -805,6 +802,33 @@ describe("OrderBook", function () {
 
     // Try to claim twice
     await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+  });
+
+  it("Max brush price", async function () {
+    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+    const quantity = 100;
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: ethers.parseEther("4800"),
+          quantity,
+        },
+      ])
+    ).to.throw;
+
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: ethers.parseEther("4700"),
+          quantity,
+        },
+      ])
+    ).to.throw;
   });
 
   // it("TODO Edit order", async function () {});

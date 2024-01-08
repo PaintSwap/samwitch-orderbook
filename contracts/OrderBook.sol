@@ -48,7 +48,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   struct LimitOrder {
     OrderSide side;
     uint tokenId;
-    uint64 price;
+    uint72 price;
     uint24 quantity;
   }
 
@@ -66,7 +66,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   struct CancelOrderInfo {
     OrderSide side;
     uint tokenId;
-    uint64 price;
+    uint72 price;
   }
 
   IERC1155 public nft;
@@ -227,7 +227,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
       OrderSide side = _cancelOrderInfos[i].side;
       uint tokenId = _cancelOrderInfos[i].tokenId;
-      uint64 price = _cancelOrderInfos[i].price;
+      uint72 price = _cancelOrderInfos[i].price;
 
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
@@ -327,7 +327,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   function _buyTakeFromOrderBook(
     uint _tokenId,
-    uint64 _price,
+    uint72 _price,
     uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
@@ -342,7 +342,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
     uint length;
     while (quantityRemaining > 0) {
-      uint64 lowestAsk = getLowestAsk(_tokenId);
+      uint72 lowestAsk = getLowestAsk(_tokenId);
       if (lowestAsk == 0 || lowestAsk > _price) {
         // No more orders left
         break;
@@ -442,7 +442,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
     uint length;
     while (quantityRemaining > 0) {
-      uint64 highestBid = getHighestBid(_tokenId);
+      uint72 highestBid = getHighestBid(_tokenId);
       if (highestBid == 0 || highestBid < _price) {
         // No more orders left
         break;
@@ -533,7 +533,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function _takeFromOrderBook(
     OrderSide _side,
     uint _tokenId,
-    uint64 _price,
+    uint72 _price,
     uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
@@ -549,7 +549,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function _allOrdersAtPriceSide(
     bytes32[] storage packedOrderBookEntries,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
-    uint64 _price
+    uint72 _price
   ) private view returns (OrderBookEntryHelper[] memory orderBookEntries) {
     if (!_tree.exists(_price)) {
       return orderBookEntries;
@@ -576,7 +576,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   function _cancelOrdersSide(
     uint _orderId,
-    uint64 _price,
+    uint72 _price,
     bytes32[] storage _packedOrderBookEntries,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
   ) private returns (uint24 quantity) {
@@ -646,12 +646,11 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function _addToBookSide(
     mapping(uint price => bytes32[]) storage _packedOrdersPriceMap,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
-    uint _tokenId,
-    uint64 _price,
+    uint72 _price,
     uint _orderId,
     uint _quantity,
     int128 _tickIncrement // -1 for buy, +1 for sell
-  ) private returns (uint64 price) {
+  ) private returns (uint72 price) {
     // Add to the bids section
     price = _price;
     if (!_tree.exists(price)) {
@@ -670,7 +669,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       ) {
         // Loop until we find a suitable place to put this
         while (true) {
-          price = uint64(uint128(int64(price) + _tickIncrement));
+          price = uint72(uint128(int72(price) + _tickIncrement));
           if (!_tree.exists(price)) {
             _tree.insert(price);
             break;
@@ -712,16 +711,15 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function _addToBook(OrderSide _side, uint _tokenId, uint64 _price, uint24 _quantity) private {
+  function _addToBook(OrderSide _side, uint _tokenId, uint72 _price, uint24 _quantity) private {
     uint40 orderId = nextOrderId++;
     orderBookIdToMaker[orderId] = msg.sender;
-    uint64 price;
+    uint72 price;
     // Price can update if the price level is at capacity
     if (_side == OrderSide.Buy) {
       price = _addToBookSide(
         bidValues[_tokenId],
         bids[_tokenId],
-        _tokenId,
         _price,
         orderId,
         _quantity,
@@ -731,7 +729,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       price = _addToBookSide(
         askValues[_tokenId],
         asks[_tokenId],
-        _tokenId,
         _price,
         orderId,
         _quantity,
@@ -795,7 +792,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   function _cancelOrder(
     bytes32[] storage orderBookEntries,
-    uint64 _price,
+    uint72 _price,
     uint _index,
     uint _offset,
     uint _tombstoneOffset,
@@ -824,7 +821,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       // Just shift orders in the segment
       for (uint i = _offset; i < NUM_ORDERS_PER_SEGMENT - 1; ++i) {
         // Shift the next one into this one
-        uint nextSection = uint64(uint(packed) >> ((i + 1) * 64));
+        uint nextSection = uint72(uint(packed) >> ((i + 1) * 64));
         packed = packed & ~(bytes32(uint(0xffffffffffffffff) << (i * 64)));
         packed = packed | (bytes32(nextSection) << (i * 64));
       }
@@ -871,13 +868,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
   /// @notice Get the highest bid for a specific token ID
   /// @param _tokenId The token ID to get the highest bid for
-  function getHighestBid(uint _tokenId) public view returns (uint64) {
+  function getHighestBid(uint _tokenId) public view returns (uint72) {
     return bids[_tokenId].last();
   }
 
   /// @notice Get the lowest ask for a specific token ID
   /// @param _tokenId The token ID to get the lowest ask for
-  function getLowestAsk(uint _tokenId) public view returns (uint64) {
+  function getLowestAsk(uint _tokenId) public view returns (uint72) {
     return asks[_tokenId].first();
   }
 
@@ -888,7 +885,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function getNode(
     OrderSide _side,
     uint _tokenId,
-    uint64 _price
+    uint72 _price
   ) external view returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
     if (_side == OrderSide.Buy) {
       return bids[_tokenId].getNode(_price);
@@ -916,7 +913,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   function allOrdersAtPrice(
     OrderSide _side,
     uint _tokenId,
-    uint64 _price
+    uint72 _price
   ) external view returns (OrderBookEntryHelper[] memory orderBookEntries) {
     if (_side == OrderSide.Buy) {
       return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
