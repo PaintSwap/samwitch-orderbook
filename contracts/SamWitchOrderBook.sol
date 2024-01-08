@@ -114,8 +114,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     IERC1155 _nft,
     address _token,
     address _devAddr,
-    uint _devFee,
-    uint _burntFee,
+    uint8 _devFee,
+    uint8 _burntFee,
     uint16 _maxOrdersPerPrice
   ) external initializer {
     __UUPSUpgradeable_init();
@@ -128,9 +128,9 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     token = IBrushToken(_token);
     updateRoyaltyFee();
 
-    devFee = uint8(_devFee); // 30 = 0.3% fee,
+    devFee = _devFee; // 30 = 0.3% fee,
     devAddr = _devAddr;
-    burntFee = uint8(_burntFee); // 30 = 0.3% fee,
+    burntFee = _burntFee; // 30 = 0.3% fee,
     setMaxOrdersPerPrice(_maxOrdersPerPrice); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
     nextOrderId = 1;
   }
