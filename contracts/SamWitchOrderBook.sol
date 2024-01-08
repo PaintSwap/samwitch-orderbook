@@ -150,7 +150,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint[] memory idsFromUs = new uint[](_orders.length);
     uint[] memory amountsFromUs = new uint[](_orders.length);
 
-    // This is done here so that th it can be used in many limit orders without wasting too much space
+    // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
     uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
 
