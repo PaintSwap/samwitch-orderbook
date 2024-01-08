@@ -32,6 +32,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
   event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
 
+  error ZeroAddress();
   error NotERC1155();
   error NoQuantity();
   error OrderNotFound();
@@ -121,9 +122,16 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     __UUPSUpgradeable_init();
     __Ownable_init(_msgSender());
 
+    // make sure dev address is set
+    if (_devAddr == address(0)) {
+      revert ZeroAddress();
+    }
+
+    // nft must be an ERC1155 via ERC165
     if (!_nft.supportsInterface(type(IERC1155).interfaceId)) {
       revert NotERC1155();
     }
+
     nft = _nft;
     token = IBrushToken(_token);
     updateRoyaltyFee();
