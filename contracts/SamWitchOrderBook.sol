@@ -909,10 +909,14 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @notice Get the amount of NFTs claimable for these orders
   /// @param _orderIds The order IDs to get the claimable NFTs for
   /// @param _tokenIds The token IDs to get the claimable NFTs for
-  function nftClaimable(uint40[] calldata _orderIds, uint[] calldata _tokenIds) external view returns (uint amount) {
+  function nftsClaimable(
+    uint40[] calldata _orderIds,
+    uint[] calldata _tokenIds
+  ) external view returns (uint[] memory amounts) {
+    amounts = new uint[](_orderIds.length);
     uint limit = _orderIds.length;
     for (uint i = 0; i < limit; ++i) {
-      amount += tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
+      amounts[i] = tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
     }
   }
 

@@ -909,8 +909,8 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost);
     expect(await orderBook.tokensClaimable([orderId], true)).to.eq(cost - fees);
     expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(0);
-    expect(await orderBook.nftClaimable([orderId + 1], [tokenId])).to.eq(0);
+    expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
+    expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
 
     expect(await brush.balanceOf(owner)).to.eq(initialBrush);
     await expect(orderBook.claimTokens([orderId]))
@@ -949,13 +949,13 @@ describe("SamWitchOrderBook", function () {
     const orderId = 1;
     expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
     expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(10);
-    expect(await orderBook.nftClaimable([orderId + 1], [tokenId])).to.eq(0);
+    expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
+    expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
 
     await expect(orderBook.claimNFTs([orderId], [tokenId]))
       .to.emit(orderBook, "ClaimedNFTs")
       .withArgs(owner.address, [orderId], [tokenId], [10]);
-    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(0);
+    expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
 
     // Try to claim twice
     await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
