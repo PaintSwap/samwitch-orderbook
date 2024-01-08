@@ -223,7 +223,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         uint numOrdersWithinSegmentConsumed;
         uint finalOffset;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-          // get quantity from packed data
           uint40 orderId = uint40(uint(packed >> (offset * 64)));
           if (orderId == 0 || quantityRemaining == 0) {
             // No more orders at this price level in this segment
@@ -328,7 +327,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         uint numOrdersWithinSegmentConsumed;
         uint finalOffset;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-          // get quantity from packed data
           uint40 orderId = uint40(uint(packed >> (offset * 64)));
           if (orderId == 0 || quantityRemaining == 0) {
             // No more orders at this price level in this segment
@@ -621,7 +619,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint64 _price,
     uint _orderId,
     uint _quantity,
-    OrderSide _side
+    int128 _tickIncrement // -1 for buy, +1 for sell
   ) private returns (uint64 price) {
     // Add to the bids section
     price = _price;
@@ -630,7 +628,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     } else {
       uint tombstoneOffset = _tree.getNode(price).tombstoneOffset;
       // Check if this would go over the max number of orders allowed at this price level
-
       bool lastSegmentFilled = uint(
         _packedOrdersPriceMap[price][_packedOrdersPriceMap[price].length - 1] >> ((NUM_ORDERS_PER_SEGMENT - 1) * 64)
       ) != 0;
@@ -641,9 +638,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         lastSegmentFilled
       ) {
         // Loop until we find a suitable place to put this
-        uint tick = tokenIdInfos[_tokenId].tick;
         while (true) {
-          price = uint64(_side == OrderSide.Buy ? price - tick : price + tick);
+          price = uint64(uint128(int64(price) + _tickIncrement));
           if (!_tree.exists(price)) {
             _tree.insert(price);
             break;
@@ -691,9 +687,25 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint64 price;
     // Price can update if the price level is at capacity
     if (_isBuy) {
-      price = _addToBookSide(bidValues[_tokenId], bids[_tokenId], _tokenId, _price, orderId, _quantity, OrderSide.Buy);
+      price = _addToBookSide(
+        bidValues[_tokenId],
+        bids[_tokenId],
+        _tokenId,
+        _price,
+        orderId,
+        _quantity,
+        -int128(tokenIdInfos[_tokenId].tick)
+      );
     } else {
-      price = _addToBookSide(askValues[_tokenId], asks[_tokenId], _tokenId, _price, orderId, _quantity, OrderSide.Sell);
+      price = _addToBookSide(
+        askValues[_tokenId],
+        asks[_tokenId],
+        _tokenId,
+        _price,
+        orderId,
+        _quantity,
+        int128(tokenIdInfos[_tokenId].tick)
+      );
     }
     emit AddedToBook(_isBuy, orderId, _quantity, price);
   }
