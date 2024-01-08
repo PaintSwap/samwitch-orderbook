@@ -192,6 +192,103 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit OrdersPlaced(_limitOrders, msg.sender);
   }
 
+  function claimAll(
+    uint[] calldata _brushOrderIds,
+    uint[] calldata _tokenOrderIds,
+    uint[] calldata _tokenIds
+  ) external {
+    claimTokens(_brushOrderIds);
+    claimNFTs(_tokenOrderIds, _tokenIds);
+  }
+
+  function claimTokens(uint[] calldata _orderIds) public {
+    uint amount;
+    for (uint i = 0; i < _orderIds.length; ++i) {
+      uint40 orderId = uint40(_orderIds[i]);
+      uint orderAmount = brushClaimable[orderId];
+      if (orderAmount == 0) {
+        revert NothingToClaim();
+      }
+
+      address maker = orderBookIdToMaker[orderId];
+      if (maker != msg.sender) {
+        revert NotMaker();
+      }
+      amount += orderAmount;
+      brushClaimable[orderId] = 0;
+    }
+
+    if (amount == 0) {
+      revert NothingToClaim();
+    }
+
+    (uint royalty, uint dev, uint burn) = _calcFees(amount);
+    uint fees = royalty + dev + burn;
+    uint amountExclFees;
+    if (amount > fees) {
+      amountExclFees = amount - fees;
+      _safeTransferFromUs(msg.sender, amountExclFees);
+    }
+    emit ClaimedTokens(msg.sender, _orderIds, amountExclFees);
+  }
+
+  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public {
+    if (_orderIds.length != _tokenIds.length) {
+      revert LengthMismatch();
+    }
+
+    uint[] memory amounts = new uint[](_tokenIds.length);
+    for (uint i = 0; i < _tokenIds.length; ++i) {
+      uint40 orderId = uint40(_orderIds[i]);
+      uint tokenId = _tokenIds[i];
+      uint amount = tokenIdsClaimable[orderId][tokenId];
+      if (amount == 0) {
+        revert NothingToClaim();
+      }
+      amounts[i] = amount;
+      tokenIdsClaimable[orderId][tokenId] = 0;
+    }
+
+    emit ClaimedNFTs(msg.sender, _orderIds, _tokenIds, amounts);
+
+    _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
+  }
+
+  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
+    if (_orderIds.length != _cancelOrderInfos.length) {
+      revert LengthMismatch();
+    }
+
+    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
+      OrderSide side = _cancelOrderInfos[i].side;
+      uint tokenId = _cancelOrderInfos[i].tokenId;
+      uint64 price = _cancelOrderInfos[i].price;
+
+      if (side == OrderSide.Buy) {
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
+        // Send the remaining token back to them
+        _safeTransferFromUs(msg.sender, quantity * price);
+      } else {
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
+        // Send the remaining NFTs back to them
+        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
+      }
+    }
+
+    emit OrdersCancelled(_orderIds);
+  }
+
+  function updateRoyaltyFee() public {
+    bool supportsERC2981 = nft.supportsInterface(type(IERC2981).interfaceId);
+    if (supportsERC2981) {
+      (address _royaltyRecipient, uint _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
+      royaltyRecipient = _royaltyRecipient;
+      royaltyFee = uint16(_royaltyFee);
+    }
+  }
+
+  // TODO: editOrder
+
   function _buyTakeFromOrderBook(
     uint _tokenId,
     uint64 _price,
@@ -410,115 +507,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       (quantityRemaining, cost) = _buyTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
     } else {
       (quantityRemaining, cost) = _sellTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
-    }
-  }
-
-  function claimAll(
-    uint[] calldata _brushOrderIds,
-    uint[] calldata _tokenOrderIds,
-    uint[] calldata _tokenIds
-  ) external {
-    claimTokens(_brushOrderIds);
-    claimNFTs(_tokenOrderIds, _tokenIds);
-  }
-
-  function claimTokens(uint[] calldata _orderIds) public {
-    uint amount;
-    for (uint i = 0; i < _orderIds.length; ++i) {
-      uint40 orderId = uint40(_orderIds[i]);
-      uint orderAmount = brushClaimable[orderId];
-      if (orderAmount == 0) {
-        revert NothingToClaim();
-      }
-
-      address maker = orderBookIdToMaker[orderId];
-      if (maker != msg.sender) {
-        revert NotMaker();
-      }
-      amount += orderAmount;
-      brushClaimable[orderId] = 0;
-    }
-
-    if (amount == 0) {
-      revert NothingToClaim();
-    }
-
-    (uint royalty, uint dev, uint burn) = _calcFees(amount);
-    uint fees = royalty + dev + burn;
-    uint amountExclFees;
-    if (amount > fees) {
-      amountExclFees = amount - fees;
-      _safeTransferFromUs(msg.sender, amountExclFees);
-    }
-    emit ClaimedTokens(msg.sender, _orderIds, amountExclFees);
-  }
-
-  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public {
-    if (_orderIds.length != _tokenIds.length) {
-      revert LengthMismatch();
-    }
-
-    uint[] memory amounts = new uint[](_tokenIds.length);
-    for (uint i = 0; i < _tokenIds.length; ++i) {
-      uint40 orderId = uint40(_orderIds[i]);
-      uint tokenId = _tokenIds[i];
-      uint amount = tokenIdsClaimable[orderId][tokenId];
-      if (amount == 0) {
-        revert NothingToClaim();
-      }
-      amounts[i] = amount;
-      tokenIdsClaimable[orderId][tokenId] = 0;
-    }
-
-    emit ClaimedNFTs(msg.sender, _orderIds, _tokenIds, amounts);
-
-    _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
-  }
-
-  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
-    if (_orderIds.length != _cancelOrderInfos.length) {
-      revert LengthMismatch();
-    }
-
-    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
-      OrderSide side = _cancelOrderInfos[i].side;
-      uint tokenId = _cancelOrderInfos[i].tokenId;
-      uint64 price = _cancelOrderInfos[i].price;
-
-      if (side == OrderSide.Buy) {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
-        // Send the remaining token back to them
-        _safeTransferFromUs(msg.sender, quantity * price);
-      } else {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
-        // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
-      }
-    }
-
-    emit OrdersCancelled(_orderIds);
-  }
-
-  function updateRoyaltyFee() public {
-    bool supportsERC2981 = nft.supportsInterface(type(IERC2981).interfaceId);
-    if (supportsERC2981) {
-      (address _royaltyRecipient, uint _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
-      royaltyRecipient = _royaltyRecipient;
-      royaltyFee = uint16(_royaltyFee);
-    }
-  }
-
-  // TODO: editOrder
-
-  function allOrdersAtPrice(
-    OrderSide _side,
-    uint _tokenId,
-    uint64 _price
-  ) external view returns (OrderBookEntryHelper[] memory orderBookEntries) {
-    if (_side == OrderSide.Buy) {
-      return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
-    } else {
-      return _allOrdersAtPriceSide(askValues[_tokenId][_price], asks[_tokenId], _price);
     }
   }
 
@@ -743,7 +731,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint begin,
     uint end,
     uint value
-  ) internal view returns (uint mid, uint offset) {
+  ) private view returns (uint mid, uint offset) {
     while (begin < end) {
       mid = begin + (end - begin) / 2;
       uint packed = uint(packedData[mid]);
@@ -860,6 +848,26 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
+  function getTick(uint _tokenId) external view returns (uint) {
+    return tokenIdInfos[_tokenId].tick;
+  }
+
+  function getMinAmount(uint _tokenId) external view returns (uint) {
+    return tokenIdInfos[_tokenId].minQuantity;
+  }
+
+  function allOrdersAtPrice(
+    OrderSide _side,
+    uint _tokenId,
+    uint64 _price
+  ) external view returns (OrderBookEntryHelper[] memory orderBookEntries) {
+    if (_side == OrderSide.Buy) {
+      return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
+    } else {
+      return _allOrdersAtPriceSide(askValues[_tokenId][_price], asks[_tokenId], _price);
+    }
+  }
+
   function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) external onlyOwner {
     maxOrdersPerPrice = _maxOrdersPerPrice;
   }
@@ -874,14 +882,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
-  }
-
-  function getTick(uint _tokenId) external view returns (uint) {
-    return tokenIdInfos[_tokenId].tick;
-  }
-
-  function getMinAmount(uint _tokenId) external view returns (uint) {
-    return tokenIdInfos[_tokenId].minQuantity;
   }
 
   // solhint-disable-next-line no-empty-blocks
