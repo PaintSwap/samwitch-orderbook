@@ -87,8 +87,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public askValues; // quantity (uint24), id (uint40) 4x packed of these
   mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public bidValues; // quantity (uint24), id (uint40) 4x packed of these
   mapping(uint orderId => address maker) public orderBookIdToMaker;
-
-  mapping(uint40 orderId => uint amount) private brushClaimable; // TODO Pack these?
+  uint80[1_099_511_627_776] brushClaimable; // Can pack 3 brush claimables into 1 word
   mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
 
   uint private constant MAX_ORDERS_HIT = 500;
@@ -251,8 +250,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint amount;
     for (uint i = 0; i < _orderIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
-      uint orderAmount = brushClaimable[orderId];
-      if (orderAmount == 0) {
+      uint80 claimableAmount = brushClaimable[orderId];
+      if (claimableAmount == 0) {
         revert NothingToClaim();
       }
 
@@ -260,7 +259,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       if (maker != msg.sender) {
         revert NotMaker();
       }
-      amount += orderAmount;
+      amount += claimableAmount;
       brushClaimable[orderId] = 0;
     }
 
@@ -388,7 +387,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
           finalOffset = offset;
           cost += quantityNFTClaimable * lowestAsk;
 
-          brushClaimable[orderId] += quantityNFTClaimable * lowestAsk;
+          brushClaimable[orderId] += uint80(quantityNFTClaimable * lowestAsk);
 
           _orderIdsPool[length] = orderId;
           _quantitiesPool[length++] = quantityNFTClaimable;

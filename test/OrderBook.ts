@@ -715,7 +715,6 @@ describe("OrderBook", function () {
     expect(await brush.amountBurnt()).to.eq(burnt);
   });
 
-  /* TODO: Fix these tests
   it("Claim tokens", async function () {
     const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
 
@@ -749,21 +748,22 @@ describe("OrderBook", function () {
     const devAmount = (cost * 3) / 1000; // 0.3%
     const fees = royalty + burnt + devAmount;
 
-    expect(await orderBook.tokensClaimable(owner, false)).to.eq(cost);
-    expect(await orderBook.tokensClaimable(owner, true)).to.eq(cost - fees);
-    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
-    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
-    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
+    const orderId = 1;
+    expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost);
+    expect(await orderBook.tokensClaimable([orderId], true)).to.eq(cost - fees);
+    expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
+    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(0);
+    expect(await orderBook.nftClaimable([orderId + 1], [tokenId])).to.eq(0);
 
     expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-    await expect(orderBook.claimTokens())
+    await expect(orderBook.claimTokens([orderId]))
       .to.emit(orderBook, "ClaimedTokens")
-      .withArgs(owner.address, cost - fees);
+      .withArgs(owner.address, [orderId], cost - fees);
     expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
-    expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
+    expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
 
     // Try to claim twice
-    await expect(orderBook.claimTokens()).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+    await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
   });
 
   it("Claim NFTs", async function () {
@@ -792,20 +792,20 @@ describe("OrderBook", function () {
       },
     ]);
 
-    expect(await orderBook.tokensClaimable(owner, false)).to.eq(0);
-    expect(await orderBook.tokensClaimable(alice, false)).to.eq(0);
-    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(10);
-    expect(await orderBook.nftClaimable(alice, tokenId)).to.eq(0);
+    const orderId = 1;
+    expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
+    expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
+    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(10);
+    expect(await orderBook.nftClaimable([orderId + 1], [tokenId])).to.eq(0);
 
-    await expect(orderBook.claimNFTs([tokenId]))
+    await expect(orderBook.claimNFTs([orderId], [tokenId]))
       .to.emit(orderBook, "ClaimedNFTs")
-      .withArgs(owner.address, [tokenId], [10]);
-    expect(await orderBook.nftClaimable(owner, tokenId)).to.eq(0);
+      .withArgs(owner.address, [orderId], [tokenId], [10]);
+    expect(await orderBook.nftClaimable([orderId], [tokenId])).to.eq(0);
 
     // Try to claim twice
-    await expect(orderBook.claimNFTs([tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+    await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
   });
-  */
 
   // it("TODO Edit order", async function () {});
   // Test multiple tokenIds
