@@ -292,12 +292,16 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
     (uint royalty, uint dev, uint burn) = _calcFees(amount);
     uint fees = royalty + dev + burn;
-    uint amountExclFees;
+    uint amountExclFees = 0;
     if (amount > fees) {
       amountExclFees = amount - fees;
+    }
+
+    emit ClaimedTokens(_msgSender(), _orderIds, amountExclFees);
+
+    if (amountExclFees != 0) {
       _safeTransferFromUs(_msgSender(), amountExclFees);
     }
-    emit ClaimedTokens(_msgSender(), _orderIds, amountExclFees);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
