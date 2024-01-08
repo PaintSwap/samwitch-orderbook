@@ -26,6 +26,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   event ClaimedTokens(address maker, uint[] orderIds, uint amount);
   event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
+  event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
 
   error NotERC1155();
   error NoQuantity();
@@ -124,7 +125,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     devFee = uint8(_devFee); // 30 = 0.3% fee,
     devAddr = _devAddr;
     burntFee = uint8(_burntFee); // 30 = 0.3% fee,
-    maxOrdersPerPrice = 100; // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
+    setMaxOrdersPerPrice(100); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
     nextOrderId = 1;
   }
 
@@ -877,7 +878,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   /// @notice Get the order book entry for a specific order ID
   /// @param _side The side of the order book to get the order from
   /// @param _tokenId The token ID to get the order for
-  /// @param _orderId The order ID to get the order for
+  /// @param _price The price level to get the order for
   function getNode(
     OrderSide _side,
     uint _tokenId,
@@ -919,14 +920,16 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   }
 
   /// @notice The maximum amount of orders allowed at a specific price level
-  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) external onlyOwner {
+  /// @param _maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
+  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public onlyOwner {
     maxOrdersPerPrice = _maxOrdersPerPrice;
+    emit SetMaxOrdersPerPriceLevel(_maxOrdersPerPrice);
   }
 
   /// @notice Set constraints like minimum quantity of an order that is allowed to be
-  /// placed and the minimum of specific tokenIds in this nft collection.
-  /// @param tokenIds Array of token IDs for which to set TokenIdInfo
-  /// @param tokenIdInfos Array of TokenIdInfo to be set
+  ///         placed and the minimum of specific tokenIds in this nft collection.
+  /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
+  /// @param _tokenIdInfos Array of TokenIdInfo to be set
   function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
     if (_tokenIds.length != _tokenIdInfos.length) {
       revert LengthMismatch();
