@@ -169,26 +169,31 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
         brushTransferToUs += cost + uint(price) * quantityAddedToBook;
         if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
-          royalty += _royalty;
-          dev += _dev;
-          burn += _burn;
+          royalty = royalty.add(_royalty);
+          dev = dev.add(_dev);
+          burn = burn.add(_burn);
 
           // Transfer the NFTs straight to the user
           idsFromUs[lengthFromUs] = tokenId;
-          amountsFromUs[lengthFromUs++] = quantity - quantityAddedToBook;
+          amountsFromUs[lengthFromUs] = quantity.sub(quantityAddedToBook);
+          lengthFromUs = lengthFromUs.inc();
         }
       } else {
         // Selling, transfer all NFTs to us
         uint amount = quantity - failedQuantity;
         if (amount != 0) {
           idsToUs[lengthToUs] = tokenId;
-          amountsToUs[lengthToUs++] = amount;
+          amountsToUs[lengthToUs] = amount;
+          lengthToUs = lengthToUs.inc();
         }
 
         // Transfer tokens to the seller if any have sold
         if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
-          burn += _burn;
+          royalty = royalty.add(_royalty);
+          dev = dev.add(_dev);
+          burn = burn.add(_burn);
+
           uint fees = _royalty + _dev + _burn;
           brushTransferFromUs += cost - fees;
         }
@@ -742,9 +747,9 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   }
 
   function _calcFees(uint _cost) private view returns (uint royalty, uint dev, uint burn) {
-    royalty = (_cost * royaltyFee) / 10000;
-    dev = (_cost * devFee) / 10000;
-    burn = (_cost * burntFee) / 10000;
+    royalty = (_cost.mul(royaltyFee)).div(10000);
+    dev = (_cost.mul(devFee)).div(10000);
+    burn = (_cost.mul(burntFee)).div(10000);
   }
 
   function _sendFees(uint _royalty, uint _dev, uint _burn) private {
@@ -773,18 +778,18 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       offset = 0;
 
       for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
-        uint40 id = uint40(packed >> (offset * 8));
+        uint40 id = uint40(packed >> (offset.mul(8)));
         if (id == value) {
           return (mid, i); // Return the index where the ID is found
         } else if (id < value) {
-          offset += 8; // Move to the next segment
+          offset = offset.add(8); // Move to the next segment
         } else {
           break; // Break if the searched value is smaller, as it's a binary search
         }
       }
 
       if (offset == NUM_ORDERS_PER_SEGMENT * 8) {
-        begin = mid + 1;
+        begin = mid.inc();
       } else {
         end = mid;
       }
