@@ -497,8 +497,8 @@ describe("OrderBook", function () {
     expect(orders.length).to.eq(1);
   });
 
-  it("Price must be modulus of tick quantity must be > min quantity", async function () {
-    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+  it("Price must be modulus of tick quantity must be > min quantity, sell", async function () {
+    const {orderBook, erc1155, tokenId} = await loadFixture(deployContractsFixture);
 
     await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
 
@@ -517,18 +517,18 @@ describe("OrderBook", function () {
       .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
       .withArgs(10);
 
+    // Doesn't take any because quantity is lower than the minimum
     price = 100;
     quantity = 19;
-    await expect(
-      orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-      ])
-    ).to.be.revertedWithCustomError(orderBook, "QuantityRemainingTooLow");
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
+    expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(0);
 
     quantity = 20;
     await expect(
@@ -541,6 +541,54 @@ describe("OrderBook", function () {
         },
       ])
     ).to.not.be.reverted;
+    expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(20);
+  });
+
+  it("Price must be modulus of tick quantity must be > min quantity, buy", async function () {
+    const {orderBook, brush, tokenId} = await loadFixture(deployContractsFixture);
+
+    await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+
+    let price = 101;
+    let quantity = 20;
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ])
+    )
+      .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
+      .withArgs(10);
+
+    // Doesn't take any because quantity is lower than the minimum
+    price = 100;
+    quantity = 19;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
+    expect(await brush.balanceOf(orderBook)).to.eq(0);
+
+    quantity = 20;
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ])
+    ).to.not.be.reverted;
+    expect(await brush.balanceOf(orderBook)).to.eq(quantity * price);
   });
 
   it("Test gas costs", async function () {

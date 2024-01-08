@@ -20,9 +20,10 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
 
-  event OrdersMatched(uint[] orderIds, uint[] quantities, address taker);
-  event OrdersCancelled(uint[] orderIds);
-  event AddedToBook(bool isBuy, uint orderId, uint quantity, uint price, address maker);
+  event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
+  event OrdersCancelled(address maker, uint[] orderIds);
+  event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
+  event AddedToBook(address maker, OrderSide side, uint orderId, uint price, uint quantity);
   event ClaimedTokens(address maker, uint[] orderIds, uint amount);
   event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
@@ -35,7 +36,6 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   error TokenDoesntExist(uint tokenId);
   error PriceZero();
   error LengthMismatch();
-  error QuantityRemainingTooLow();
   error NotMaker();
   error NothingToClaim();
   error TooManyOrdersHit();
@@ -153,23 +153,31 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       uint tokenId = _orders[i].tokenId;
       uint quantity = _orders[i].quantity;
       uint price = _orders[i].price;
-      (uint24 quantityRemaining, uint cost) = _makeLimitOrder(_orders[i], orderIdsPool, quantitiesPool);
+      (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
+        _orders[i],
+        orderIdsPool,
+        quantitiesPool
+      );
 
       if (side == OrderSide.Buy) {
-        brushTransferToUs += cost + uint(price) * quantityRemaining;
-        (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
-        royalty += _royalty;
-        dev += _dev;
-        burn += _burn;
-        // Transfer the NFTs straight to the user
+        brushTransferToUs += cost + uint(price) * quantityAddedToBook;
         if (cost > 0) {
+          (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
+          royalty += _royalty;
+          dev += _dev;
+          burn += _burn;
+
+          // Transfer the NFTs straight to the user
           idsFromUs[lengthFromUs] = tokenId;
-          amountsFromUs[lengthFromUs++] = quantity - quantityRemaining;
+          amountsFromUs[lengthFromUs++] = quantity - quantityAddedToBook;
         }
       } else {
         // Selling, transfer all NFTs to us
-        idsToUs[lengthToUs] = tokenId;
-        amountsToUs[lengthToUs++] = quantity;
+        uint amount = quantity - failedQuantity;
+        if (amount > 0) {
+          idsToUs[lengthToUs] = tokenId;
+          amountsToUs[lengthToUs++] = amount;
+        }
 
         // Transfer tokens to the seller if any have sold
         if (cost > 0) {
@@ -233,7 +241,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       }
     }
 
-    emit OrdersCancelled(_orderIds);
+    emit OrdersCancelled(msg.sender, _orderIds);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders.
@@ -416,7 +424,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       mstore(_quantitiesPool, length)
     }
 
-    emit OrdersMatched(_orderIdsPool, _quantitiesPool, msg.sender);
+    emit OrdersMatched(msg.sender, _orderIdsPool, _quantitiesPool);
   }
 
   function _sellTakeFromOrderBook(
@@ -520,11 +528,11 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       mstore(_quantitiesPool, length)
     }
 
-    emit OrdersMatched(_orderIdsPool, _quantitiesPool, msg.sender);
+    emit OrdersMatched(msg.sender, _orderIdsPool, _quantitiesPool);
   }
 
   function _takeFromOrderBook(
-    bool _isBuy,
+    OrderSide _side,
     uint _tokenId,
     uint64 _price,
     uint24 _quantity,
@@ -532,7 +540,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     uint[] memory _quantitiesPool
   ) private returns (uint24 quantityRemaining, uint cost) {
     // Take as much as possible from the order book
-    if (_isBuy) {
+    if (_side == OrderSide.Buy) {
       (quantityRemaining, cost) = _buyTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
     } else {
       (quantityRemaining, cost) = _sellTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
@@ -598,7 +606,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     LimitOrder calldata _limitOrder,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint24 quantityRemaining, uint cost) {
+  ) private returns (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) {
     if (_limitOrder.quantity == 0) {
       revert NoQuantity();
     }
@@ -617,9 +625,8 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       revert TokenDoesntExist(_limitOrder.tokenId);
     }
 
-    bool isBuy = _limitOrder.side == OrderSide.Buy;
-    (quantityRemaining, cost) = _takeFromOrderBook(
-      isBuy,
+    (quantityAddedToBook, cost) = _takeFromOrderBook(
+      _limitOrder.side,
       _limitOrder.tokenId,
       _limitOrder.price,
       _limitOrder.quantity,
@@ -627,13 +634,13 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       _quantitiesPool
     );
 
-    if (quantityRemaining != 0 && quantityRemaining < tokenIdInfo.minQuantity) {
-      revert QuantityRemainingTooLow();
-    }
-
-    // Add the rest to the order book
-    if (quantityRemaining > 0) {
-      _addToBook(isBuy, _limitOrder.tokenId, _limitOrder.price, quantityRemaining);
+    // Add the rest to the order book if has the minimum required, in order to keep order books healthy
+    if (quantityAddedToBook >= tokenIdInfos[_limitOrder.tokenId].minQuantity) {
+      _addToBook(_limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook);
+    } else {
+      failedQuantity = quantityAddedToBook;
+      quantityAddedToBook = 0;
+      emit FailedToAddToBook(msg.sender, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, failedQuantity);
     }
   }
 
@@ -706,12 +713,12 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function _addToBook(bool _isBuy, uint _tokenId, uint64 _price, uint24 _quantity) private {
+  function _addToBook(OrderSide _side, uint _tokenId, uint64 _price, uint24 _quantity) private {
     uint40 orderId = nextOrderId++;
     orderBookIdToMaker[orderId] = msg.sender;
     uint64 price;
     // Price can update if the price level is at capacity
-    if (_isBuy) {
+    if (_side == OrderSide.Buy) {
       price = _addToBookSide(
         bidValues[_tokenId],
         bids[_tokenId],
@@ -732,7 +739,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         int128(tokenIdInfos[_tokenId].tick)
       );
     }
-    emit AddedToBook(_isBuy, orderId, _quantity, price, msg.sender);
+    emit AddedToBook(msg.sender, _side, orderId, price, _quantity);
   }
 
   function _calcFees(uint _cost) private view returns (uint royalty, uint dev, uint burn) {
@@ -766,7 +773,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       uint packed = uint(packedData[mid]);
       offset = 0;
 
-      for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; i++) {
+      for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
         uint40 id = uint40(packed >> (offset * 8));
         if (id == value) {
           return (mid, i); // Return the index where the ID is found
