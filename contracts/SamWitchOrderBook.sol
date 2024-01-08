@@ -623,14 +623,15 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       revert PriceZero();
     }
 
-    TokenIdInfo memory tokenIdInfo = tokenIdInfos[_limitOrder.tokenId];
+    TokenIdInfo storage tokenIdInfo = tokenIdInfos[_limitOrder.tokenId];
     uint tick = tokenIdInfo.tick;
-    if (_limitOrder.price % tick != 0) {
-      revert PriceNotMultipleOfTick(tick);
+
+    if (tick == 0) {
+      revert TokenDoesntExist(_limitOrder.tokenId);
     }
 
-    if (tokenIdInfos[_limitOrder.tokenId].tick == 0) {
-      revert TokenDoesntExist(_limitOrder.tokenId);
+    if (_limitOrder.price % tick != 0) {
+      revert PriceNotMultipleOfTick(tick);
     }
 
     (quantityAddedToBook, cost) = _takeFromOrderBook(
@@ -643,7 +644,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     );
 
     // Add the rest to the order book if has the minimum required, in order to keep order books healthy
-    if (quantityAddedToBook >= tokenIdInfos[_limitOrder.tokenId].minQuantity) {
+    if (quantityAddedToBook >= tokenIdInfo.minQuantity) {
       _addToBook(_limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook);
     } else {
       failedQuantity = quantityAddedToBook;
