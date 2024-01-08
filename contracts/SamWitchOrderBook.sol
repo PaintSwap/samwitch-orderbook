@@ -18,7 +18,7 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
-///         It suppports ERC2981 royalties, and optional dev & burn fees on successful swaps.
+///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.
 contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using UnsafeMath for uint;
@@ -886,10 +886,6 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     if (!token.transfer(_to, _amount)) {
       revert TransferFromUsFailed();
     }
-  }
-
-  function _safeTransferNFTsFromUs(address _to, uint _tokenId, uint _amount) private {
-    nft.safeTransferFrom(address(this), _to, _tokenId, _amount, "");
   }
 
   function _safeBatchTransferNFTsFromUs(address _to, uint[] memory _tokenIds, uint[] memory _amounts) private {
