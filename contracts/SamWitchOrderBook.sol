@@ -243,8 +243,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     if (_orderIds.length != _cancelOrderInfos.length) {
       revert LengthMismatch();
     }
-
-    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
+    uint cancelOrderInfosLength = _cancelOrderInfos.length;
+    uint amountToTransferFromUs = 0;
+    uint nftsToTransferFromUs = 0;
+    uint[] memory ids = new uint[](cancelOrderInfosLength);
+    uint[] memory amounts = new uint[](cancelOrderInfosLength);
+    for (uint i = 0; i < cancelOrderInfosLength; ++i) {
       CancelOrderInfo calldata cancelOrderInfo = _cancelOrderInfos[i];
       (OrderSide side, uint tokenId, uint72 price) = (
         cancelOrderInfo.side,
@@ -255,15 +259,32 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
         // Send the remaining token back to them
-        _safeTransferFromUs(_msgSender(), quantity * price);
+        amountToTransferFromUs += quantity * price;
       } else {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
         // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(_msgSender(), tokenId, quantity);
+        ids[nftsToTransferFromUs] = tokenId;
+        amounts[nftsToTransferFromUs] = quantity;
+        nftsToTransferFromUs += 1;
       }
     }
 
     emit OrdersCancelled(_msgSender(), _orderIds);
+
+    // Transfer tokens if there are any to send
+    if (amountToTransferFromUs != 0) {
+      _safeTransferFromUs(_msgSender(), amountToTransferFromUs);
+    }
+
+    // Send the NFTs
+    if (nftsToTransferFromUs != 0) {
+      // reset the size
+      assembly ("memory-safe") {
+        mstore(ids, nftsToTransferFromUs)
+        mstore(amounts, nftsToTransferFromUs)
+      }
+      _safeBatchTransferNFTsFromUs(_msgSender(), ids, amounts);
+    }
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders.
