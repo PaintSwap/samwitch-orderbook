@@ -5,6 +5,7 @@
   "author": "0xSamWitch <julian.assange12@outlook.com>",
   "license": "MIT",
   "devDependencies": {
+    "@0xdoublesharp/unsafe-math": "^0.0.16",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.4",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
