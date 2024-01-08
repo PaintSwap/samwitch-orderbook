@@ -1,6 +1,6 @@
-# ERC1155 Orderbook
+# ERC1155 Orderbook (SWOB SamWitchOrderBook)
 
-[![Continuous integration](https://github.com/0xSamwitch/hardhat-starter-contracts-ethers/actions/workflows/main.yml/badge.svg)](https://github.com/0xSamWitch/hardhat-starter-contracts-ethers/actions/workflows/main.yml)
+[![Continuous integration](https://github.com/PaintSwap/SamWitchOrderBook/actions/workflows/main.yml/badge.svg)](https://github.com/PaintSwap/SamWitchOrderBook/actions/workflows/main.yml)
 
 To start copy the .env.sample file to .env and fill in PRIVATE_KEY at minimum, starts with 0x
 

@@ -5,7 +5,7 @@ import {verifyContracts} from "./helpers";
 // Deploy everything
 async function main() {
   const [owner] = await ethers.getSigners();
-  console.log(`Deploying contracts with the account: ${owner.address} on chain id: ${await owner.getChainId()}`);
+  console.log(`Deploying contracts with the account: ${owner.address} on chain id: ${hre.network.config.chainId}`);
 
   const {shouldVerify} = await networkConstants(hre);
 

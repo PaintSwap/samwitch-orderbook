@@ -1,10 +1,9 @@
 import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
-import {OrderBook} from "../typechain-types";
-import {erc1155} from "../typechain-types/@openzeppelin/contracts/token";
+import {SamWitchOrderBook} from "../typechain-types";
 
-describe("OrderBook", function () {
+describe("SamWitchOrderBook", function () {
   enum OrderSide {
     Buy,
     Sell,
@@ -30,14 +29,15 @@ describe("OrderBook", function () {
     const brush = await ethers.deployContract("MockBrushToken");
     const erc1155 = await ethers.deployContract("MockERC1155", [royaltyRecipient.address]);
 
-    const OrderBook = await ethers.getContractFactory("OrderBook");
+    const maxOrdersPerPrice = 100;
+    const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
     const orderBook = (await upgrades.deployProxy(
       OrderBook,
-      [await erc1155.getAddress(), await brush.getAddress(), dev.address, 30, 30],
+      [await erc1155.getAddress(), await brush.getAddress(), dev.address, 30, 30, maxOrdersPerPrice],
       {
         kind: "uups",
       }
-    )) as OrderBook;
+    )) as unknown as SamWitchOrderBook;
 
     const initialBrush = 1000000;
     await brush.mint(owner.address, initialBrush);
@@ -71,6 +71,7 @@ describe("OrderBook", function () {
       initialBrush,
       tokenId,
       initialQuantity,
+      maxOrdersPerPrice,
     };
   }
 
@@ -569,9 +570,7 @@ describe("OrderBook", function () {
   it("Partial order consumption", async function () {});
 
   it("Max number of orders for a price should increment it by the tick, sell orders", async function () {
-    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
-
-    const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
+    const {orderBook, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -600,9 +599,7 @@ describe("OrderBook", function () {
   });
 
   it("Max number of orders for a price should increment it by the tick, buy orders", async function () {
-    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
-
-    const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
+    const {orderBook, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -725,12 +722,9 @@ describe("OrderBook", function () {
   });
 
   it("Test gas costs", async function () {
-    const {orderBook, erc1155, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
 
     // Create a bunch of orders at 5 different prices each with the maximum number of orders, so 500 in total
-    const maxOrdersPerPrice = Number(await orderBook.maxOrdersPerPrice());
-
-    // Set up order book
     const price = 100;
     const quantity = 1;
 
@@ -763,7 +757,7 @@ describe("OrderBook", function () {
   });
 
   it("Check all fees (buying into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
+    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
       deployContractsFixture
     );
 
@@ -798,14 +792,14 @@ describe("OrderBook", function () {
     const devAmount = (cost * 3) / 1000; // 0.3%
     const fees = royalty + burnt + devAmount;
     expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
-    expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
+    expect(await brush.balanceOf(dev)).to.eq(devAmount);
     expect(await brush.balanceOf(owner)).to.eq(initialBrush);
     expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
     expect(await brush.amountBurnt()).to.eq(burnt);
   });
 
   it("Check all fees (selling into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
+    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
       deployContractsFixture
     );
 
@@ -842,7 +836,7 @@ describe("OrderBook", function () {
 
     expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
     expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
-    expect(await brush.balanceOf(await orderBook.devAddr())).to.eq(devAmount);
+    expect(await brush.balanceOf(dev)).to.eq(devAmount);
     expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
     expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
     expect(await brush.amountBurnt()).to.eq(burnt);

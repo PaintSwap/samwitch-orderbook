@@ -12,12 +12,12 @@ import {IBrushToken} from "./interfaces/IBrushToken.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
-/// @title OrderBook
+/// @title SamWitchOrderBook
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful swaps.
-contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
+contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
 
   event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
@@ -72,22 +72,22 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   IERC1155 public nft;
   IBrushToken public token;
 
-  address public devAddr;
-  uint8 public devFee; // Base 10000, max 2.55%
-  uint8 public burntFee;
-  uint16 public royaltyFee;
-  uint16 public maxOrdersPerPrice;
-  uint40 public nextOrderId;
-  address public royaltyRecipient;
+  address private devAddr;
+  uint8 private devFee; // Base 10000, max 2.55%
+  uint8 private burntFee;
+  uint16 private royaltyFee;
+  uint16 private maxOrdersPerPrice;
+  uint40 private nextOrderId;
+  address private royaltyRecipient;
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
 
-  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public asks;
-  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) public bids;
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public askValues; // quantity (uint24), id (uint40) 4x packed of these
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) public bidValues; // quantity (uint24), id (uint40) 4x packed of these
-  mapping(uint orderId => address maker) public orderBookIdToMaker;
-  uint80[1_099_511_627_776] brushClaimable; // Can pack 3 brush claimables into 1 word
+  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
+  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private askValues; // quantity (uint24), id (uint40) 4x packed of these
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private bidValues; // quantity (uint24), id (uint40) 4x packed of these
+  mapping(uint orderId => address maker) private orderBookIdToMaker;
+  uint80[1_099_511_627_776] private brushClaimable; // Can pack 3 brush claimables into 1 word
   mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
 
   uint private constant MAX_ORDERS_HIT = 500;
@@ -104,12 +104,14 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   /// @param _devAddr The address to receive trade fees
   /// @param _devFee The fee to send to the dev address (max 2.55%)
   /// @param _burntFee The fee to burn (max 2.55%)
+  /// @param _maxOrdersPerPrice The maximum number of orders allowed at each price level
   function initialize(
     IERC1155 _nft,
     address _token,
     address _devAddr,
     uint _devFee,
-    uint _burntFee
+    uint _burntFee,
+    uint16 _maxOrdersPerPrice
   ) external initializer {
     __UUPSUpgradeable_init();
     __Ownable_init(msg.sender);
@@ -124,7 +126,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     devFee = uint8(_devFee); // 30 = 0.3% fee,
     devAddr = _devAddr;
     burntFee = uint8(_burntFee); // 30 = 0.3% fee,
-    setMaxOrdersPerPrice(100); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
+    setMaxOrdersPerPrice(_maxOrdersPerPrice); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
     nextOrderId = 1;
   }
 
