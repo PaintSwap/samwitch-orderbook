@@ -12,6 +12,11 @@ import {IBrushToken} from "./interfaces/IBrushToken.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
+/// @title OrderBook
+/// @author Sam Witch (PaintSwap & Estfor Kingdom)
+/// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
+///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
+///         It suppports ERC2981 royalties, and optional dev & burn fees on successful swaps.
 contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
 
@@ -93,7 +98,19 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     _disableInitializers();
   }
 
-  function initialize(IERC1155 _nft, address _token, address _devAddr) external initializer {
+  /// @notice Initialize the contract as part of the proxy contract deployment
+  /// @param _nft Address of the nft
+  /// @param _token The quote token
+  /// @param _devAddr The address to receive trade fees
+  /// @param _devFee The fee to send to the dev address (max 2.55%)
+  /// @param _burntFee The fee to burn (max 2.55%)
+  function initialize(
+    IERC1155 _nft,
+    address _token,
+    address _devAddr,
+    uint _devFee,
+    uint _burntFee
+  ) external initializer {
     __UUPSUpgradeable_init();
     __Ownable_init(msg.sender);
 
@@ -104,14 +121,15 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     token = IBrushToken(_token);
     updateRoyaltyFee();
 
-    devFee = 30; // 30 = 0.3% fee,
+    devFee = uint8(_devFee); // 30 = 0.3% fee,
     devAddr = _devAddr;
-    burntFee = 30; // 30 = 0.3% fee,
+    burntFee = uint8(_burntFee); // 30 = 0.3% fee,
     maxOrdersPerPrice = 100; // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
-
     nextOrderId = 1;
   }
 
+  /// @notice Place multiple limit orders in the order book
+  /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) external {
     uint royalty;
     uint dev;
@@ -190,11 +208,36 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     _sendFees(royalty, dev, burn);
   }
 
-  function claimAll(uint[] calldata _brushOrderIds, uint[] calldata _nftOrderIds, uint[] calldata _tokenIds) external {
-    claimTokens(_brushOrderIds);
-    claimNFTs(_nftOrderIds, _tokenIds);
+  /// @notice Cancel multiple orders in the order book
+  /// @param _orderIds Array of order IDs to be cancelled
+  /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
+  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
+    if (_orderIds.length != _cancelOrderInfos.length) {
+      revert LengthMismatch();
+    }
+
+    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
+      OrderSide side = _cancelOrderInfos[i].side;
+      uint tokenId = _cancelOrderInfos[i].tokenId;
+      uint64 price = _cancelOrderInfos[i].price;
+
+      if (side == OrderSide.Buy) {
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
+        // Send the remaining token back to them
+        _safeTransferFromUs(msg.sender, quantity * price);
+      } else {
+        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
+        // Send the remaining NFTs back to them
+        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
+      }
+    }
+
+    emit OrdersCancelled(_orderIds);
   }
 
+  /// @notice Claim NFTs associated with filled or partially filled orders.
+  ///         Must be the maker of these orders.
+  /// @param _orderIds Array of order IDs from which to claim NFTs
   function claimTokens(uint[] calldata _orderIds) public {
     uint amount;
     for (uint i = 0; i < _orderIds.length; ++i) {
@@ -226,6 +269,10 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit ClaimedTokens(msg.sender, _orderIds, amountExclFees);
   }
 
+  /// @notice Claim NFTs associated with filled or partially filled orders
+  ///         Must be the maker of these orders.
+  /// @param _orderIds Array of order IDs from which to claim NFTs
+  /// @param _tokenIds Array of token IDs to claim NFTs for
   function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public {
     if (_orderIds.length != _tokenIds.length) {
       revert LengthMismatch();
@@ -248,30 +295,17 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
   }
 
-  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
-    if (_orderIds.length != _cancelOrderInfos.length) {
-      revert LengthMismatch();
-    }
-
-    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
-      OrderSide side = _cancelOrderInfos[i].side;
-      uint tokenId = _cancelOrderInfos[i].tokenId;
-      uint64 price = _cancelOrderInfos[i].price;
-
-      if (side == OrderSide.Buy) {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
-        // Send the remaining token back to them
-        _safeTransferFromUs(msg.sender, quantity * price);
-      } else {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
-        // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
-      }
-    }
-
-    emit OrdersCancelled(_orderIds);
+  /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
+  ///         Must be the maker of these orders.
+  /// @param _brushOrderIds Array of order IDs from which to claim tokens
+  /// @param _nftOrderIds Array of order IDs from which to claim NFTs
+  /// @param _tokenIds Array of token IDs to claim NFTs for
+  function claimAll(uint[] calldata _brushOrderIds, uint[] calldata _nftOrderIds, uint[] calldata _tokenIds) external {
+    claimTokens(_brushOrderIds);
+    claimNFTs(_nftOrderIds, _tokenIds);
   }
 
+  /// @notice When the nft royalty changes this updates the fee and recipient. Assumes all token ids have the same royalty
   function updateRoyaltyFee() public {
     bool supportsERC2981 = nft.supportsInterface(type(IERC2981).interfaceId);
     if (supportsERC2981) {
@@ -806,6 +840,9 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
   }
 
+  /// @notice Get the amount of tokens claimable for these orders
+  /// @param _orderIds The order IDs to get the claimable tokens for
+  /// @param takeAwayFees Whether to take away the fees from the claimable amount
   function tokensClaimable(uint40[] calldata _orderIds, bool takeAwayFees) external view returns (uint amount) {
     for (uint i = 0; i < _orderIds.length; ++i) {
       amount += brushClaimable[_orderIds[i]];
@@ -816,20 +853,31 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
-  function nftClaimable(uint40[] calldata _orderIds, uint _tokenId) external view returns (uint amount) {
+  /// @notice Get the amount of NFTs claimable for these orders
+  /// @param _orderIds The order IDs to get the claimable NFTs for
+  /// @param _tokenIds The token IDs to get the claimable NFTs for
+  function nftClaimable(uint40[] calldata _orderIds, uint[] calldata _tokenIds) external view returns (uint amount) {
     for (uint i = 0; i < _orderIds.length; ++i) {
-      amount += tokenIdsClaimable[_orderIds[i]][_tokenId];
+      amount += tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
     }
   }
 
+  /// @notice Get the highest bid for a specific token ID
+  /// @param _tokenId The token ID to get the highest bid for
   function getHighestBid(uint _tokenId) public view returns (uint64) {
     return bids[_tokenId].last();
   }
 
+  /// @notice Get the lowest ask for a specific token ID
+  /// @param _tokenId The token ID to get the lowest ask for
   function getLowestAsk(uint _tokenId) public view returns (uint64) {
     return asks[_tokenId].first();
   }
 
+  /// @notice Get the order book entry for a specific order ID
+  /// @param _side The side of the order book to get the order from
+  /// @param _tokenId The token ID to get the order for
+  /// @param _orderId The order ID to get the order for
   function getNode(
     OrderSide _side,
     uint _tokenId,
@@ -842,14 +890,22 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
+  /// @notice Get the tick size for a specific token ID
+  /// @param _tokenId The token ID to get the tick size for
   function getTick(uint _tokenId) external view returns (uint) {
     return tokenIdInfos[_tokenId].tick;
   }
 
+  /// @notice The minimum amount that can be added to the order book for a specific token ID, to keep the order book healthy
+  /// @param _tokenId The token ID to get the minimum quantity for
   function getMinAmount(uint _tokenId) external view returns (uint) {
     return tokenIdInfos[_tokenId].minQuantity;
   }
 
+  /// @notice Get all orders at a specific price level
+  /// @param _side The side of the order book to get orders from
+  /// @param _tokenId The token ID to get orders for
+  /// @param _price The price level to get orders for
   function allOrdersAtPrice(
     OrderSide _side,
     uint _tokenId,
@@ -862,10 +918,15 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
   }
 
+  /// @notice The maximum amount of orders allowed at a specific price level
   function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) external onlyOwner {
     maxOrdersPerPrice = _maxOrdersPerPrice;
   }
 
+  /// @notice Set constraints like minimum quantity of an order that is allowed to be
+  /// placed and the minimum of specific tokenIds in this nft collection.
+  /// @param tokenIds Array of token IDs for which to set TokenIdInfo
+  /// @param tokenIdInfos Array of TokenIdInfo to be set
   function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
     if (_tokenIds.length != _tokenIdInfos.length) {
       revert LengthMismatch();

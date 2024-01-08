@@ -32,7 +32,7 @@ describe("OrderBook", function () {
     const OrderBook = await ethers.getContractFactory("OrderBook");
     const orderBook = (await upgrades.deployProxy(
       OrderBook,
-      [await erc1155.getAddress(), await brush.getAddress(), dev.address],
+      [await erc1155.getAddress(), await brush.getAddress(), dev.address, 30, 30],
       {
         kind: "uups",
       }
