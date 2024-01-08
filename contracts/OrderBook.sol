@@ -70,11 +70,10 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   address public devAddr;
   uint8 public devFee; // Base 10000, max 2.55%
   uint8 public burntFee;
+  uint16 public royaltyFee;
   uint16 public maxOrdersPerPrice;
-  //  address public royaltyRecipient; // TODO: Work out in advance
-  //  uint16 royaltyFee; TODO: Work out in advance
-  bool public supportsERC2981;
   uint40 public nextOrderId;
+  address public royaltyRecipient;
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
 
@@ -95,16 +94,16 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     _disableInitializers();
   }
 
-  function initialize(address _nft, address _token, address _devAddr) external initializer {
+  function initialize(IERC1155 _nft, address _token, address _devAddr) external initializer {
     __UUPSUpgradeable_init();
     __Ownable_init(msg.sender);
 
-    nft = IERC1155(_nft);
-    if (!nft.supportsInterface(type(IERC1155).interfaceId)) {
+    nft = _nft;
+    if (!_nft.supportsInterface(type(IERC1155).interfaceId)) {
       revert NotERC1155();
     }
     token = IBrushToken(_token);
-    supportsERC2981 = IERC1155(_nft).supportsInterface(type(IERC2981).interfaceId);
+    updateRoyaltyFee();
 
     devFee = 30; // 30 = 0.3% fee,
     devAddr = _devAddr;
@@ -140,7 +139,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
       if (side == OrderSide.Buy) {
         brushTransferToUs += cost + uint(price) * quantityRemaining;
-        (uint _royalty, uint _dev, uint _burn) = _calcFees(tokenId, cost);
+        (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
         royalty += _royalty;
         dev += _dev;
         burn += _burn;
@@ -156,7 +155,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
 
         // Transfer tokens to the seller if any have sold
         if (cost > 0) {
-          (uint _royalty, uint _dev, uint _burn) = _calcFees(tokenId, cost);
+          (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
           royalty += _royalty;
           dev += _dev;
           burn += _burn;
@@ -444,7 +443,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       revert NothingToClaim();
     }
 
-    (uint royalty, uint dev, uint burn) = _calcFees(1, amount);
+    (uint royalty, uint dev, uint burn) = _calcFees(amount);
     uint fees = royalty + dev + burn;
     uint amountExclFees;
     if (amount > fees) {
@@ -498,6 +497,15 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     emit OrdersCancelled(_orderIds);
+  }
+
+  function updateRoyaltyFee() public {
+    bool supportsERC2981 = nft.supportsInterface(type(IERC2981).interfaceId);
+    if (supportsERC2981) {
+      (address _royaltyRecipient, uint _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
+      royaltyRecipient = _royaltyRecipient;
+      royaltyFee = uint16(_royaltyFee);
+    }
   }
 
   // TODO: editOrder
@@ -710,19 +718,14 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     emit AddedToBook(_isBuy, orderId, _quantity, price);
   }
 
-  function _calcFees(uint _tokenId, uint _cost) private view returns (uint royalty, uint dev, uint burn) {
-    if (supportsERC2981) {
-      address recipient;
-      (recipient, royalty) = IERC2981(address(nft)).royaltyInfo(_tokenId, _cost);
-    }
-
+  function _calcFees(uint _cost) private view returns (uint royalty, uint dev, uint burn) {
+    royalty = (_cost * royaltyFee) / 10000;
     dev = (_cost * devFee) / 10000;
     burn = (_cost * burntFee) / 10000;
   }
 
   function _sendFees(uint _royalty, uint _dev, uint _burn) private {
     if (_royalty > 0) {
-      (address royaltyRecipient, ) = IERC2981(address(nft)).royaltyInfo(0, 0);
       _safeTransferFromUs(royaltyRecipient, _royalty);
     }
 
@@ -826,7 +829,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       amount += brushClaimable[_orderIds[i]];
     }
     if (takeAwayFees) {
-      (uint royalty, uint dev, uint burn) = _calcFees(1, amount);
+      (uint royalty, uint dev, uint burn) = _calcFees(amount);
       amount -= royalty + dev + burn;
     }
   }

@@ -587,6 +587,7 @@ describe("OrderBook", function () {
     );
 
     await erc1155.setRoyaltyFee(1000); // 10%
+    await orderBook.updateRoyaltyFee();
 
     // Set up order book
     const price = 100;
@@ -628,6 +629,7 @@ describe("OrderBook", function () {
     );
 
     await erc1155.setRoyaltyFee(1000); // 10%
+    await orderBook.updateRoyaltyFee();
 
     // Set up order book
     const price = 100;
@@ -670,6 +672,7 @@ describe("OrderBook", function () {
     const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} = await loadFixture(deployContractsFixture);
 
     await erc1155.setRoyaltyFee(1000); // 10%
+    await orderBook.updateRoyaltyFee();
 
     // Set up order book
     const price = 100;
@@ -719,6 +722,7 @@ describe("OrderBook", function () {
     const {orderBook, erc1155, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     await erc1155.setRoyaltyFee(1000); // 10%
+    await orderBook.updateRoyaltyFee();
 
     // Set up order book
     const price = 100;
