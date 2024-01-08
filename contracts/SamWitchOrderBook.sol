@@ -167,7 +167,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
       if (side == OrderSide.Buy) {
         brushTransferToUs += cost + uint(price) * quantityAddedToBook;
-        if (cost > 0) {
+        if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
           royalty += _royalty;
           dev += _dev;
@@ -180,16 +180,14 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       } else {
         // Selling, transfer all NFTs to us
         uint amount = quantity - failedQuantity;
-        if (amount > 0) {
+        if (amount != 0) {
           idsToUs[lengthToUs] = tokenId;
           amountsToUs[lengthToUs++] = amount;
         }
 
         // Transfer tokens to the seller if any have sold
-        if (cost > 0) {
+        if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
-          royalty += _royalty;
-          dev += _dev;
           burn += _burn;
           uint fees = _royalty + _dev + _burn;
           brushTransferFromUs += cost - fees;
@@ -204,19 +202,19 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       mstore(amountsFromUs, lengthFromUs)
     }
 
-    if (brushTransferToUs > 0) {
+    if (brushTransferToUs != 0) {
       _safeTransferToUs(msg.sender, brushTransferToUs);
     }
 
-    if (brushTransferFromUs > 0) {
+    if (brushTransferFromUs != 0) {
       _safeTransferFromUs(msg.sender, brushTransferFromUs);
     }
 
-    if (idsToUs.length > 0) {
+    if (idsToUs.length != 0) {
       nft.safeBatchTransferFrom(msg.sender, address(this), idsToUs, amountsToUs, "");
     }
 
-    if (idsFromUs.length > 0) {
+    if (idsFromUs.length != 0) {
       _safeBatchTransferNFTsFromUs(msg.sender, idsFromUs, amountsFromUs);
     }
 
@@ -348,7 +346,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     uint length;
-    while (quantityRemaining > 0) {
+    while (quantityRemaining != 0) {
       uint72 lowestAsk = getLowestAsk(_tokenId);
       if (lowestAsk == 0 || lowestAsk > _price) {
         // No more orders left
@@ -447,7 +445,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       mstore(_quantitiesPool, MAX_ORDERS_HIT)
     }
     uint length;
-    while (quantityRemaining > 0) {
+    while (quantityRemaining != 0) {
       uint72 highestBid = getHighestBid(_tokenId);
       if (highestBid == 0 || highestBid < _price) {
         // No more orders left
@@ -750,15 +748,15 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   }
 
   function _sendFees(uint _royalty, uint _dev, uint _burn) private {
-    if (_royalty > 0) {
+    if (_royalty != 0) {
       _safeTransferFromUs(royaltyRecipient, _royalty);
     }
 
-    if (_dev > 0) {
+    if (_dev != 0) {
       _safeTransferFromUs(devAddr, _dev);
     }
 
-    if (_burn > 0) {
+    if (_burn != 0) {
       token.burn(_burn);
     }
   }
