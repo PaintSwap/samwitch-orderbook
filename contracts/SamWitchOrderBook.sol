@@ -119,7 +119,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint16 _maxOrdersPerPrice
   ) external initializer {
     __UUPSUpgradeable_init();
-    __Ownable_init(msg.sender);
+    __Ownable_init(_msgSender());
 
     if (!_nft.supportsInterface(type(IERC1155).interfaceId)) {
       revert NotERC1155();
@@ -209,19 +209,19 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     if (brushTransferToUs != 0) {
-      _safeTransferToUs(msg.sender, brushTransferToUs);
+      _safeTransferToUs(_msgSender(), brushTransferToUs);
     }
 
     if (brushTransferFromUs != 0) {
-      _safeTransferFromUs(msg.sender, brushTransferFromUs);
+      _safeTransferFromUs(_msgSender(), brushTransferFromUs);
     }
 
     if (idsToUs.length != 0) {
-      nft.safeBatchTransferFrom(msg.sender, address(this), idsToUs, amountsToUs, "");
+      nft.safeBatchTransferFrom(_msgSender(), address(this), idsToUs, amountsToUs, "");
     }
 
     if (idsFromUs.length != 0) {
-      _safeBatchTransferNFTsFromUs(msg.sender, idsFromUs, amountsFromUs);
+      _safeBatchTransferNFTsFromUs(_msgSender(), idsFromUs, amountsFromUs);
     }
 
     _sendFees(royalty, dev, burn);
@@ -243,15 +243,15 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
         // Send the remaining token back to them
-        _safeTransferFromUs(msg.sender, quantity * price);
+        _safeTransferFromUs(_msgSender(), quantity * price);
       } else {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
         // Send the remaining NFTs back to them
-        _safeTransferNFTsFromUs(msg.sender, tokenId, quantity);
+        _safeTransferNFTsFromUs(_msgSender(), tokenId, quantity);
       }
     }
 
-    emit OrdersCancelled(msg.sender, _orderIds);
+    emit OrdersCancelled(_msgSender(), _orderIds);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders.
@@ -267,7 +267,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
 
       address maker = orderBookIdToMaker[orderId];
-      if (maker != msg.sender) {
+      if (maker != _msgSender()) {
         revert NotMaker();
       }
       amount += claimableAmount;
@@ -283,9 +283,9 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint amountExclFees;
     if (amount > fees) {
       amountExclFees = amount - fees;
-      _safeTransferFromUs(msg.sender, amountExclFees);
+      _safeTransferFromUs(_msgSender(), amountExclFees);
     }
-    emit ClaimedTokens(msg.sender, _orderIds, amountExclFees);
+    emit ClaimedTokens(_msgSender(), _orderIds, amountExclFees);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
@@ -309,9 +309,9 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       tokenIdsClaimable[orderId][tokenId] = 0;
     }
 
-    emit ClaimedNFTs(msg.sender, _orderIds, _tokenIds, amounts);
+    emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, amounts);
 
-    _safeBatchTransferNFTsFromUs(msg.sender, _tokenIds, amounts);
+    _safeBatchTransferNFTsFromUs(_msgSender(), _tokenIds, amounts);
   }
 
   /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
@@ -433,7 +433,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       mstore(_quantitiesPool, length)
     }
 
-    emit OrdersMatched(msg.sender, _orderIdsPool, _quantitiesPool);
+    emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
   }
 
   function _sellTakeFromOrderBook(
@@ -536,7 +536,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       mstore(_quantitiesPool, length)
     }
 
-    emit OrdersMatched(msg.sender, _orderIdsPool, _quantitiesPool);
+    emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
   }
 
   function _takeFromOrderBook(
@@ -649,7 +649,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     } else {
       failedQuantity = quantityAddedToBook;
       quantityAddedToBook = 0;
-      emit FailedToAddToBook(msg.sender, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, failedQuantity);
+      emit FailedToAddToBook(_msgSender(), _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, failedQuantity);
     }
   }
 
@@ -723,7 +723,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
   function _addToBook(OrderSide _side, uint _tokenId, uint72 _price, uint24 _quantity) private {
     uint40 orderId = nextOrderId++;
-    orderBookIdToMaker[orderId] = msg.sender;
+    orderBookIdToMaker[orderId] = _msgSender();
     uint72 price;
     // Price can update if the price level is at capacity
     if (_side == OrderSide.Buy) {
@@ -745,7 +745,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
         int128(tokenIdInfos[_tokenId].tick)
       );
     }
-    emit AddedToBook(msg.sender, _side, orderId, price, _quantity);
+    emit AddedToBook(_msgSender(), _side, orderId, price, _quantity);
   }
 
   function _calcFees(uint _cost) private view returns (uint royalty, uint dev, uint burn) {
@@ -812,7 +812,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint40 orderId = uint40(uint(packed) >> (_offset * 64));
 
     address maker = orderBookIdToMaker[orderId];
-    if (maker == address(0) || maker != msg.sender) {
+    if (maker == address(0) || maker != _msgSender()) {
       revert NotMaker();
     }
 
