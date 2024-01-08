@@ -2,6 +2,7 @@ import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
 import {OrderBook} from "../typechain-types";
+import {erc1155} from "../typechain-types/@openzeppelin/contracts/token";
 
 describe("OrderBook", function () {
   enum OrderSide {
@@ -309,7 +310,7 @@ describe("OrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
   });
 
-  it("Full order consumption, sell side", async function () {
+  it("Partial segment consumption, sell side", async function () {
     const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order book
@@ -371,7 +372,139 @@ describe("OrderBook", function () {
     expect(orders.length).to.eq(0);
   });
 
-  it("Full order consumption, buy side", async function () {
+  it("Full segment consumption, sell side", async function () {
+    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} = await loadFixture(
+      deployContractsFixture
+    );
+
+    // Set up order book
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
+
+    // Buy
+    const numToBuy = 40; // Finish one and eat into the next
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: numToBuy,
+      },
+    ]);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
+    expect(orders.length).to.eq(0);
+    expect(await orderBook.nodeExists(OrderSide.Sell, tokenId, price)).to.be.false;
+
+    // Check erc1155/brush balances
+    expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(0);
+    expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - quantity * 4);
+    expect(await erc1155.balanceOf(alice, tokenId)).to.eq(initialQuantity + quantity * 4);
+
+    const orderId = 1;
+    await orderBook.claimTokens([orderId, orderId + 1, orderId + 2, orderId + 3]);
+    expect(await brush.balanceOf(owner)).to.eq(
+      initialBrush + price * quantity * 4 - calcFees(price * quantity * 4, true)
+    );
+    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * quantity * 4);
+  });
+
+  it("Full segment & partial segment consumption, sell side", async function () {
+    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} = await loadFixture(
+      deployContractsFixture
+    );
+
+    // Set up order book
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      },
+    ]);
+
+    // Buy
+    const numToBuy = 44; // Finish one and eat into the next
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: numToBuy,
+      },
+    ]);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price);
+    expect(orders.length).to.eq(1);
+
+    const node = await orderBook.getNode(OrderSide.Sell, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
+
+    // Check erc1155/brush balances
+    expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(quantity * 5 - numToBuy);
+    expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - quantity * 5);
+    expect(await erc1155.balanceOf(alice, tokenId)).to.eq(initialQuantity + numToBuy);
+
+    const orderId = 1;
+    await orderBook.claimTokens([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4]);
+    expect(await brush.balanceOf(owner)).to.eq(initialBrush + price * numToBuy - calcFees(price * numToBuy, true));
+    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * numToBuy);
+  });
+
+  it("Partial segment consumption, buy side", async function () {
     const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order book
@@ -830,6 +963,14 @@ describe("OrderBook", function () {
       ])
     ).to.throw;
   });
+
+  // Assuming royalty fee is 10%, burnt fee is 0.3% and dev fee is 0.3%
+  const calcFees = (cost: number, ignoreRoyalty: boolean) => {
+    let royalty = ignoreRoyalty ? 0 : cost / 10;
+    const burnt = (cost * 3) / 1000; // 0.3%
+    const devAmount = (cost * 3) / 1000; // 0.3%
+    return Math.floor(royalty + burnt + devAmount);
+  };
 
   // it("TODO Edit order", async function () {});
   // Test multiple tokenIds

@@ -376,11 +376,10 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
             quantityNFTClaimable = quantityL3;
           } else {
             // Eat into the order
-            bytes32 newPacked = bytes32(
+            packed = bytes32(
               (uint(packed) & ~(uint(0xffffff) << (offset * 64 + 40))) |
                 (uint(quantityL3 - quantityRemaining) << (offset * 64 + 40))
             );
-            packed = newPacked;
             quantityNFTClaimable = quantityRemaining;
             quantityRemaining = 0;
           }
@@ -480,11 +479,10 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
             quantityNFTClaimable = quantityL3;
           } else {
             // Eat into the order
-            bytes32 newPacked = bytes32(
+            packed = bytes32(
               (uint(packed) & ~(uint(0xffffff) << (offset * 64 + 40))) |
                 (uint(quantityL3 - quantityRemaining) << (offset * 64 + 40))
             );
-            packed = newPacked;
             quantityNFTClaimable = quantityRemaining;
             quantityRemaining = 0;
           }
@@ -560,12 +558,12 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     );
     uint length;
     for (uint i; i < orderBookEntries.length; ++i) {
-      uint packed = uint(packedOrderBookEntries[i / NUM_ORDERS_PER_SEGMENT]);
+      uint packed = uint(packedOrderBookEntries[i / NUM_ORDERS_PER_SEGMENT + tombstoneOffset]);
       uint offset = i % NUM_ORDERS_PER_SEGMENT;
       uint40 id = uint40(packed >> (offset * 64));
       if (id != 0) {
         uint24 quantity = uint24(packed >> (offset * 64 + 40));
-        orderBookEntries[length++] = OrderBookEntryHelper({maker: orderBookIdToMaker[id], quantity: quantity, id: id});
+        orderBookEntries[length++] = OrderBookEntryHelper(orderBookIdToMaker[id], quantity, id);
       }
     }
 
@@ -891,6 +889,18 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
       return bids[_tokenId].getNode(_price);
     } else {
       return asks[_tokenId].getNode(_price);
+    }
+  }
+
+  /// @notice Check if the node exists
+  /// @param _side The side of the order book to get the order from
+  /// @param _tokenId The token ID to get the order for
+  /// @param _price The price level to get the order for
+  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view returns (bool) {
+    if (_side == OrderSide.Buy) {
+      return bids[_tokenId].exists(_price);
+    } else {
+      return asks[_tokenId].exists(_price);
     }
   }
 
