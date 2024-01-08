@@ -460,12 +460,10 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
       // Loop through all at this order
       uint numSegmentsFullyConsumed = 0;
-      for (
-        uint i = bids[_tokenId].getNode(highestBid).tombstoneOffset;
-        i < bidValues[_tokenId][highestBid].length;
-        ++i
-      ) {
-        bytes32 packed = bidValues[_tokenId][highestBid][i];
+      bytes32[] storage highestBidValues = bidValues[_tokenId][highestBid];
+      BokkyPooBahsRedBlackTreeLibrary.Tree storage bidTree = bids[_tokenId];
+      for (uint i = bidTree.getNode(highestBid).tombstoneOffset; i < highestBidValues.length; ++i) {
+        bytes32 packed = highestBidValues[i];
         uint numOrdersWithinSegmentConsumed;
         uint finalOffset;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
@@ -511,7 +509,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
         }
 
         if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
-          bidValues[_tokenId][highestBid][i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+          highestBidValues[i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
         }
         if (quantityRemaining == 0) {
           break;
@@ -519,15 +517,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
 
       // We consumed all orders at this price level, so remove all
-      if (
-        numSegmentsFullyConsumed ==
-        bidValues[_tokenId][highestBid].length - bids[_tokenId].getNode(highestBid).tombstoneOffset
-      ) {
-        bids[_tokenId].remove(highestBid); // TODO: A ranged delete would be nice
+      if (numSegmentsFullyConsumed == highestBidValues.length - bidTree.getNode(highestBid).tombstoneOffset) {
+        bidTree.remove(highestBid); // TODO: A ranged delete would be nice
         delete bidValues[_tokenId][highestBid];
       } else {
         // Increase tombstone offset of this price for gas efficiency
-        bids[_tokenId].edit(highestBid, uint32(numSegmentsFullyConsumed));
+        bidTree.edit(highestBid, uint32(numSegmentsFullyConsumed));
       }
     }
 
