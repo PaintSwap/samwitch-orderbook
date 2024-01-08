@@ -121,10 +121,10 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     __UUPSUpgradeable_init();
     __Ownable_init(msg.sender);
 
-    nft = _nft;
     if (!_nft.supportsInterface(type(IERC1155).interfaceId)) {
       revert NotERC1155();
     }
+    nft = _nft;
     token = IBrushToken(_token);
     updateRoyaltyFee();
 
