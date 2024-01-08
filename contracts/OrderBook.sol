@@ -15,10 +15,9 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
 
-  event OrdersPlaced(LimitOrder[] orders, address from);
   event OrdersMatched(uint[] orderIds, uint[] quantities, address taker);
   event OrdersCancelled(uint[] orderIds);
-  event AddedToBook(bool isBuy, uint orderId, uint quantity, uint price);
+  event AddedToBook(bool isBuy, uint orderId, uint quantity, uint price, address maker);
   event ClaimedTokens(address maker, uint[] orderIds, uint amount);
   event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
@@ -113,29 +112,29 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     nextOrderId = 1;
   }
 
-  function limitOrders(LimitOrder[] calldata _limitOrders) external {
+  function limitOrders(LimitOrder[] calldata _orders) external {
     uint royalty;
     uint dev;
     uint burn;
     uint brushTransferToUs;
     uint brushTransferFromUs;
     uint lengthToUs;
-    uint[] memory idsToUs = new uint[](_limitOrders.length);
-    uint[] memory amountsToUs = new uint[](_limitOrders.length);
+    uint[] memory idsToUs = new uint[](_orders.length);
+    uint[] memory amountsToUs = new uint[](_orders.length);
     uint lengthFromUs;
-    uint[] memory idsFromUs = new uint[](_limitOrders.length);
-    uint[] memory amountsFromUs = new uint[](_limitOrders.length);
+    uint[] memory idsFromUs = new uint[](_orders.length);
+    uint[] memory amountsFromUs = new uint[](_orders.length);
 
     // This is done here so that th it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
     uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
 
-    for (uint i = 0; i < _limitOrders.length; ++i) {
-      OrderSide side = _limitOrders[i].side;
-      uint tokenId = _limitOrders[i].tokenId;
-      uint quantity = _limitOrders[i].quantity;
-      uint price = _limitOrders[i].price;
-      (uint24 quantityRemaining, uint cost) = _makeLimitOrder(_limitOrders[i], orderIdsPool, quantitiesPool);
+    for (uint i = 0; i < _orders.length; ++i) {
+      OrderSide side = _orders[i].side;
+      uint tokenId = _orders[i].tokenId;
+      uint quantity = _orders[i].quantity;
+      uint price = _orders[i].price;
+      (uint24 quantityRemaining, uint cost) = _makeLimitOrder(_orders[i], orderIdsPool, quantitiesPool);
 
       if (side == OrderSide.Buy) {
         brushTransferToUs += cost + uint(price) * quantityRemaining;
@@ -189,16 +188,11 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     _sendFees(royalty, dev, burn);
-    emit OrdersPlaced(_limitOrders, msg.sender);
   }
 
-  function claimAll(
-    uint[] calldata _brushOrderIds,
-    uint[] calldata _tokenOrderIds,
-    uint[] calldata _tokenIds
-  ) external {
+  function claimAll(uint[] calldata _brushOrderIds, uint[] calldata _nftOrderIds, uint[] calldata _tokenIds) external {
     claimTokens(_brushOrderIds);
-    claimNFTs(_tokenOrderIds, _tokenIds);
+    claimNFTs(_nftOrderIds, _tokenIds);
   }
 
   function claimTokens(uint[] calldata _orderIds) public {
@@ -703,7 +697,7 @@ contract OrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
         int128(tokenIdInfos[_tokenId].tick)
       );
     }
-    emit AddedToBook(_isBuy, orderId, _quantity, price);
+    emit AddedToBook(_isBuy, orderId, _quantity, price, msg.sender);
   }
 
   function _calcFees(uint _cost) private view returns (uint royalty, uint dev, uint burn) {
