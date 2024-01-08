@@ -361,8 +361,11 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
       // Loop through all at this order
       uint numSegmentsFullyConsumed = 0;
-      for (uint i = asks[_tokenId].getNode(lowestAsk).tombstoneOffset; i < askValues[_tokenId][lowestAsk].length; ++i) {
-        bytes32 packed = askValues[_tokenId][lowestAsk][i];
+      bytes32[] storage lowestAskValues = askValues[_tokenId][lowestAsk];
+      BokkyPooBahsRedBlackTreeLibrary.Tree storage askTree = asks[_tokenId];
+      uint limit = lowestAskValues.length;
+      for (uint i = askTree.getNode(lowestAsk).tombstoneOffset; i < limit; ++i) {
+        bytes32 packed = lowestAskValues[i];
         uint numOrdersWithinSegmentConsumed;
         uint finalOffset;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
@@ -408,7 +411,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
         }
 
         if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
-          askValues[_tokenId][lowestAsk][i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+          lowestAskValues[i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
         }
         if (quantityRemaining == 0) {
           break;
@@ -416,15 +419,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
 
       // We consumed all orders at this price, so remove all
-      if (
-        numSegmentsFullyConsumed ==
-        askValues[_tokenId][lowestAsk].length - asks[_tokenId].getNode(lowestAsk).tombstoneOffset
-      ) {
-        asks[_tokenId].remove(lowestAsk);
+      if (numSegmentsFullyConsumed == lowestAskValues.length - askTree.getNode(lowestAsk).tombstoneOffset) {
+        askTree.remove(lowestAsk);
         delete askValues[_tokenId][lowestAsk];
       } else {
         // Increase tombstone offset of this price for gas efficiency
-        asks[_tokenId].edit(lowestAsk, uint32(numSegmentsFullyConsumed));
+        askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed));
       }
     }
 
