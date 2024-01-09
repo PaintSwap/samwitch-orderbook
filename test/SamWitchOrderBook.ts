@@ -9,13 +9,6 @@ describe("SamWitchOrderBook", function () {
     Sell,
   }
 
-  type CancelOrderInfo = {
-    side: OrderSide;
-    orderId: number;
-    tokenId: number;
-    price: number;
-  };
-
   type LimitOrder = {
     side: OrderSide;
     tokenId: number;
@@ -338,6 +331,50 @@ describe("SamWitchOrderBook", function () {
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+    });
+
+    it.skip("Consume a segment and whole check price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+
+      const limitOrder = {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      };
+
+      // 1 segment, 1 order in it
+      await orderBook.limitOrders([limitOrder]);
+      // Consume the order
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price,
+          quantity,
+        },
+      ]);
+
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
+
+      // Re-add it, should start in the next segment
+      console.log("Re-add");
+      await orderBook.limitOrders([limitOrder]);
+      const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+      expect(node.tombstoneOffset).to.eq(1);
+
+      let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+      const orderId = 2;
+      expect(orders.length).to.eq(1);
+      expect(orders[0].id).to.eq(orderId);
+
+      // Consume it
+
+      // order ids for the limit orders: [1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]
     });
   });
 

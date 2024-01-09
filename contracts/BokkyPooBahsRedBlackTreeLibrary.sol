@@ -19,8 +19,9 @@ library BokkyPooBahsRedBlackTreeLibrary {
         uint72 parent;
         uint72 left;
         uint72 right;
-        uint40 tombstoneOffset; // Number of deleted entries, for gas efficiency
-        bool red;
+        uint32 tombstoneOffset; // Number of deleted entries, for gas efficiency
+        uint8 numInSegmentDeleted; // Number of deleted entries in the current segment, for gas efficiency
+        bool red; // TODO: Pack with numInSegmentDeleted
     }
 
     struct Tree {
@@ -84,9 +85,10 @@ library BokkyPooBahsRedBlackTreeLibrary {
         return self.nodes[key];
     }
 
-    function edit(Tree storage self, uint72 key, uint40 extraTombstoneOffset) internal {
+    function edit(Tree storage self, uint72 key, uint32 extraTombstoneOffset, uint8 numInSegmentDeleted) internal {
         require(exists(self, key));       
         self.nodes[key].tombstoneOffset += extraTombstoneOffset;
+        self.nodes[key].numInSegmentDeleted = numInSegmentDeleted;
     }
 
     function insert(Tree storage self, uint72 key) internal {
@@ -102,7 +104,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
                 probe = self.nodes[probe].right;
             }
         }
-        self.nodes[key] = Node({parent: cursor, left: EMPTY, right: EMPTY, red: true, tombstoneOffset: 0});
+        self.nodes[key] = Node({parent: cursor, left: EMPTY, right: EMPTY, red: true, tombstoneOffset: self.nodes[key].tombstoneOffset, numInSegmentDeleted: self.nodes[key].numInSegmentDeleted});
         if (cursor == EMPTY) {
             self.root = key;
         } else if (key < cursor) {
@@ -154,7 +156,8 @@ library BokkyPooBahsRedBlackTreeLibrary {
         if (doFixup) {
             removeFixup(self, probe);
         }
-        delete self.nodes[cursor];
+        // Don't delete the node, so that we can re-use the tombstone offset if readding this price
+        self.nodes[cursor].parent = EMPTY;
     }
 
     function treeMinimum(Tree storage self, uint72 key) private view returns (uint72) {

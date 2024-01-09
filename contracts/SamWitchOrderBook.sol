@@ -401,11 +401,15 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       uint numSegmentsFullyConsumed = 0;
       bytes32[] storage lowestAskValues = askValues[_tokenId][lowestAsk];
       BokkyPooBahsRedBlackTreeLibrary.Tree storage askTree = asks[_tokenId];
+
+      bool eatIntoLastOrder;
+      uint finalOffset;
+      uint8 lastNumOrdersWithinSegmentConsumed;
       uint limit = lowestAskValues.length;
       for (uint i = askTree.getNode(lowestAsk).tombstoneOffset; i < limit; ++i) {
         bytes32 packed = lowestAskValues[i];
-        uint numOrdersWithinSegmentConsumed;
-        uint finalOffset;
+        uint8 numOrdersWithinSegmentConsumed;
+        finalOffset = 0;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
           uint40 orderId = uint40(uint(packed >> (offset * 64)));
           if (orderId == 0 || quantityRemaining == 0) {
@@ -434,6 +438,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
             );
             quantityNFTClaimable = quantityRemaining;
             quantityRemaining = 0;
+            eatIntoLastOrder = true;
           }
           finalOffset = offset;
           cost += quantityNFTClaimable * lowestAsk;
@@ -448,21 +453,26 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
           }
         }
 
-        if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
+        bool wholeSegmentConsumed = numOrdersWithinSegmentConsumed == finalOffset + 1;
+        if (!wholeSegmentConsumed && eatIntoLastOrder) {
+          // Shift deleted ones as well as the updated order
           lowestAskValues[i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+          lastNumOrdersWithinSegmentConsumed = numOrdersWithinSegmentConsumed;
+          break;
         }
         if (quantityRemaining == 0) {
           break;
         }
       }
 
-      // We consumed all orders at this price, so remove all
-      if (numSegmentsFullyConsumed == lowestAskValues.length - askTree.getNode(lowestAsk).tombstoneOffset) {
-        askTree.remove(lowestAsk);
-        delete askValues[_tokenId][lowestAsk];
-      } else {
-        // Increase tombstone offset of this price for gas efficiency
-        askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed));
+      if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
+        uint tombstoneOffset = askTree.getNode(lowestAsk).tombstoneOffset;
+        askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
+
+        // We consumed all orders at this price level, so remove all
+        if (numSegmentsFullyConsumed == lowestAskValues.length - tombstoneOffset) {
+          askTree.remove(lowestAsk); // TODO: A ranged delete would be nice
+        }
       }
     }
 
@@ -501,10 +511,13 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       bytes32[] storage highestBidValues = bidValues[_tokenId][highestBid];
       BokkyPooBahsRedBlackTreeLibrary.Tree storage bidTree = bids[_tokenId];
 
+      bool eatIntoLastOrder;
+      uint finalOffset;
+      uint8 lastNumOrdersWithinSegmentConsumed;
       for (uint i = bidTree.getNode(highestBid).tombstoneOffset; i < highestBidValues.length; ++i) {
         bytes32 packed = highestBidValues[i];
-        uint numOrdersWithinSegmentConsumed;
-        uint finalOffset;
+        uint8 numOrdersWithinSegmentConsumed;
+        finalOffset = 0;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
           uint40 orderId = uint40(uint(packed >> (offset * 64)));
           if (orderId == 0 || quantityRemaining == 0) {
@@ -533,6 +546,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
             );
             quantityNFTClaimable = quantityRemaining;
             quantityRemaining = 0;
+            eatIntoLastOrder = true;
           }
           finalOffset = offset;
           cost += quantityNFTClaimable * highestBid;
@@ -547,21 +561,26 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
           }
         }
 
-        if (numOrdersWithinSegmentConsumed != finalOffset + 1) {
+        bool wholeSegmentConsumed = numOrdersWithinSegmentConsumed == finalOffset + 1;
+        if (!wholeSegmentConsumed && eatIntoLastOrder) {
+          // Shift deleted ones as well as the updated order
           highestBidValues[i] = bytes32(packed >> (numOrdersWithinSegmentConsumed * 64));
+          lastNumOrdersWithinSegmentConsumed = numOrdersWithinSegmentConsumed;
+          break;
         }
         if (quantityRemaining == 0) {
           break;
         }
       }
 
-      // We consumed all orders at this price level, so remove all
-      if (numSegmentsFullyConsumed == highestBidValues.length - bidTree.getNode(highestBid).tombstoneOffset) {
-        bidTree.remove(highestBid); // TODO: A ranged delete would be nice
-        delete bidValues[_tokenId][highestBid];
-      } else {
-        // Increase tombstone offset of this price for gas efficiency
-        bidTree.edit(highestBid, uint32(numSegmentsFullyConsumed));
+      if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
+        uint tombstoneOffset = bidTree.getNode(highestBid).tombstoneOffset;
+        bidTree.edit(highestBid, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
+
+        // We consumed all orders at this price level, so remove all
+        if (numSegmentsFullyConsumed == highestBidValues.length - tombstoneOffset) {
+          bidTree.remove(highestBid); // TODO: A ranged delete would be nice
+        }
       }
     }
 
