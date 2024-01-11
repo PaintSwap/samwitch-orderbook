@@ -14,7 +14,7 @@ import {IBrushToken} from "./interfaces/IBrushToken.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
-/// @title SamWitchOrderBook
+/// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
@@ -153,31 +153,26 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     uint brushTransferToUs;
     uint brushTransferFromUs;
     uint lengthToUs;
-    uint ordersLength = _orders.length;
-    uint[] memory idsToUs = new uint[](ordersLength);
-    uint[] memory amountsToUs = new uint[](ordersLength);
+    uint[] memory idsToUs = new uint[](_orders.length);
+    uint[] memory amountsToUs = new uint[](_orders.length);
     uint lengthFromUs;
-    uint[] memory idsFromUs = new uint[](ordersLength);
-    uint[] memory amountsFromUs = new uint[](ordersLength);
+    uint[] memory idsFromUs = new uint[](_orders.length);
+    uint[] memory amountsFromUs = new uint[](_orders.length);
 
     // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
     uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
 
-    for (uint i = 0; i < ordersLength; ++i) {
+    for (uint i = 0; i < _orders.length; ++i) {
       LimitOrder calldata limitOrder = _orders[i];
-      OrderSide side = limitOrder.side;
-      uint tokenId = limitOrder.tokenId;
-      uint quantity = limitOrder.quantity;
-      uint price = limitOrder.price;
       (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
         limitOrder,
         orderIdsPool,
         quantitiesPool
       );
 
-      if (side == OrderSide.Buy) {
-        brushTransferToUs += cost + uint(price) * quantityAddedToBook;
+      if (limitOrder.side == OrderSide.Buy) {
+        brushTransferToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
         if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
           royalty = royalty.add(_royalty);
@@ -185,15 +180,15 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
           burn = burn.add(_burn);
 
           // Transfer the NFTs straight to the user
-          idsFromUs[lengthFromUs] = tokenId;
-          amountsFromUs[lengthFromUs] = quantity.sub(quantityAddedToBook);
+          idsFromUs[lengthFromUs] = limitOrder.tokenId;
+          amountsFromUs[lengthFromUs] = uint(limitOrder.quantity).sub(quantityAddedToBook);
           lengthFromUs = lengthFromUs.inc();
         }
       } else {
         // Selling, transfer all NFTs to us
-        uint amount = quantity - failedQuantity;
+        uint amount = limitOrder.quantity - failedQuantity;
         if (amount != 0) {
-          idsToUs[lengthToUs] = tokenId;
+          idsToUs[lengthToUs] = limitOrder.tokenId;
           amountsToUs[lengthToUs] = amount;
           lengthToUs = lengthToUs.inc();
         }
@@ -244,12 +239,11 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     if (_orderIds.length != _cancelOrderInfos.length) {
       revert LengthMismatch();
     }
-    uint cancelOrderInfosLength = _cancelOrderInfos.length;
     uint amountToTransferFromUs = 0;
     uint nftsToTransferFromUs = 0;
-    uint[] memory ids = new uint[](cancelOrderInfosLength);
-    uint[] memory amounts = new uint[](cancelOrderInfosLength);
-    for (uint i = 0; i < cancelOrderInfosLength; ++i) {
+    uint[] memory ids = new uint[](_cancelOrderInfos.length);
+    uint[] memory amounts = new uint[](_cancelOrderInfos.length);
+    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
       CancelOrderInfo calldata cancelOrderInfo = _cancelOrderInfos[i];
       (OrderSide side, uint tokenId, uint72 price) = (
         cancelOrderInfo.side,
@@ -755,7 +749,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
     }
 
-    // Read last one
+    // Read last one. Decide if we can add to the existing segment or if we need to add a new segment
     bytes32[] storage packedOrders = _packedOrdersPriceMap[price];
     bool pushToEnd = true;
     if (packedOrders.length != 0) {
@@ -875,34 +869,34 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     if (_offset == 0 && packed >> 64 == bytes32(0)) {
-      // Remove the entire segment by shifting all other segments to the left. Not very efficient, but this at least only affects the user cancelling
+      // Only 1 order in this segment, so remove the segment by shifting all other segments to the left.
       uint limit = orderBookEntries.length.sub(1);
       for (uint i = _index; i < limit; ++i) {
         orderBookEntries[i] = orderBookEntries[i.inc()];
       }
       orderBookEntries.pop();
       if (orderBookEntries.length - _tombstoneOffset == 0) {
-        // Last one at this price level so trash it
+        // Last one at this price level so trash it in the tree
         _tree.remove(_price);
       }
     } else {
-      uint indexToRemove = _index * 4 + _offset;
+      uint indexToRemove = _index * NUM_ORDERS_PER_SEGMENT + _offset;
 
       uint nextElementIndex;
       uint nextOffsetIndex;
-      // Shift orders. TODO: For offset 0, 1, 2 we can shift the whole element in 1 go. This does all except the last order
-      for (uint i = indexToRemove; i < (orderBookEntries.length) * 4 - 1; ++i) {
-        uint nextIndex = i + 1;
-        nextElementIndex = nextIndex / 4;
-        nextOffsetIndex = nextIndex % 4;
+      // Shift orders cross-segments.
+      // This does all except the last order
+      // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
+      for (uint i = indexToRemove; i < orderBookEntries.length * NUM_ORDERS_PER_SEGMENT - 1; ++i) {
+        nextElementIndex = (i + 1) / NUM_ORDERS_PER_SEGMENT;
+        nextOffsetIndex = (i + 1) % NUM_ORDERS_PER_SEGMENT;
 
         bytes32 nextElement = orderBookEntries[nextElementIndex];
 
-        uint currentIndex = i;
-        uint currentElementIndex = currentIndex / 4;
-        uint currentOffsetIndex = currentIndex % 4;
+        uint currentElementIndex = i / NUM_ORDERS_PER_SEGMENT;
+        uint currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
 
-        bytes32 currentElement = orderBookEntries[currentIndex / 4];
+        bytes32 currentElement = orderBookEntries[currentElementIndex];
 
         uint newOrder = uint64(uint(nextElement >> (nextOffsetIndex * 64)));
         if (newOrder == 0) {
@@ -912,21 +906,23 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
         }
 
         // Clear the current order and set it with the shifted order
-        currentElement &= ~(bytes32(uint(0xffffffffffffffff)) << (currentOffsetIndex * 64));
+        currentElement &= _clearOrderMask(currentOffsetIndex);
         currentElement |= bytes32(newOrder) << ((currentOffsetIndex) * 64);
         orderBookEntries[currentElementIndex] = currentElement;
       }
-      uint lastElementIndex = nextElementIndex; // TODO: Not needed to rename
-      uint lastOffsetIndex = nextOffsetIndex;
-      if (lastOffsetIndex == 0) {
+      if (nextOffsetIndex == 0) {
         orderBookEntries.pop();
       } else {
         // Clear the last element
-        bytes32 lastElement = orderBookEntries[lastElementIndex];
-        lastElement &= ~(bytes32(uint(0xffffffffffffffff)) << (lastOffsetIndex * 64));
-        orderBookEntries[lastElementIndex] = lastElement;
+        bytes32 lastElement = orderBookEntries[nextElementIndex];
+        lastElement &= _clearOrderMask(nextOffsetIndex);
+        orderBookEntries[nextElementIndex] = lastElement;
       }
     }
+  }
+
+  function _clearOrderMask(uint _offsetIndex) private pure returns (bytes32) {
+    return ~(bytes32(uint(0xffffffffffffffff)) << (_offsetIndex * 64));
   }
 
   function _safeTransferToUs(address _from, uint _amount) private {

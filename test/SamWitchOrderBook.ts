@@ -1057,7 +1057,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Claim NFTs", async function () {
-    const {orderBook, erc1155, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -1134,13 +1134,4 @@ describe("SamWitchOrderBook", function () {
       console.log(`${order.id} | ${order.quantity}`);
     }
   };
-
-  // it("TODO Edit order", async function () {});
-  // Test multiple tokenIds
-  // Test is gas more efficient by just sending the nft/brush directly instead of storing myself)
-  // Test editing order (once implemented)
-  // Test bulk edit
-  // Remove id and only allow 1 order per address?
-  // Fuzz test of many orders
-  // Can take from yourself?
 });
