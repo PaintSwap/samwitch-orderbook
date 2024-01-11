@@ -2,6 +2,8 @@
 
 [![Continuous integration](https://github.com/PaintSwap/samwitch-orderbook/actions/workflows/main.yml/badge.svg)](https://github.com/PaintSwap/samwitch-orderbook/actions/workflows/main.yml)
 
+![swob](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/977c060f-e6e7-418f-9d44-1012599f41c6)
+
 This efficient order book utilises the BokkyPooBahsRedBlackTreeLibrary library for sorting prices allowing O(log n) for tree segment insertion, traversal and deleting. It supports batch orders and batch cancelling, ERC2981 royalties, a dev and burn fee on each trade.
 
 It is kept gas efficient by packing dataq in many areas:
