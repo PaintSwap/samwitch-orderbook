@@ -16,6 +16,12 @@ describe("SamWitchOrderBook", function () {
     quantity: number;
   };
 
+  type OrderBookEntryHelper = {
+    maker: string;
+    quantity: bigint;
+    id: bigint;
+  };
+
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
@@ -115,8 +121,6 @@ describe("SamWitchOrderBook", function () {
     ]);
 
     // Buy
-    await brush.mint(alice, 1000000);
-    await brush.connect(alice).approve(orderBook, 1000000);
     const numToBuy = 2;
     await orderBook.connect(alice).limitOrders([
       {
@@ -126,6 +130,7 @@ describe("SamWitchOrderBook", function () {
         quantity: numToBuy,
       },
     ]);
+
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
 
     await orderBook.connect(alice).limitOrders([
@@ -138,7 +143,7 @@ describe("SamWitchOrderBook", function () {
     ]); // Buy the rest
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
 
-    // There's nothing left, this adds to the buy order side
+    // There's nothing left on the sell side, this adds to the buy order side
     await orderBook.connect(alice).limitOrders([
       {
         side: OrderSide.Buy,
@@ -151,7 +156,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   describe("Cancelling orders", function () {
-    it("Cancel an order", async function () {
+    it("Cancel a single order", async function () {
       const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} = await loadFixture(
         deployContractsFixture
       );
@@ -174,6 +179,12 @@ describe("SamWitchOrderBook", function () {
         },
       ]);
 
+      // Try cancel non-existent order
+      await expect(orderBook.cancelOrders([3], [{side: OrderSide.Buy, tokenId, price}])).to.be.revertedWithCustomError(
+        orderBook,
+        "OrderNotFound"
+      );
+
       // Cancel buy
       const orderId = 1;
       await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
@@ -181,7 +192,7 @@ describe("SamWitchOrderBook", function () {
       // No longer exists
       await expect(
         orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
-      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       // Cancel the sell
       await orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]);
@@ -189,7 +200,7 @@ describe("SamWitchOrderBook", function () {
       // No longer exists
       await expect(
         orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
-      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       // Check you get the brush back
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
@@ -238,6 +249,89 @@ describe("SamWitchOrderBook", function () {
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
     });
 
+    it("Inner segment offsets completing orders", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+
+      const limitOrders = new Array<LimitOrder>(2).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      // Consume 1 order, check there is only 1 remaining
+      await orderBook.limitOrders([{side: OrderSide.Sell, tokenId, price, quantity}]);
+
+      const orderId = 1;
+      let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+      expect(orders.length).to.eq(1);
+      expect(orders[0].id).to.eq(orderId + 1);
+    });
+
+    it("Cancel an order at the beginning, middle and end of the same segment which has a tombstoneOffset", async function () {
+      const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+
+      const limitOrders = new Array<LimitOrder>(8).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      // Consume whole order to add a tombstone offset
+      const sellLimitOrders = new Array<LimitOrder>(4).fill({
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(sellLimitOrders);
+
+      expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price)).length).to.eq(4);
+
+      // Cancel a buy in the middle
+      const orderId = 6;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      // Cancel a buy at the start
+      await orderBook.cancelOrders([orderId - 1], [{side: OrderSide.Buy, tokenId, price}]);
+
+      // Cancel a buy at the end
+      await orderBook.cancelOrders([orderId + 2], [{side: OrderSide.Buy, tokenId, price}]);
+
+      const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+      expect(node.tombstoneOffset).to.eq(1);
+
+      // The only one left should be orderId 3
+      let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+      expect(orders.length).to.eq(1);
+      expect(orders[0].id).to.eq(orderId + 1);
+
+      // Check you get the brush back
+      expect(await brush.balanceOf(owner)).to.eq(
+        initialBrush - price * quantity - calcFees(price * quantity * 4, true)
+      );
+      expect(await brush.balanceOf(orderBook)).to.eq(price * quantity);
+
+      expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
+      expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+
+      // Now kill this one
+      await orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Buy, tokenId, price}]);
+      orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+      expect(orders.length).to.eq(0);
+    });
+
     it("Cancel an order which deletes a segment at the beginning, middle and end", async function () {
       const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
 
@@ -260,14 +354,16 @@ describe("SamWitchOrderBook", function () {
 
       // Cancel a buy in the middle
       let orderIds = [9, 10, 11, 12];
-      const cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
+      let cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
       await orderBook.cancelOrders(orderIds, cancelOrderInfos);
       // Cancel a buy at the start
       orderIds = [1, 2, 3, 4];
+      cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
       await orderBook.cancelOrders(orderIds, cancelOrderInfos);
 
       // Cancel a buy at the end
       orderIds = [13, 14, 15, 16];
+      cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
       await orderBook.cancelOrders(orderIds, cancelOrderInfos);
 
       // The only one left should be orderIds
@@ -321,10 +417,10 @@ describe("SamWitchOrderBook", function () {
       // Check both no longer exist
       await expect(
         orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
-      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
       await expect(
         orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
-      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
       expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
@@ -1031,6 +1127,12 @@ describe("SamWitchOrderBook", function () {
     const burnt = (cost * 3) / 1000; // 0.3%
     const devAmount = (cost * 3) / 1000; // 0.3%
     return Math.floor(royalty + burnt + devAmount);
+  };
+
+  const outputAllOrders = (orders: OrderBookEntryHelper[]) => {
+    for (const order of orders) {
+      console.log(`${order.id} | ${order.quantity}`);
+    }
   };
 
   // it("TODO Edit order", async function () {});
