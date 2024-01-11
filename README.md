@@ -1,6 +1,31 @@
-# ERC1155 Orderbook (SWOB SamWitchOrderBook)
+# SWOB (SamWitchOrderBook) for ERC1155 NFTs
 
-[![Continuous integration](https://github.com/PaintSwap/SamWitchOrderBook/actions/workflows/main.yml/badge.svg)](https://github.com/PaintSwap/SamWitchOrderBook/actions/workflows/main.yml)
+[![Continuous integration](https://github.com/PaintSwap/samwitch-orderbook/actions/workflows/main.yml/badge.svg)](https://github.com/PaintSwap/samwitch-orderbook/actions/workflows/main.yml)
+
+This efficient order book utilises the BokkyPooBahsRedBlackTreeLibrary library for sorting prices allowing O(log n) for tree segment insertion, traversal and deleting. It supports batch orders and batch cancelling, ERC2981 royalties, a dev and burn fee on each trade.
+
+It is kept gas efficient by packing dataq in many areas:
+
+- 4 orders (uint24 quantity + uint40 order id) into a 256bit word giving a 4x improvement compared to using 1 storage slot per order.
+- When taking from the order book no tokens/nfts are transferred. Instead the orderId is stored in a claimable array
+- The tokens claimable are packed with 3 orders per storage slot
+
+The order book is kept healthy by requiring a minimum quantity that can be added, partial quantities can still be taken from the order book. Cancelling orders shifts all at the price level to remove gaps.
+
+Constraints:
+
+- The order quantity is limited to ~16mil
+- The maximum number of orders in the book that can ever be added is limited to 1 trillion
+- The maximum number of orders that can be added to a specific price level is between 4.2 - 16 billion
+
+While this OrderBook was created for ERC1155 NFTs it could be adapted for ERC20s
+
+Note: Not suitable for production until more tests are added with more code coverage.
+
+Potential improvements:
+
+- Use an orderId per price level insted of global, so that they are always sequential
+- Range delete of the red-black tree using split/join
 
 To start copy the .env.sample file to .env and fill in PRIVATE_KEY at minimum, starts with 0x
 
