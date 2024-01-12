@@ -127,7 +127,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     __Ownable_init(_msgSender());
 
     // make sure dev address/fee is set appropriately
-    if (_devFee > 0) {
+    if (_devFee != 0) {
       if (_devAddr == address(0)) {
         revert ZeroAddress();
       }
