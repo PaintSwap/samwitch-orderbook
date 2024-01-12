@@ -16,6 +16,7 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 
 /// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
+/// @author 0xDoubleSharp
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.
@@ -1064,5 +1065,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   }
 
   // solhint-disable-next-line no-empty-blocks
-  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    // upgradeable by owner
+  }
 }
