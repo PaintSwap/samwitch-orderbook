@@ -28,6 +28,7 @@ Potential improvements:
 
 - Use an orderId per price level insted of global, so that they are always sequential
 - Range delete of the red-black tree using split/join
+- The tree, either pack red & numDeletedInSegment or reduce number of decimals for the price and use uint64 instead.
 
 To start copy the .env.sample file to .env and fill in PRIVATE_KEY at minimum, starts with 0x
 
