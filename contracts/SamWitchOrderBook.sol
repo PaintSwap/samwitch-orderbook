@@ -438,7 +438,8 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
           brushClaimable[orderId] += uint80(quantityNFTClaimable * lowestAsk);
 
           _orderIdsPool[length] = orderId;
-          _quantitiesPool[length++] = quantityNFTClaimable;
+          _quantitiesPool[length] = quantityNFTClaimable;
+          length = length.inc();
 
           if (length >= MAX_ORDERS_HIT) {
             revert TooManyOrdersHit();
