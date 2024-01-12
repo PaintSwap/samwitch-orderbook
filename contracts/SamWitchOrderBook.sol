@@ -717,7 +717,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
     // Add the rest to the order book if has the minimum required, in order to keep order books healthy
     if (quantityAddedToBook >= tokenIdInfo.minQuantity) {
-      _addToBook(_newOrderId, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook);
+      _addToBook(_newOrderId, tick, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook);
     } else {
       failedQuantity = quantityAddedToBook;
       quantityAddedToBook = 0;
@@ -793,28 +793,21 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
   }
 
-  function _addToBook(uint40 _newOrderId, OrderSide _side, uint _tokenId, uint72 _price, uint24 _quantity) private {
+  function _addToBook(
+    uint40 _newOrderId,
+    uint128 tick,
+    OrderSide _side,
+    uint _tokenId,
+    uint72 _price,
+    uint24 _quantity
+  ) private {
     orderBookIdToMaker[_newOrderId] = _msgSender();
     uint72 price;
     // Price can update if the price level is at capacity
     if (_side == OrderSide.Buy) {
-      price = _addToBookSide(
-        bidValues[_tokenId],
-        bids[_tokenId],
-        _price,
-        _newOrderId,
-        _quantity,
-        -int128(tokenIdInfos[_tokenId].tick)
-      );
+      price = _addToBookSide(bidValues[_tokenId], bids[_tokenId], _price, _newOrderId, _quantity, -int128(tick));
     } else {
-      price = _addToBookSide(
-        askValues[_tokenId],
-        asks[_tokenId],
-        _price,
-        _newOrderId,
-        _quantity,
-        int128(tokenIdInfos[_tokenId].tick)
-      );
+      price = _addToBookSide(askValues[_tokenId], asks[_tokenId], _price, _newOrderId, _quantity, int128(tick));
     }
     emit AddedToBook(_msgSender(), _side, _newOrderId, price, _quantity);
   }
