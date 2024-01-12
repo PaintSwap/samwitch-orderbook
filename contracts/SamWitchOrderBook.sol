@@ -696,7 +696,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     }
 
     TokenIdInfo storage tokenIdInfo = tokenIdInfos[_limitOrder.tokenId];
-    uint tick = tokenIdInfo.tick;
+    uint128 tick = tokenIdInfo.tick;
 
     if (tick == 0) {
       revert TokenDoesntExist(_limitOrder.tokenId);
