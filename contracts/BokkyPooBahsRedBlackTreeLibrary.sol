@@ -80,7 +80,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
     function getEmpty() internal pure returns (uint) {
         return EMPTY;
     }
-    function getNode(Tree storage self, uint72 key) internal view returns (Node memory node) {
+    function getNode(Tree storage self, uint72 key) internal view returns (Node storage node) {
         require(exists(self, key));
         return self.nodes[key];
     }

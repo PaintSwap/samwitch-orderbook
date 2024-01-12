@@ -398,11 +398,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       uint numSegmentsFullyConsumed = 0;
       bytes32[] storage lowestAskValues = askValues[_tokenId][lowestAsk];
       BokkyPooBahsRedBlackTreeLibrary.Tree storage askTree = asks[_tokenId];
+      BokkyPooBahsRedBlackTreeLibrary.Node storage lowestAskNode = askTree.getNode(lowestAsk);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = askTree.getNode(lowestAsk).numInSegmentDeleted;
+      uint8 initialOffset = lowestAskNode.numInSegmentDeleted;
       uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
-      for (uint i = askTree.getNode(lowestAsk).tombstoneOffset; i < lowestAskValues.length; ++i) {
+      for (uint i = lowestAskNode.tombstoneOffset; i < lowestAskValues.length; ++i) {
         bytes32 packed = lowestAskValues[i];
         uint8 numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
@@ -465,7 +466,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
 
       if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
-        uint tombstoneOffset = askTree.getNode(lowestAsk).tombstoneOffset;
+        uint tombstoneOffset = lowestAskNode.tombstoneOffset;
         askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
 
         // We consumed all orders at this price level, so remove all
@@ -509,11 +510,12 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       uint numSegmentsFullyConsumed = 0;
       bytes32[] storage highestBidValues = bidValues[_tokenId][highestBid];
       BokkyPooBahsRedBlackTreeLibrary.Tree storage bidTree = bids[_tokenId];
+      BokkyPooBahsRedBlackTreeLibrary.Node storage highestBidNode = bidTree.getNode(highestBid);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = bidTree.getNode(highestBid).numInSegmentDeleted;
+      uint8 initialOffset = highestBidNode.numInSegmentDeleted;
       uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
-      for (uint i = bidTree.getNode(highestBid).tombstoneOffset; i < highestBidValues.length; ++i) {
+      for (uint i = highestBidNode.tombstoneOffset; i < highestBidValues.length; ++i) {
         bytes32 packed = highestBidValues[i];
         uint8 numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
@@ -575,7 +577,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
 
       if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
-        uint tombstoneOffset = bidTree.getNode(highestBid).tombstoneOffset;
+        uint tombstoneOffset = highestBidNode.tombstoneOffset;
         bidTree.edit(highestBid, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
 
         // We consumed all orders at this price level, so remove all
