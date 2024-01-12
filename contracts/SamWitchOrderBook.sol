@@ -14,70 +14,17 @@ import {IBrushToken} from "./interfaces/IBrushToken.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
+import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
+
 /// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @author 0xDoubleSharp
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.
-contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
+contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using UnsafeMath for uint;
-
-  event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
-  event OrdersCancelled(address maker, uint[] orderIds);
-  event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
-  event AddedToBook(address maker, OrderSide side, uint orderId, uint price, uint quantity);
-  event ClaimedTokens(address maker, uint[] orderIds, uint amount);
-  event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
-  event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
-  event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
-
-  error ZeroAddress();
-  error DevFeeNotSet();
-  error DevFeeTooHigh();
-  error NotERC1155();
-  error NoQuantity();
-  error OrderNotFound(uint orderId, uint price);
-  error OrderNotFoundInTree(uint orderId, uint price);
-  error PriceNotMultipleOfTick(uint tick);
-  error TokenDoesntExist(uint tokenId);
-  error PriceZero();
-  error LengthMismatch();
-  error NotMaker();
-  error NothingToClaim();
-  error TooManyOrdersHit();
-  error TransferToUsFailed();
-  error TransferFromUsFailed();
-
-  enum OrderSide {
-    Buy,
-    Sell
-  }
-
-  struct LimitOrder {
-    OrderSide side;
-    uint tokenId;
-    uint72 price;
-    uint24 quantity;
-  }
-
-  struct OrderBookEntryHelper {
-    address maker;
-    uint24 quantity;
-    uint40 id;
-  }
-
-  struct TokenIdInfo {
-    uint128 tick;
-    uint128 minQuantity;
-  }
-
-  struct CancelOrderInfo {
-    OrderSide side;
-    uint tokenId;
-    uint72 price;
-  }
 
   IERC1155 public nft;
   IBrushToken public token;
@@ -156,7 +103,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
-  function limitOrders(LimitOrder[] calldata _orders) external {
+  function limitOrders(LimitOrder[] calldata _orders) external override {
     uint royalty;
     uint dev;
     uint burn;
@@ -251,7 +198,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @notice Cancel multiple orders in the order book
   /// @param _orderIds Array of order IDs to be cancelled
   /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
-  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external {
+  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external override {
     if (_orderIds.length != _cancelOrderInfos.length) {
       revert LengthMismatch();
     }
@@ -301,7 +248,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @notice Claim NFTs associated with filled or partially filled orders.
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
-  function claimTokens(uint[] calldata _orderIds) public {
+  function claimTokens(uint[] calldata _orderIds) public override {
     uint amount;
     for (uint i = 0; i < _orderIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
@@ -340,7 +287,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
   /// @param _tokenIds Array of token IDs to claim NFTs for
-  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public {
+  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public override {
     if (_orderIds.length != _tokenIds.length) {
       revert LengthMismatch();
     }
@@ -368,7 +315,11 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @param _brushOrderIds Array of order IDs from which to claim tokens
   /// @param _nftOrderIds Array of order IDs from which to claim NFTs
   /// @param _tokenIds Array of token IDs to claim NFTs for
-  function claimAll(uint[] calldata _brushOrderIds, uint[] calldata _nftOrderIds, uint[] calldata _tokenIds) external {
+  function claimAll(
+    uint[] calldata _brushOrderIds,
+    uint[] calldata _nftOrderIds,
+    uint[] calldata _tokenIds
+  ) external override {
     claimTokens(_brushOrderIds);
     claimNFTs(_nftOrderIds, _tokenIds);
   }
@@ -956,7 +907,10 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @notice Get the amount of tokens claimable for these orders
   /// @param _orderIds The order IDs to get the claimable tokens for
   /// @param takeAwayFees Whether to take away the fees from the claimable amount
-  function tokensClaimable(uint40[] calldata _orderIds, bool takeAwayFees) external view returns (uint amount) {
+  function tokensClaimable(
+    uint40[] calldata _orderIds,
+    bool takeAwayFees
+  ) external view override returns (uint amount) {
     uint limit = _orderIds.length;
     for (uint i = 0; i < limit; ++i) {
       amount += brushClaimable[_orderIds[i]];
@@ -973,7 +927,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   function nftsClaimable(
     uint40[] calldata _orderIds,
     uint[] calldata _tokenIds
-  ) external view returns (uint[] memory amounts) {
+  ) external view override returns (uint[] memory amounts) {
     amounts = new uint[](_orderIds.length);
     uint limit = _orderIds.length;
     for (uint i = 0; i < limit; ++i) {
@@ -983,13 +937,13 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
   /// @notice Get the highest bid for a specific token ID
   /// @param _tokenId The token ID to get the highest bid for
-  function getHighestBid(uint _tokenId) public view returns (uint72) {
+  function getHighestBid(uint _tokenId) public view override returns (uint72) {
     return bids[_tokenId].last();
   }
 
   /// @notice Get the lowest ask for a specific token ID
   /// @param _tokenId The token ID to get the lowest ask for
-  function getLowestAsk(uint _tokenId) public view returns (uint72) {
+  function getLowestAsk(uint _tokenId) public view override returns (uint72) {
     return asks[_tokenId].first();
   }
 
@@ -1001,7 +955,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     OrderSide _side,
     uint _tokenId,
     uint72 _price
-  ) external view returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
+  ) external view override returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
     if (_side == OrderSide.Buy) {
       return bids[_tokenId].getNode(_price);
     } else {
@@ -1013,7 +967,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
   /// @param _side The side of the order book to get the order from
   /// @param _tokenId The token ID to get the order for
   /// @param _price The price level to get the order for
-  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view returns (bool) {
+  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view override returns (bool) {
     if (_side == OrderSide.Buy) {
       return bids[_tokenId].exists(_price);
     } else {
@@ -1023,13 +977,13 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
 
   /// @notice Get the tick size for a specific token ID
   /// @param _tokenId The token ID to get the tick size for
-  function getTick(uint _tokenId) external view returns (uint) {
+  function getTick(uint _tokenId) external view override returns (uint) {
     return tokenIdInfos[_tokenId].tick;
   }
 
   /// @notice The minimum amount that can be added to the order book for a specific token ID, to keep the order book healthy
   /// @param _tokenId The token ID to get the minimum quantity for
-  function getMinAmount(uint _tokenId) external view returns (uint) {
+  function getMinAmount(uint _tokenId) external view override returns (uint) {
     return tokenIdInfos[_tokenId].minQuantity;
   }
 
@@ -1041,7 +995,7 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
     OrderSide _side,
     uint _tokenId,
     uint72 _price
-  ) external view returns (OrderBookEntryHelper[] memory orderBookEntries) {
+  ) external view override returns (OrderBookEntryHelper[] memory orderBookEntries) {
     if (_side == OrderSide.Buy) {
       return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
     } else {
