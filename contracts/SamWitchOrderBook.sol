@@ -206,13 +206,6 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       }
     }
 
-    assembly ("memory-safe") {
-      mstore(idsToUs, lengthToUs)
-      mstore(amountsToUs, lengthToUs)
-      mstore(idsFromUs, lengthFromUs)
-      mstore(amountsFromUs, lengthFromUs)
-    }
-
     if (brushTransferToUs != 0) {
       _safeTransferToUs(_msgSender(), brushTransferToUs);
     }
@@ -221,11 +214,19 @@ contract SamWitchOrderBook is ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable
       _safeTransferFromUs(_msgSender(), brushTransferFromUs);
     }
 
-    if (idsToUs.length != 0) {
+    if (lengthToUs != 0) {
+      assembly ("memory-safe") {
+        mstore(idsToUs, lengthToUs)
+        mstore(amountsToUs, lengthToUs)
+      }
       nft.safeBatchTransferFrom(_msgSender(), address(this), idsToUs, amountsToUs, "");
     }
 
-    if (idsFromUs.length != 0) {
+    if (lengthFromUs != 0) {
+      assembly ("memory-safe") {
+        mstore(idsFromUs, lengthFromUs)
+        mstore(amountsFromUs, lengthFromUs)
+      }
       _safeBatchTransferNFTsFromUs(_msgSender(), idsFromUs, amountsFromUs);
     }
 
