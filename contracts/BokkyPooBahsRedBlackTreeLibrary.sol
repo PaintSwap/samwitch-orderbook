@@ -21,7 +21,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
         uint72 right;
         uint32 tombstoneOffset; // Number of deleted segments, for gas efficiency
         uint8 numInSegmentDeleted; // Number of deleted elements in the current segment, for gas efficiency
-        bool red; // TODO: Pack with numInSegmentDeleted, and make uint40 to be more future proof, but gas likely increases
+        bool red; // TODO: Pack with numInSegmentDeleted
     }
 
     struct Tree {
