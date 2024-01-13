@@ -348,7 +348,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       mstore(_quantitiesPool, MAX_ORDERS_HIT)
     }
 
-    uint length;
+    uint numberOfOrders;
     while (quantityRemaining_ != 0) {
       uint72 lowestAsk = getLowestAsk(_tokenId);
       if (lowestAsk == 0 || lowestAsk > _price) {
@@ -401,11 +401,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
           brushClaimable[orderId] += uint80(quantityNFTClaimable * lowestAsk);
 
-          _orderIdsPool[length] = orderId;
-          _quantitiesPool[length] = quantityNFTClaimable;
-          length = length.inc();
+          _orderIdsPool[numberOfOrders] = orderId;
+          _quantitiesPool[numberOfOrders] = quantityNFTClaimable;
+          numberOfOrders = numberOfOrders.inc();
 
-          if (length >= MAX_ORDERS_HIT) {
+          if (numberOfOrders >= MAX_ORDERS_HIT) {
             revert TooManyOrdersHit();
           }
         }
@@ -439,8 +439,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     assembly ("memory-safe") {
-      mstore(_orderIdsPool, length)
-      mstore(_quantitiesPool, length)
+      mstore(_orderIdsPool, numberOfOrders)
+      mstore(_quantitiesPool, numberOfOrders)
     }
 
     emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
@@ -460,7 +460,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       mstore(_orderIdsPool, MAX_ORDERS_HIT)
       mstore(_quantitiesPool, MAX_ORDERS_HIT)
     }
-    uint length;
+    uint numberOfOrders;
     while (quantityRemaining != 0) {
       uint72 highestBid = getHighestBid(_tokenId);
       if (highestBid == 0 || highestBid < _price) {
@@ -514,10 +514,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
           tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
 
-          _orderIdsPool[length] = orderId;
-          _quantitiesPool[length++] = quantityNFTClaimable;
+          _orderIdsPool[numberOfOrders] = orderId;
+          _quantitiesPool[numberOfOrders++] = quantityNFTClaimable;
 
-          if (length >= MAX_ORDERS_HIT) {
+          if (numberOfOrders >= MAX_ORDERS_HIT) {
             revert TooManyOrdersHit();
           }
         }
@@ -551,8 +551,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     assembly ("memory-safe") {
-      mstore(_orderIdsPool, length)
-      mstore(_quantitiesPool, length)
+      mstore(_orderIdsPool, numberOfOrders)
+      mstore(_quantitiesPool, numberOfOrders)
     }
 
     emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
