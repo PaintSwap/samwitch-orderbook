@@ -582,8 +582,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (!_tree.exists(_price)) {
       return orderBookEntries_;
     }
-    uint tombstoneOffset = _tree.getNode(_price).tombstoneOffset;
-    uint numInSegmentDeleted = _tree.getNode(_price).numInSegmentDeleted;
+    BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
+    uint tombstoneOffset = node.tombstoneOffset;
+    uint numInSegmentDeleted = node.numInSegmentDeleted;
     orderBookEntries_ = new OrderBookEntryHelper[](
       (packedOrderBookEntries.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted
     );
@@ -615,8 +616,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert OrderNotFoundInTree(_orderId, _price);
     }
 
-    uint tombstoneOffset = _tree.getNode(_price).tombstoneOffset;
-    uint numInSegmentDeleted = _tree.getNode(_price).numInSegmentDeleted;
+    BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
+    uint tombstoneOffset = node.tombstoneOffset;
+    uint numInSegmentDeleted = node.numInSegmentDeleted;
 
     (uint index, uint offset) = _find(
       _packedOrderBookEntries,
