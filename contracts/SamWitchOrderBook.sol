@@ -104,14 +104,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint royalty;
     uint dev;
     uint burn;
-    uint brushTransferToUs;
-    uint brushTransferFromUs;
-    uint lengthToUs;
-    uint[] memory idsToUs = new uint[](_orders.length);
-    uint[] memory amountsToUs = new uint[](_orders.length);
+    uint brushToUs;
+    uint brushFromUs;
+    uint nftsToUs;
+    uint[] memory nftIdsToUs = new uint[](_orders.length);
+    uint[] memory nftAmountsToUs = new uint[](_orders.length);
     uint lengthFromUs;
-    uint[] memory idsFromUs = new uint[](_orders.length);
-    uint[] memory amountsFromUs = new uint[](_orders.length);
+    uint[] memory nftIdsFromUs = new uint[](_orders.length);
+    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
 
     // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
@@ -129,7 +129,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       );
 
       if (limitOrder.side == OrderSide.Buy) {
-        brushTransferToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
+        brushToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
         if (cost != 0) {
           (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
           royalty = royalty.add(_royalty);
@@ -137,17 +137,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           burn = burn.add(_burn);
 
           // Transfer the NFTs straight to the user
-          idsFromUs[lengthFromUs] = limitOrder.tokenId;
-          amountsFromUs[lengthFromUs] = uint(limitOrder.quantity).sub(quantityAddedToBook);
+          nftIdsFromUs[lengthFromUs] = limitOrder.tokenId;
+          nftAmountsFromUs[lengthFromUs] = uint(limitOrder.quantity).sub(quantityAddedToBook);
           lengthFromUs = lengthFromUs.inc();
         }
       } else {
         // Selling, transfer all NFTs to us
         uint amount = limitOrder.quantity - failedQuantity;
         if (amount != 0) {
-          idsToUs[lengthToUs] = limitOrder.tokenId;
-          amountsToUs[lengthToUs] = amount;
-          lengthToUs = lengthToUs.inc();
+          nftIdsToUs[nftsToUs] = limitOrder.tokenId;
+          nftAmountsToUs[nftsToUs] = amount;
+          nftsToUs = nftsToUs.inc();
         }
 
         // Transfer tokens to the seller if any have sold
@@ -158,35 +158,35 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           burn = burn.add(_burn);
 
           uint fees = _royalty + _dev + _burn;
-          brushTransferFromUs += cost - fees;
+          brushFromUs += cost - fees;
         }
       }
     }
     // update the state
     nextOrderId = currentOrderId;
 
-    if (brushTransferToUs != 0) {
-      token.safeTransferFrom(_msgSender(), address(this), brushTransferToUs);
+    if (brushToUs != 0) {
+      token.safeTransferFrom(_msgSender(), address(this), brushToUs);
     }
 
-    if (brushTransferFromUs != 0) {
-      token.safeTransfer(_msgSender(), brushTransferFromUs);
+    if (brushFromUs != 0) {
+      token.safeTransfer(_msgSender(), brushFromUs);
     }
 
-    if (lengthToUs != 0) {
+    if (nftsToUs != 0) {
       assembly ("memory-safe") {
-        mstore(idsToUs, lengthToUs)
-        mstore(amountsToUs, lengthToUs)
+        mstore(nftIdsToUs, nftsToUs)
+        mstore(nftAmountsToUs, nftsToUs)
       }
-      _safeBatchTransferNFTsToUs(_msgSender(), idsToUs, amountsToUs);
+      _safeBatchTransferNFTsToUs(_msgSender(), nftIdsToUs, nftAmountsToUs);
     }
 
     if (lengthFromUs != 0) {
       assembly ("memory-safe") {
-        mstore(idsFromUs, lengthFromUs)
-        mstore(amountsFromUs, lengthFromUs)
+        mstore(nftIdsFromUs, lengthFromUs)
+        mstore(nftAmountsFromUs, lengthFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_msgSender(), idsFromUs, amountsFromUs);
+      _safeBatchTransferNFTsFromUs(_msgSender(), nftIdsFromUs, nftAmountsFromUs);
     }
 
     _sendFees(royalty, dev, burn);
@@ -199,10 +199,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (_orderIds.length != _cancelOrderInfos.length) {
       revert LengthMismatch();
     }
-    uint amountToTransferFromUs = 0;
-    uint nftsToTransferFromUs = 0;
-    uint[] memory ids = new uint[](_cancelOrderInfos.length);
-    uint[] memory amounts = new uint[](_cancelOrderInfos.length);
+    uint brushFromUs = 0;
+    uint nftsFromUs = 0;
+    uint[] memory nftIdsFromUs = new uint[](_cancelOrderInfos.length);
+    uint[] memory nftAmountsFromUs = new uint[](_cancelOrderInfos.length);
     for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
       CancelOrderInfo calldata cancelOrderInfo = _cancelOrderInfos[i];
       (OrderSide side, uint tokenId, uint72 price) = (
@@ -214,31 +214,31 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
         // Send the remaining token back to them
-        amountToTransferFromUs += quantity * price;
+        brushFromUs += quantity * price;
       } else {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, askValues[tokenId][price], asks[tokenId]);
         // Send the remaining NFTs back to them
-        ids[nftsToTransferFromUs] = tokenId;
-        amounts[nftsToTransferFromUs] = quantity;
-        nftsToTransferFromUs += 1;
+        nftIdsFromUs[nftsFromUs] = tokenId;
+        nftAmountsFromUs[nftsFromUs] = quantity;
+        nftsFromUs += 1;
       }
     }
 
     emit OrdersCancelled(_msgSender(), _orderIds);
 
     // Transfer tokens if there are any to send
-    if (amountToTransferFromUs != 0) {
-      token.safeTransfer(_msgSender(), amountToTransferFromUs);
+    if (brushFromUs != 0) {
+      token.safeTransfer(_msgSender(), brushFromUs);
     }
 
     // Send the NFTs
-    if (nftsToTransferFromUs != 0) {
+    if (nftsFromUs != 0) {
       // reset the size
       assembly ("memory-safe") {
-        mstore(ids, nftsToTransferFromUs)
-        mstore(amounts, nftsToTransferFromUs)
+        mstore(nftIdsFromUs, nftsFromUs)
+        mstore(nftAmountsFromUs, nftsFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_msgSender(), ids, amounts);
+      _safeBatchTransferNFTsFromUs(_msgSender(), nftIdsFromUs, nftAmountsFromUs);
     }
   }
 
@@ -289,7 +289,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert LengthMismatch();
     }
 
-    uint[] memory amounts = new uint[](_tokenIds.length);
+    uint[] memory nftAmountsFromUs = new uint[](_tokenIds.length);
     for (uint i = 0; i < _tokenIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
       uint tokenId = _tokenIds[i];
@@ -298,13 +298,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (amount == 0) {
         revert NothingToClaim();
       }
-      amounts[i] = amount;
+      nftAmountsFromUs[i] = amount;
       tokenIdsClaimableForOrder[tokenId] = 0;
     }
 
-    emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, amounts);
+    emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, nftAmountsFromUs);
 
-    _safeBatchTransferNFTsFromUs(_msgSender(), _tokenIds, amounts);
+    _safeBatchTransferNFTsFromUs(_msgSender(), _tokenIds, nftAmountsFromUs);
   }
 
   /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
