@@ -847,8 +847,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     } else {
       uint indexToRemove = _index * NUM_ORDERS_PER_SEGMENT + _offset;
 
-      uint nextElementIndex;
-      uint nextOffsetIndex;
+      uint nextElementIndex = 0;
+      uint nextOffsetIndex = 0;
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
