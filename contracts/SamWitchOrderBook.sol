@@ -6,14 +6,13 @@ import {UnsafeMath} from "@0xdoublesharp/unsafe-math/contracts/UnsafeMath.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
-import {IBrushToken} from "./interfaces/IBrushToken.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
+import {IBrushToken} from "./interfaces/IBrushToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 
 /// @title SamWitchOrderBook (SWOB)
@@ -25,6 +24,7 @@ import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using UnsafeMath for uint;
+  using SafeERC20 for IBrushToken;
 
   IERC1155 public nft;
   IBrushToken public token;
@@ -166,11 +166,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     nextOrderId = currentOrderId;
 
     if (brushTransferToUs != 0) {
-      _safeTransferToUs(_msgSender(), brushTransferToUs);
+      token.safeTransferFrom(_msgSender(), address(this), brushTransferToUs);
     }
 
     if (brushTransferFromUs != 0) {
-      _safeTransferFromUs(_msgSender(), brushTransferFromUs);
+      token.safeTransfer(_msgSender(), brushTransferFromUs);
     }
 
     if (lengthToUs != 0) {
@@ -178,7 +178,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(idsToUs, lengthToUs)
         mstore(amountsToUs, lengthToUs)
       }
-      nft.safeBatchTransferFrom(_msgSender(), address(this), idsToUs, amountsToUs, "");
+      _safeBatchTransferNFTsToUs(_msgSender(), idsToUs, amountsToUs);
     }
 
     if (lengthFromUs != 0) {
@@ -228,7 +228,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // Transfer tokens if there are any to send
     if (amountToTransferFromUs != 0) {
-      _safeTransferFromUs(_msgSender(), amountToTransferFromUs);
+      token.safeTransfer(_msgSender(), amountToTransferFromUs);
     }
 
     // Send the NFTs
@@ -276,7 +276,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     emit ClaimedTokens(_msgSender(), _orderIds, amountExclFees);
 
     if (amountExclFees != 0) {
-      _safeTransferFromUs(_msgSender(), amountExclFees);
+      token.safeTransfer(_msgSender(), amountExclFees);
     }
   }
 
@@ -770,11 +770,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _sendFees(uint _royalty, uint _dev, uint _burn) private {
     if (_royalty != 0) {
-      _safeTransferFromUs(royaltyRecipient, _royalty);
+      token.safeTransfer(royaltyRecipient, _royalty);
     }
 
     if (_dev != 0) {
-      _safeTransferFromUs(devAddr, _dev);
+      token.safeTransfer(devAddr, _dev);
     }
 
     if (_burn != 0) {
@@ -887,16 +887,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     return ~(bytes32(uint(0xffffffffffffffff)) << (_offsetIndex * 64));
   }
 
-  function _safeTransferToUs(address _from, uint _amount) private {
-    if (!token.transferFrom(_from, address(this), _amount)) {
-      revert TransferToUsFailed();
-    }
-  }
-
-  function _safeTransferFromUs(address _to, uint _amount) private {
-    if (!token.transfer(_to, _amount)) {
-      revert TransferFromUsFailed();
-    }
+  function _safeBatchTransferNFTsToUs(address _from, uint[] memory _tokenIds, uint[] memory _amounts) private {
+    nft.safeBatchTransferFrom(_from, address(this), _tokenIds, _amounts, "");
   }
 
   function _safeBatchTransferNFTsFromUs(address _to, uint[] memory _tokenIds, uint[] memory _amounts) private {

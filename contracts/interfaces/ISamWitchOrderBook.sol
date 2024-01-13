@@ -56,8 +56,6 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error NotMaker();
   error NothingToClaim();
   error TooManyOrdersHit();
-  error TransferToUsFailed();
-  error TransferFromUsFailed();
 
   function limitOrders(LimitOrder[] calldata _orders) external;
 
