@@ -23,6 +23,7 @@ import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.
 contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
+  using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Node;
   using UnsafeMath for uint;
   using SafeERC20 for IBrushToken;
 
@@ -363,7 +364,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       BokkyPooBahsRedBlackTreeLibrary.Node storage lowestAskNode = askTree.getNode(lowestAsk);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = lowestAskNode.numInSegmentDeleted;
+      uint8 initialOffset = lowestAskNode.getNumInSegmentDeleted();
       uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
       for (uint i = lowestAskNode.tombstoneOffset; i < lowestAskValues.length; ++i) {
         bytes32 packed = lowestAskValues[i];
@@ -475,7 +476,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       BokkyPooBahsRedBlackTreeLibrary.Node storage highestBidNode = bidTree.getNode(highestBid);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = highestBidNode.numInSegmentDeleted;
+      uint8 initialOffset = highestBidNode.getNumInSegmentDeleted();
       uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
       uint highestBidValuesLength = highestBidValues.length;
       for (uint i = highestBidNode.tombstoneOffset; i < highestBidValuesLength; ++i) {
@@ -584,7 +585,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
     uint tombstoneOffset = node.tombstoneOffset;
-    uint numInSegmentDeleted = node.numInSegmentDeleted;
+    uint numInSegmentDeleted = node.getNumInSegmentDeleted();
     orderBookEntries_ = new OrderBookEntryHelper[](
       (packedOrderBookEntries.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted
     );
@@ -618,7 +619,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
     uint tombstoneOffset = node.tombstoneOffset;
-    uint numInSegmentDeleted = node.numInSegmentDeleted;
+    uint numInSegmentDeleted = node.getNumInSegmentDeleted();
 
     (uint index, uint offset) = _find(
       _packedOrderBookEntries,

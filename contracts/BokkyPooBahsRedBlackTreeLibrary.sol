@@ -15,13 +15,46 @@ pragma solidity ^0.8.23;
 // ----------------------------------------------------------------------------
 library BokkyPooBahsRedBlackTreeLibrary {
 
+    uint8 constant RED_FLAG_BIT = uint8(7);
+    uint8 constant RED_FLAG_MASK = uint8(1 << RED_FLAG_BIT);
+    uint8 constant NUM_IN_SEGMENT_MASK = uint8((1 << RED_FLAG_BIT) - 1);
+
     struct Node {
         uint72 parent;
         uint72 left;
         uint72 right;
         uint32 tombstoneOffset; // Number of deleted segments, for gas efficiency
-        uint8 numInSegmentDeleted; // Number of deleted elements in the current segment, for gas efficiency
-        bool red; // TODO: Pack with numInSegmentDeleted
+        uint8 data; // 1st bit "red", 2nd-8th bits "numInSegmentDeleted"
+    }
+
+    function setRed(Node storage node, bool red) internal {
+        if (red) {
+            node.data |= RED_FLAG_MASK; // Set the red flag bit to 1
+        } else {
+            node.data &= ~RED_FLAG_MASK; // Set the red flag bit to 0
+        }
+    }
+
+    function getRed(Node storage node) internal view returns (bool) {
+        return (node.data & RED_FLAG_MASK) != 0;
+    }
+
+    function setNumInSegmentDeleted(Node storage node, uint8 num) internal {
+        require(num <= NUM_IN_SEGMENT_MASK, "Num exceeds 7 bits limit");
+        node.data &= RED_FLAG_MASK; // Clear the 7 bits for num
+        node.data |= num; // Set the 7 bits with the new value of num
+    }
+
+    function getNumInSegmentDeleted(Node storage node) internal view returns (uint8) {
+        return node.data & NUM_IN_SEGMENT_MASK;
+    }
+
+    function createNodeData(bool red, uint8 numInSegmentDeleted) internal pure returns (uint8) {
+        if (red) {
+            return 0x80 | numInSegmentDeleted;
+        } else {
+            return numInSegmentDeleted;
+        }
     }
 
     struct Tree {
@@ -88,7 +121,8 @@ library BokkyPooBahsRedBlackTreeLibrary {
     function edit(Tree storage self, uint72 key, uint32 extraTombstoneOffset, uint8 numInSegmentDeleted) internal {
         require(exists(self, key));       
         self.nodes[key].tombstoneOffset += extraTombstoneOffset;
-        self.nodes[key].numInSegmentDeleted = numInSegmentDeleted;
+        // self.nodes[key].numInSegmentDeleted = numInSegmentDeleted;
+        setNumInSegmentDeleted(self.nodes[key], numInSegmentDeleted);
     }
 
     function insert(Tree storage self, uint72 key) internal {
@@ -104,7 +138,8 @@ library BokkyPooBahsRedBlackTreeLibrary {
                 probe = self.nodes[probe].right;
             }
         }
-        self.nodes[key] = Node({parent: cursor, left: EMPTY, right: EMPTY, red: true, tombstoneOffset: self.nodes[key].tombstoneOffset, numInSegmentDeleted: self.nodes[key].numInSegmentDeleted});
+        // self.nodes[key] = Node({parent: cursor, left: EMPTY, right: EMPTY, red: true, tombstoneOffset: self.nodes[key].tombstoneOffset, numInSegmentDeleted: self.nodes[key].numInSegmentDeleted});
+        self.nodes[key] = Node({parent: cursor, left: EMPTY, right: EMPTY, tombstoneOffset: self.nodes[key].tombstoneOffset, data: createNodeData(true, getNumInSegmentDeleted(self.nodes[key]))});
         if (cursor == EMPTY) {
             self.root = key;
         } else if (key < cursor) {
@@ -143,14 +178,14 @@ library BokkyPooBahsRedBlackTreeLibrary {
         } else {
             self.root = probe;
         }
-        bool doFixup = !self.nodes[cursor].red;
+        bool doFixup = !getRed(self.nodes[cursor]);
         if (cursor != key) {
             replaceParent(self, cursor, key);
             self.nodes[cursor].left = self.nodes[key].left;
             self.nodes[self.nodes[cursor].left].parent = cursor;
             self.nodes[cursor].right = self.nodes[key].right;
             self.nodes[self.nodes[cursor].right].parent = cursor;
-            self.nodes[cursor].red = self.nodes[key].red;
+            setRed(self.nodes[cursor], getRed(self.nodes[key]));
             (cursor, key) = (key, cursor);
         }
         if (doFixup) {
@@ -214,14 +249,14 @@ library BokkyPooBahsRedBlackTreeLibrary {
 
     function insertFixup(Tree storage self, uint72 key) private {
         uint72 cursor;
-        while (key != self.root && self.nodes[self.nodes[key].parent].red) {
+        while (key != self.root && getRed(self.nodes[self.nodes[key].parent])) {
             uint72 keyParent = self.nodes[key].parent;
             if (keyParent == self.nodes[self.nodes[keyParent].parent].left) {
                 cursor = self.nodes[self.nodes[keyParent].parent].right;
-                if (self.nodes[cursor].red) {
-                    self.nodes[keyParent].red = false;
-                    self.nodes[cursor].red = false;
-                    self.nodes[self.nodes[keyParent].parent].red = true;
+                if (getRed(self.nodes[cursor])) {
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[cursor], false);
+                    setRed(self.nodes[self.nodes[keyParent].parent], true);
                     key = self.nodes[keyParent].parent;
                 } else {
                     if (key == self.nodes[keyParent].right) {
@@ -229,16 +264,16 @@ library BokkyPooBahsRedBlackTreeLibrary {
                       rotateLeft(self, key);
                     }
                     keyParent = self.nodes[key].parent;
-                    self.nodes[keyParent].red = false;
-                    self.nodes[self.nodes[keyParent].parent].red = true;
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[self.nodes[keyParent].parent], true);
                     rotateRight(self, self.nodes[keyParent].parent);
                 }
             } else {
                 cursor = self.nodes[self.nodes[keyParent].parent].left;
-                if (self.nodes[cursor].red) {
-                    self.nodes[keyParent].red = false;
-                    self.nodes[cursor].red = false;
-                    self.nodes[self.nodes[keyParent].parent].red = true;
+                if (getRed(self.nodes[cursor])) {
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[cursor], false);
+                    setRed(self.nodes[self.nodes[keyParent].parent], true);
                     key = self.nodes[keyParent].parent;
                 } else {
                     if (key == self.nodes[keyParent].left) {
@@ -246,13 +281,13 @@ library BokkyPooBahsRedBlackTreeLibrary {
                       rotateRight(self, key);
                     }
                     keyParent = self.nodes[key].parent;
-                    self.nodes[keyParent].red = false;
-                    self.nodes[self.nodes[keyParent].parent].red = true;
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[self.nodes[keyParent].parent], true);
                     rotateLeft(self, self.nodes[keyParent].parent);
                 }
             }
         }
-        self.nodes[self.root].red = false;
+        setRed(self.nodes[self.root], false);
     }
 
     function replaceParent(Tree storage self, uint72 a, uint72 b) private {
@@ -270,59 +305,59 @@ library BokkyPooBahsRedBlackTreeLibrary {
     }
     function removeFixup(Tree storage self, uint72 key) private {
         uint72 cursor;
-        while (key != self.root && !self.nodes[key].red) {
+        while (key != self.root && !getRed(self.nodes[key])) {
             uint72 keyParent = self.nodes[key].parent;
             if (key == self.nodes[keyParent].left) {
                 cursor = self.nodes[keyParent].right;
-                if (self.nodes[cursor].red) {
-                    self.nodes[cursor].red = false;
-                    self.nodes[keyParent].red = true;
+                if (getRed(self.nodes[cursor])) {
+                    setRed(self.nodes[cursor], false);
+                    setRed(self.nodes[keyParent], true);
                     rotateLeft(self, keyParent);
                     cursor = self.nodes[keyParent].right;
                 }
-                if (!self.nodes[self.nodes[cursor].left].red && !self.nodes[self.nodes[cursor].right].red) {
-                    self.nodes[cursor].red = true;
+                if (!getRed(self.nodes[self.nodes[cursor].left]) && !getRed(self.nodes[self.nodes[cursor].right])) {
+                    setRed(self.nodes[cursor], true);
                     key = keyParent;
                 } else {
-                    if (!self.nodes[self.nodes[cursor].right].red) {
-                        self.nodes[self.nodes[cursor].left].red = false;
-                        self.nodes[cursor].red = true;
+                    if (!getRed(self.nodes[self.nodes[cursor].right])) {
+                        setRed(self.nodes[self.nodes[cursor].left], false);
+                        setRed(self.nodes[cursor], true);
                         rotateRight(self, cursor);
                         cursor = self.nodes[keyParent].right;
                     }
-                    self.nodes[cursor].red = self.nodes[keyParent].red;
-                    self.nodes[keyParent].red = false;
-                    self.nodes[self.nodes[cursor].right].red = false;
+                    setRed(self.nodes[cursor], getRed(self.nodes[keyParent]));
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[self.nodes[cursor].right], false);
                     rotateLeft(self, keyParent);
                     key = self.root;
                 }
             } else {
                 cursor = self.nodes[keyParent].left;
-                if (self.nodes[cursor].red) {
-                    self.nodes[cursor].red = false;
-                    self.nodes[keyParent].red = true;
+                if (getRed(self.nodes[cursor])) {
+                    setRed(self.nodes[cursor], false);
+                    setRed(self.nodes[keyParent], true);
                     rotateRight(self, keyParent);
                     cursor = self.nodes[keyParent].left;
                 }
-                if (!self.nodes[self.nodes[cursor].right].red && !self.nodes[self.nodes[cursor].left].red) {
-                    self.nodes[cursor].red = true;
+                if (!getRed(self.nodes[self.nodes[cursor].right]) && !getRed(self.nodes[self.nodes[cursor].left])) {
+                    setRed(self.nodes[cursor], true);
                     key = keyParent;
                 } else {
-                    if (!self.nodes[self.nodes[cursor].left].red) {
-                        self.nodes[self.nodes[cursor].right].red = false;
-                        self.nodes[cursor].red = true;
+                    if (!getRed(self.nodes[self.nodes[cursor].left])) {
+                        setRed(self.nodes[self.nodes[cursor].right], false);
+                        setRed(self.nodes[cursor], true);
                         rotateLeft(self, cursor);
                         cursor = self.nodes[keyParent].left;
                     }
-                    self.nodes[cursor].red = self.nodes[keyParent].red;
-                    self.nodes[keyParent].red = false;
-                    self.nodes[self.nodes[cursor].left].red = false;
+                    setRed(self.nodes[cursor], getRed(self.nodes[keyParent]));
+                    setRed(self.nodes[keyParent], false);
+                    setRed(self.nodes[self.nodes[cursor].left], false);
                     rotateRight(self, keyParent);
                     key = self.root;
                 }
             }
         }
-        self.nodes[key].red = false;
+        setRed(self.nodes[key], false);
     }
 }
 // ----------------------------------------------------------------------------
