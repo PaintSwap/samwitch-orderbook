@@ -4,11 +4,11 @@
 
 ![swob](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/977c060f-e6e7-418f-9d44-1012599f41c6)
 
-This efficient order book utilises the BokkyPooBahsRedBlackTreeLibrary library for sorting prices allowing O(log n) for tree segment insertion, traversal, and deletion. It supports batch orders and batch cancelling, ERC2981 royalties, and a dev and burn fee on each trade.
+This efficient order book utilises the `BokkyPooBahsRedBlackTreeLibrary` library for sorting prices allowing `O(log n)` for tree segment insertion, traversal, and deletion. It supports batch orders and batch cancelling, `ERC2981` royalties, and a dev and burn fee on each trade.
 
 It is kept gas efficient by packing data in many areas:
 
-- Four orders (uint24 quantity + uint40 order id) into a 256bit word giving a 4x improvement compared to using 1 storage slot per order.
+- Four orders (`uint24` quantity + `uint40` order id) into a 256bit word giving a 4x improvement compared to using 1 storage slot per order
 - When taking from the order book no tokens/nfts are transferred. Instead the orderId is stored in a claimable array
 - The tokens claimable are packed with 3 orders per storage slot
 
@@ -20,15 +20,15 @@ Constraints:
 - The maximum number of orders in the book that can ever be added is limited to 1 trillion
 - The maximum number of orders that can be added to a specific price level is between 4.2 - 16 billion
 
-While this order book was created for ERC1155 NFTs it could be adapted for ERC20 tokens.
+While this order book was created for `ERC1155` NFTs it could be adapted for `ERC20` tokens.
 
-Note: Not suitable for production until more tests are added with more code coverage.
+> _Note: Not suitable for production until more tests are added with more code coverage._
 
 Potential improvements:
 
-- Use an orderId per price level insted of global, so that they are always sequential
+- Use an `orderId` per price level insted of global, so that they are always sequential
 - Range delete of the red-black tree using split/join
-- The tree, either pack red & numDeletedInSegment or reduce number of decimals for the price and use uint64 instead.
+- The tree, either pack `red` & `numDeletedInSegment` or reduce number of decimals for the `price` and use `uint64` instead
 
 To start copy the `.env.sample` file to `.env` and fill in `PRIVATE_KEY` at a minimum (starts with `0x`).
 
