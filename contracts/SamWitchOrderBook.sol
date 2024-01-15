@@ -25,6 +25,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Node;
   using UnsafeMath for uint;
+  using UnsafeMath for uint24;
   using SafeERC20 for IBrushToken;
 
   IERC1155 public nft;
@@ -144,7 +145,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
       } else {
         // Selling, transfer all NFTs to us
-        uint amount = limitOrder.quantity - failedQuantity;
+        uint amount = limitOrder.quantity.sub(failedQuantity);
         if (amount != 0) {
           nftIdsToUs[nftsToUs] = limitOrder.tokenId;
           nftAmountsToUs[nftsToUs] = amount;
