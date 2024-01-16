@@ -454,8 +454,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint24 _quantity,
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool
-  ) private returns (uint24 quantityRemaining, uint cost) {
-    quantityRemaining = _quantity;
+  ) private returns (uint24 quantityRemaining_, uint cost_) {
+    quantityRemaining_ = _quantity;
 
     // reset the size
     assembly ("memory-safe") {
@@ -463,7 +463,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       mstore(_quantitiesPool, MAX_ORDERS_HIT)
     }
     uint numberOfOrders;
-    while (quantityRemaining != 0) {
+    while (quantityRemaining_ != 0) {
       uint72 highestBid = getHighestBid(_tokenId);
       if (highestBid == 0 || highestBid < _price) {
         // No more orders left
@@ -486,7 +486,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         bool wholeSegmentConsumed;
         for (uint offset = initialOffset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
           uint40 orderId = uint40(uint(packed >> offset.mul(64)));
-          if (orderId == 0 || quantityRemaining == 0) {
+          if (orderId == 0 || quantityRemaining_ == 0) {
             // No more orders at this price level in this segment
             if (orderId != 0) {
               wholeSegmentConsumed = false;
@@ -495,9 +495,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           }
           uint24 quantityL3 = uint24(uint(packed >> offset.mul(64).add(40)));
           uint quantityNFTClaimable = 0;
-          if (quantityRemaining >= quantityL3) {
+          if (quantityRemaining_ >= quantityL3) {
             // Consume this whole order
-            quantityRemaining -= quantityL3;
+            quantityRemaining_ -= quantityL3;
             // Is the last one in the segment being fully consumed?
             wholeSegmentConsumed = offset == NUM_ORDERS_PER_SEGMENT.dec() || uint(packed >> offset.inc().mul(64)) == 0;
             ++numOrdersWithinSegmentConsumed;
@@ -506,13 +506,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             // Eat into the order
             packed = bytes32(
               (uint(packed) & ~(uint(0xffffff) << offset.mul(64).add(40))) |
-                (uint(quantityL3 - quantityRemaining) << offset.mul(64).add(40))
+                (uint(quantityL3 - quantityRemaining_) << offset.mul(64).add(40))
             );
-            quantityNFTClaimable = quantityRemaining;
-            quantityRemaining = 0;
+            quantityNFTClaimable = quantityRemaining_;
+            quantityRemaining_ = 0;
             eatIntoLastOrder = true;
           }
-          cost += quantityNFTClaimable * highestBid;
+          cost_ += quantityNFTClaimable * highestBid;
 
           tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
 
@@ -535,7 +535,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             break;
           }
         }
-        if (quantityRemaining == 0) {
+        if (quantityRemaining_ == 0) {
           break;
         }
         initialOffset = 0; // So any further segments start at the beginning
