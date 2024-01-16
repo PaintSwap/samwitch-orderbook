@@ -24,7 +24,8 @@ import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable, OwnableUpgradeable {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Node;
-  using UnsafeMath for uint;
+  using UnsafeMath for uint256;
+  using UnsafeMath for uint40;
   using UnsafeMath for uint24;
   using UnsafeMath for uint8;
   using SafeERC20 for IBrushToken;
@@ -125,11 +126,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     for (uint i = 0; i < _orders.length; ++i) {
       LimitOrder calldata limitOrder = _orders[i];
       (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
-        currentOrderId++,
+        currentOrderId,
         limitOrder,
         orderIdsPool,
         quantitiesPool
       );
+      currentOrderId = uint40(currentOrderId.inc());
 
       if (limitOrder.side == OrderSide.Buy) {
         brushToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
@@ -369,7 +371,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       uint lastNumOrdersWithinSegmentConsumed = initialOffset;
       for (uint i = lowestAskNode.tombstoneOffset; i < lowestAskValues.length; ++i) {
         bytes32 packed = lowestAskValues[i];
-        uint8 numOrdersWithinSegmentConsumed;
+        uint numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
         for (uint offset = initialOffset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
           uint40 orderId = uint40(uint(packed >> offset.mul(64)));
@@ -387,7 +389,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             quantityRemaining_ -= quantityL3;
             // Is the last one in the segment being fully consumed?
             wholeSegmentConsumed = offset == NUM_ORDERS_PER_SEGMENT.dec() || uint(packed >> offset.inc().mul(64)) == 0;
-            ++numOrdersWithinSegmentConsumed;
+            numOrdersWithinSegmentConsumed = numOrdersWithinSegmentConsumed.inc();
             quantityNFTClaimable = quantityL3;
           } else {
             // Eat into the order
@@ -478,12 +480,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       BokkyPooBahsRedBlackTreeLibrary.Node storage highestBidNode = bids[_tokenId].getNode(highestBid);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = highestBidNode.getNumInSegmentDeleted();
-      uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
+      uint initialOffset = highestBidNode.getNumInSegmentDeleted();
+      uint lastNumOrdersWithinSegmentConsumed = initialOffset;
       uint highestBidValuesLength = highestBidValues.length;
       for (uint i = highestBidNode.tombstoneOffset; i < highestBidValuesLength; ++i) {
         bytes32 packed = highestBidValues[i];
-        uint8 numOrdersWithinSegmentConsumed;
+        uint numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
         for (uint offset = initialOffset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
           uint40 orderId = uint40(uint(packed >> offset.mul(64)));
@@ -501,7 +503,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             quantityRemaining_ -= quantityL3;
             // Is the last one in the segment being fully consumed?
             wholeSegmentConsumed = offset == NUM_ORDERS_PER_SEGMENT.dec() || uint(packed >> offset.inc().mul(64)) == 0;
-            ++numOrdersWithinSegmentConsumed;
+            numOrdersWithinSegmentConsumed = numOrdersWithinSegmentConsumed.inc();
             quantityNFTClaimable = quantityL3;
           } else {
             // Eat into the order
@@ -526,12 +528,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
 
         if (wholeSegmentConsumed) {
-          ++numSegmentsFullyConsumed;
+          numSegmentsFullyConsumed = numSegmentsFullyConsumed.inc();
           lastNumOrdersWithinSegmentConsumed = 0;
         } else {
-          lastNumOrdersWithinSegmentConsumed = uint8(
-            lastNumOrdersWithinSegmentConsumed.add(numOrdersWithinSegmentConsumed)
-          );
+          lastNumOrdersWithinSegmentConsumed = lastNumOrdersWithinSegmentConsumed.add(numOrdersWithinSegmentConsumed);
           if (eatIntoLastOrder) {
             // Update remaining order
             highestBidValues[i] = packed;
@@ -546,7 +546,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
       if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
         uint tombstoneOffset = highestBidNode.tombstoneOffset;
-        bids[_tokenId].edit(highestBid, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
+        bids[_tokenId].edit(highestBid, uint32(numSegmentsFullyConsumed), uint8(lastNumOrdersWithinSegmentConsumed));
 
         // We consumed all orders at this price level, so remove all
         if (numSegmentsFullyConsumed == highestBidValues.length - tombstoneOffset) {
