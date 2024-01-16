@@ -26,7 +26,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
     uint8 data; // 1st bit "red", 2nd-8th bits "numInSegmentDeleted"
   }
 
-  function setRed(Node storage node, bool red) internal {
+  function setIsRed(Node storage node, bool red) internal {
     if (red) {
       node.data |= RED_FLAG_MASK; // Set the red flag bit to 1
     } else {
@@ -34,7 +34,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
     }
   }
 
-  function getRed(Node storage node) internal view returns (bool) {
+  function isRed(Node storage node) internal view returns (bool) {
     return (node.data & RED_FLAG_MASK) != 0;
   }
 
@@ -190,14 +190,14 @@ library BokkyPooBahsRedBlackTreeLibrary {
     } else {
       self.root = probe;
     }
-    bool doFixup = !getRed(self.nodes[cursor]);
+    bool doFixup = !isRed(self.nodes[cursor]);
     if (cursor != key) {
       replaceParent(self, cursor, key);
       self.nodes[cursor].left = self.nodes[key].left;
       self.nodes[self.nodes[cursor].left].parent = cursor;
       self.nodes[cursor].right = self.nodes[key].right;
       self.nodes[self.nodes[cursor].right].parent = cursor;
-      setRed(self.nodes[cursor], getRed(self.nodes[key]));
+      setIsRed(self.nodes[cursor], isRed(self.nodes[key]));
       (cursor, key) = (key, cursor);
     }
     if (doFixup) {
@@ -263,14 +263,14 @@ library BokkyPooBahsRedBlackTreeLibrary {
 
   function insertFixup(Tree storage self, uint72 key) private {
     uint72 cursor;
-    while (key != self.root && getRed(self.nodes[self.nodes[key].parent])) {
+    while (key != self.root && isRed(self.nodes[self.nodes[key].parent])) {
       uint72 keyParent = self.nodes[key].parent;
       if (keyParent == self.nodes[self.nodes[keyParent].parent].left) {
         cursor = self.nodes[self.nodes[keyParent].parent].right;
-        if (getRed(self.nodes[cursor])) {
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[cursor], false);
-          setRed(self.nodes[self.nodes[keyParent].parent], true);
+        if (isRed(self.nodes[cursor])) {
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[cursor], false);
+          setIsRed(self.nodes[self.nodes[keyParent].parent], true);
           key = self.nodes[keyParent].parent;
         } else {
           if (key == self.nodes[keyParent].right) {
@@ -278,16 +278,16 @@ library BokkyPooBahsRedBlackTreeLibrary {
             rotateLeft(self, key);
           }
           keyParent = self.nodes[key].parent;
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[self.nodes[keyParent].parent], true);
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[self.nodes[keyParent].parent], true);
           rotateRight(self, self.nodes[keyParent].parent);
         }
       } else {
         cursor = self.nodes[self.nodes[keyParent].parent].left;
-        if (getRed(self.nodes[cursor])) {
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[cursor], false);
-          setRed(self.nodes[self.nodes[keyParent].parent], true);
+        if (isRed(self.nodes[cursor])) {
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[cursor], false);
+          setIsRed(self.nodes[self.nodes[keyParent].parent], true);
           key = self.nodes[keyParent].parent;
         } else {
           if (key == self.nodes[keyParent].left) {
@@ -295,13 +295,13 @@ library BokkyPooBahsRedBlackTreeLibrary {
             rotateRight(self, key);
           }
           keyParent = self.nodes[key].parent;
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[self.nodes[keyParent].parent], true);
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[self.nodes[keyParent].parent], true);
           rotateLeft(self, self.nodes[keyParent].parent);
         }
       }
     }
-    setRed(self.nodes[self.root], false);
+    setIsRed(self.nodes[self.root], false);
   }
 
   function replaceParent(Tree storage self, uint72 a, uint72 b) private {
@@ -320,59 +320,59 @@ library BokkyPooBahsRedBlackTreeLibrary {
 
   function removeFixup(Tree storage self, uint72 key) private {
     uint72 cursor;
-    while (key != self.root && !getRed(self.nodes[key])) {
+    while (key != self.root && !isRed(self.nodes[key])) {
       uint72 keyParent = self.nodes[key].parent;
       if (key == self.nodes[keyParent].left) {
         cursor = self.nodes[keyParent].right;
-        if (getRed(self.nodes[cursor])) {
-          setRed(self.nodes[cursor], false);
-          setRed(self.nodes[keyParent], true);
+        if (isRed(self.nodes[cursor])) {
+          setIsRed(self.nodes[cursor], false);
+          setIsRed(self.nodes[keyParent], true);
           rotateLeft(self, keyParent);
           cursor = self.nodes[keyParent].right;
         }
-        if (!getRed(self.nodes[self.nodes[cursor].left]) && !getRed(self.nodes[self.nodes[cursor].right])) {
-          setRed(self.nodes[cursor], true);
+        if (!isRed(self.nodes[self.nodes[cursor].left]) && !isRed(self.nodes[self.nodes[cursor].right])) {
+          setIsRed(self.nodes[cursor], true);
           key = keyParent;
         } else {
-          if (!getRed(self.nodes[self.nodes[cursor].right])) {
-            setRed(self.nodes[self.nodes[cursor].left], false);
-            setRed(self.nodes[cursor], true);
+          if (!isRed(self.nodes[self.nodes[cursor].right])) {
+            setIsRed(self.nodes[self.nodes[cursor].left], false);
+            setIsRed(self.nodes[cursor], true);
             rotateRight(self, cursor);
             cursor = self.nodes[keyParent].right;
           }
-          setRed(self.nodes[cursor], getRed(self.nodes[keyParent]));
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[self.nodes[cursor].right], false);
+          setIsRed(self.nodes[cursor], isRed(self.nodes[keyParent]));
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[self.nodes[cursor].right], false);
           rotateLeft(self, keyParent);
           key = self.root;
         }
       } else {
         cursor = self.nodes[keyParent].left;
-        if (getRed(self.nodes[cursor])) {
-          setRed(self.nodes[cursor], false);
-          setRed(self.nodes[keyParent], true);
+        if (isRed(self.nodes[cursor])) {
+          setIsRed(self.nodes[cursor], false);
+          setIsRed(self.nodes[keyParent], true);
           rotateRight(self, keyParent);
           cursor = self.nodes[keyParent].left;
         }
-        if (!getRed(self.nodes[self.nodes[cursor].right]) && !getRed(self.nodes[self.nodes[cursor].left])) {
-          setRed(self.nodes[cursor], true);
+        if (!isRed(self.nodes[self.nodes[cursor].right]) && !isRed(self.nodes[self.nodes[cursor].left])) {
+          setIsRed(self.nodes[cursor], true);
           key = keyParent;
         } else {
-          if (!getRed(self.nodes[self.nodes[cursor].left])) {
-            setRed(self.nodes[self.nodes[cursor].right], false);
-            setRed(self.nodes[cursor], true);
+          if (!isRed(self.nodes[self.nodes[cursor].left])) {
+            setIsRed(self.nodes[self.nodes[cursor].right], false);
+            setIsRed(self.nodes[cursor], true);
             rotateLeft(self, cursor);
             cursor = self.nodes[keyParent].left;
           }
-          setRed(self.nodes[cursor], getRed(self.nodes[keyParent]));
-          setRed(self.nodes[keyParent], false);
-          setRed(self.nodes[self.nodes[cursor].left], false);
+          setIsRed(self.nodes[cursor], isRed(self.nodes[keyParent]));
+          setIsRed(self.nodes[keyParent], false);
+          setIsRed(self.nodes[self.nodes[cursor].left], false);
           rotateRight(self, keyParent);
           key = self.root;
         }
       }
     }
-    setRed(self.nodes[key], false);
+    setIsRed(self.nodes[key], false);
   }
 }
 // ----------------------------------------------------------------------------
