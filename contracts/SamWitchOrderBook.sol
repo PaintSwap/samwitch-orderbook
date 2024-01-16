@@ -26,6 +26,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Node;
   using UnsafeMath for uint;
   using UnsafeMath for uint24;
+  using UnsafeMath for uint8;
   using SafeERC20 for IBrushToken;
 
   IERC1155 public nft;
@@ -222,7 +223,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         // Send the remaining NFTs back to them
         nftIdsFromUs[nftsFromUs] = tokenId;
         nftAmountsFromUs[nftsFromUs] = quantity;
-        nftsFromUs += 1;
+        nftsFromUs = nftsFromUs.inc();
       }
     }
 
@@ -365,8 +366,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       BokkyPooBahsRedBlackTreeLibrary.Node storage lowestAskNode = askTree.getNode(lowestAsk);
 
       bool eatIntoLastOrder;
-      uint8 initialOffset = lowestAskNode.getNumInSegmentDeleted();
-      uint8 lastNumOrdersWithinSegmentConsumed = initialOffset;
+      uint initialOffset = lowestAskNode.getNumInSegmentDeleted();
+      uint lastNumOrdersWithinSegmentConsumed = initialOffset;
       for (uint i = lowestAskNode.tombstoneOffset; i < lowestAskValues.length; ++i) {
         bytes32 packed = lowestAskValues[i];
         uint8 numOrdersWithinSegmentConsumed;
@@ -413,10 +414,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
 
         if (wholeSegmentConsumed) {
-          ++numSegmentsFullyConsumed;
+          numSegmentsFullyConsumed = numSegmentsFullyConsumed.inc();
           lastNumOrdersWithinSegmentConsumed = 0;
         } else {
-          lastNumOrdersWithinSegmentConsumed += numOrdersWithinSegmentConsumed;
+          lastNumOrdersWithinSegmentConsumed = uint8(
+            lastNumOrdersWithinSegmentConsumed.add(numOrdersWithinSegmentConsumed)
+          );
           if (eatIntoLastOrder) {
             // Update remaining order
             lowestAskValues[i] = packed;
@@ -431,7 +434,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
       if (numSegmentsFullyConsumed != 0 || lastNumOrdersWithinSegmentConsumed != 0) {
         uint tombstoneOffset = lowestAskNode.tombstoneOffset;
-        askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed), lastNumOrdersWithinSegmentConsumed);
+        askTree.edit(lowestAsk, uint32(numSegmentsFullyConsumed), uint8(lastNumOrdersWithinSegmentConsumed));
 
         // We consumed all orders at this price level, so remove all
         if (numSegmentsFullyConsumed == lowestAskValues.length - tombstoneOffset) {
@@ -528,7 +531,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           ++numSegmentsFullyConsumed;
           lastNumOrdersWithinSegmentConsumed = 0;
         } else {
-          lastNumOrdersWithinSegmentConsumed += numOrdersWithinSegmentConsumed;
+          lastNumOrdersWithinSegmentConsumed = uint8(
+            lastNumOrdersWithinSegmentConsumed.add(numOrdersWithinSegmentConsumed)
+          );
           if (eatIntoLastOrder) {
             // Update remaining order
             highestBidValues[i] = packed;
@@ -916,7 +921,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
     if (takeAwayFees) {
       (uint royalty, uint dev, uint burn) = _calcFees(amount_);
-      amount_ -= royalty.add(dev).add(burn);
+      amount_ = amount_.sub(royalty).sub(dev).sub(burn);
     }
   }
 
