@@ -326,6 +326,105 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     claimNFTs(_nftOrderIds, _tokenIds);
   }
 
+  /// @notice Get the amount of tokens claimable for these orders
+  /// @param _orderIds The order IDs to get the claimable tokens for
+  /// @param takeAwayFees Whether to take away the fees from the claimable amount
+  function tokensClaimable(
+    uint40[] calldata _orderIds,
+    bool takeAwayFees
+  ) external view override returns (uint amount_) {
+    uint limit = _orderIds.length;
+    for (uint i = 0; i < limit; ++i) {
+      amount_ += brushClaimable[_orderIds[i]];
+    }
+    if (takeAwayFees) {
+      (uint royalty, uint dev, uint burn) = _calcFees(amount_);
+      amount_ = amount_.sub(royalty).sub(dev).sub(burn);
+    }
+  }
+
+  /// @notice Get the amount of NFTs claimable for these orders
+  /// @param _orderIds The order IDs to get the claimable NFTs for
+  /// @param _tokenIds The token IDs to get the claimable NFTs for
+  function nftsClaimable(
+    uint40[] calldata _orderIds,
+    uint[] calldata _tokenIds
+  ) external view override returns (uint[] memory amounts_) {
+    amounts_ = new uint[](_orderIds.length);
+    uint limit = _orderIds.length;
+    for (uint i = 0; i < limit; ++i) {
+      amounts_[i] = tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
+    }
+  }
+
+  /// @notice Get the highest bid for a specific token ID
+  /// @param _tokenId The token ID to get the highest bid for
+  function getHighestBid(uint _tokenId) public view override returns (uint72) {
+    return bids[_tokenId].last();
+  }
+
+  /// @notice Get the lowest ask for a specific token ID
+  /// @param _tokenId The token ID to get the lowest ask for
+  function getLowestAsk(uint _tokenId) public view override returns (uint72) {
+    return asks[_tokenId].first();
+  }
+
+  /// @notice Get the order book entry for a specific order ID
+  /// @param _side The side of the order book to get the order from
+  /// @param _tokenId The token ID to get the order for
+  /// @param _price The price level to get the order for
+  function getNode(
+    OrderSide _side,
+    uint _tokenId,
+    uint72 _price
+  ) external view override returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
+    if (_side == OrderSide.Buy) {
+      return bids[_tokenId].getNode(_price);
+    } else {
+      return asks[_tokenId].getNode(_price);
+    }
+  }
+
+  /// @notice Check if the node exists
+  /// @param _side The side of the order book to get the order from
+  /// @param _tokenId The token ID to get the order for
+  /// @param _price The price level to get the order for
+  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view override returns (bool) {
+    if (_side == OrderSide.Buy) {
+      return bids[_tokenId].exists(_price);
+    } else {
+      return asks[_tokenId].exists(_price);
+    }
+  }
+
+  /// @notice Get the tick size for a specific token ID
+  /// @param _tokenId The token ID to get the tick size for
+  function getTick(uint _tokenId) external view override returns (uint) {
+    return tokenIdInfos[_tokenId].tick;
+  }
+
+  /// @notice The minimum amount that can be added to the order book for a specific token ID, to keep the order book healthy
+  /// @param _tokenId The token ID to get the minimum quantity for
+  function getMinAmount(uint _tokenId) external view override returns (uint) {
+    return tokenIdInfos[_tokenId].minQuantity;
+  }
+
+  /// @notice Get all orders at a specific price level
+  /// @param _side The side of the order book to get orders from
+  /// @param _tokenId The token ID to get orders for
+  /// @param _price The price level to get orders for
+  function allOrdersAtPrice(
+    OrderSide _side,
+    uint _tokenId,
+    uint72 _price
+  ) external view override returns (OrderBookEntryHelper[] memory orderBookEntries) {
+    if (_side == OrderSide.Buy) {
+      return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
+    } else {
+      return _allOrdersAtPriceSide(askValues[_tokenId][_price], asks[_tokenId], _price);
+    }
+  }
+
   /// @notice When the nft royalty changes this updates the fee and recipient. Assumes all token ids have the same royalty
   function updateRoyaltyFee() public {
     bool supportsERC2981 = nft.supportsInterface(type(IERC2981).interfaceId);
@@ -334,6 +433,30 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       royaltyRecipient = _royaltyRecipient;
       royaltyFee = uint16(_royaltyFee);
     }
+  }
+
+  /// @notice The maximum amount of orders allowed at a specific price level
+  /// @param _maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
+  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public onlyOwner {
+    maxOrdersPerPrice = _maxOrdersPerPrice;
+    emit SetMaxOrdersPerPriceLevel(_maxOrdersPerPrice);
+  }
+
+  /// @notice Set constraints like minimum quantity of an order that is allowed to be
+  ///         placed and the minimum of specific tokenIds in this nft collection.
+  /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
+  /// @param _tokenIdInfos Array of TokenIdInfo to be set
+  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
+    uint limit = _tokenIds.length;
+    if (limit != _tokenIdInfos.length) {
+      revert LengthMismatch();
+    }
+
+    for (uint i = 0; i < limit; ++i) {
+      tokenIdInfos[_tokenIds[i]] = _tokenIdInfos[i];
+    }
+
+    emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
   }
 
   // TODO: editOrder
@@ -904,129 +1027,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _safeBatchTransferNFTsFromUs(address _to, uint[] memory _tokenIds, uint[] memory _amounts) private {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
-  }
-
-  /// @notice Get the amount of tokens claimable for these orders
-  /// @param _orderIds The order IDs to get the claimable tokens for
-  /// @param takeAwayFees Whether to take away the fees from the claimable amount
-  function tokensClaimable(
-    uint40[] calldata _orderIds,
-    bool takeAwayFees
-  ) external view override returns (uint amount_) {
-    uint limit = _orderIds.length;
-    for (uint i = 0; i < limit; ++i) {
-      amount_ += brushClaimable[_orderIds[i]];
-    }
-    if (takeAwayFees) {
-      (uint royalty, uint dev, uint burn) = _calcFees(amount_);
-      amount_ = amount_.sub(royalty).sub(dev).sub(burn);
-    }
-  }
-
-  /// @notice Get the amount of NFTs claimable for these orders
-  /// @param _orderIds The order IDs to get the claimable NFTs for
-  /// @param _tokenIds The token IDs to get the claimable NFTs for
-  function nftsClaimable(
-    uint40[] calldata _orderIds,
-    uint[] calldata _tokenIds
-  ) external view override returns (uint[] memory amounts_) {
-    amounts_ = new uint[](_orderIds.length);
-    uint limit = _orderIds.length;
-    for (uint i = 0; i < limit; ++i) {
-      amounts_[i] = tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
-    }
-  }
-
-  /// @notice Get the highest bid for a specific token ID
-  /// @param _tokenId The token ID to get the highest bid for
-  function getHighestBid(uint _tokenId) public view override returns (uint72) {
-    return bids[_tokenId].last();
-  }
-
-  /// @notice Get the lowest ask for a specific token ID
-  /// @param _tokenId The token ID to get the lowest ask for
-  function getLowestAsk(uint _tokenId) public view override returns (uint72) {
-    return asks[_tokenId].first();
-  }
-
-  /// @notice Get the order book entry for a specific order ID
-  /// @param _side The side of the order book to get the order from
-  /// @param _tokenId The token ID to get the order for
-  /// @param _price The price level to get the order for
-  function getNode(
-    OrderSide _side,
-    uint _tokenId,
-    uint72 _price
-  ) external view override returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
-    if (_side == OrderSide.Buy) {
-      return bids[_tokenId].getNode(_price);
-    } else {
-      return asks[_tokenId].getNode(_price);
-    }
-  }
-
-  /// @notice Check if the node exists
-  /// @param _side The side of the order book to get the order from
-  /// @param _tokenId The token ID to get the order for
-  /// @param _price The price level to get the order for
-  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view override returns (bool) {
-    if (_side == OrderSide.Buy) {
-      return bids[_tokenId].exists(_price);
-    } else {
-      return asks[_tokenId].exists(_price);
-    }
-  }
-
-  /// @notice Get the tick size for a specific token ID
-  /// @param _tokenId The token ID to get the tick size for
-  function getTick(uint _tokenId) external view override returns (uint) {
-    return tokenIdInfos[_tokenId].tick;
-  }
-
-  /// @notice The minimum amount that can be added to the order book for a specific token ID, to keep the order book healthy
-  /// @param _tokenId The token ID to get the minimum quantity for
-  function getMinAmount(uint _tokenId) external view override returns (uint) {
-    return tokenIdInfos[_tokenId].minQuantity;
-  }
-
-  /// @notice Get all orders at a specific price level
-  /// @param _side The side of the order book to get orders from
-  /// @param _tokenId The token ID to get orders for
-  /// @param _price The price level to get orders for
-  function allOrdersAtPrice(
-    OrderSide _side,
-    uint _tokenId,
-    uint72 _price
-  ) external view override returns (OrderBookEntryHelper[] memory orderBookEntries) {
-    if (_side == OrderSide.Buy) {
-      return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
-    } else {
-      return _allOrdersAtPriceSide(askValues[_tokenId][_price], asks[_tokenId], _price);
-    }
-  }
-
-  /// @notice The maximum amount of orders allowed at a specific price level
-  /// @param _maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
-  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public onlyOwner {
-    maxOrdersPerPrice = _maxOrdersPerPrice;
-    emit SetMaxOrdersPerPriceLevel(_maxOrdersPerPrice);
-  }
-
-  /// @notice Set constraints like minimum quantity of an order that is allowed to be
-  ///         placed and the minimum of specific tokenIds in this nft collection.
-  /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
-  /// @param _tokenIdInfos Array of TokenIdInfo to be set
-  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
-    uint limit = _tokenIds.length;
-    if (limit != _tokenIdInfos.length) {
-      revert LengthMismatch();
-    }
-
-    for (uint i = 0; i < limit; ++i) {
-      tokenIdInfos[_tokenIds[i]] = _tokenIdInfos[i];
-    }
-
-    emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
   }
 
   // solhint-disable-next-line no-empty-blocks
