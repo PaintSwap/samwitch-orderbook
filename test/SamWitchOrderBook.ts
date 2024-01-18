@@ -184,6 +184,7 @@ describe("SamWitchOrderBook", function () {
       sigBreakdown.r,
       sigBreakdown.s,
       sender,
+      nonce,
       deadline,
       orders,
     );
@@ -191,7 +192,15 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
 
     expect(
-      orderBook.limitOrdersIfSignatureMatch(sigBreakdown.v, sigBreakdown.r, sigBreakdown.s, sender, deadline, orders),
+      orderBook.limitOrdersIfSignatureMatch(
+        sigBreakdown.v,
+        sigBreakdown.r,
+        sigBreakdown.s,
+        sender,
+        nonce,
+        deadline,
+        orders,
+      ),
     ).to.be.reverted;
   });
 
@@ -405,6 +414,7 @@ describe("SamWitchOrderBook", function () {
         sigBreakdown.r,
         sigBreakdown.s,
         sender,
+        nonce,
         deadline,
         orderIds,
         cancelOrderInfos,

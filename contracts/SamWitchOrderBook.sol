@@ -138,11 +138,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bytes32 _r,
     bytes32 _s,
     address _sender,
+    uint _nonce,
     uint _deadline,
     LimitOrder[] calldata _orders
   ) external {
     if (block.timestamp > _deadline) {
       revert DeadlineExpired(_deadline);
+    }
+
+    uint nonce = nonces[_sender];
+    if (_nonce != nonce) {
+      revert InvalidNonce(nonce, _nonce);
     }
 
     bytes32[] memory encodedOrders = new bytes32[](_orders.length);
@@ -155,7 +161,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bytes32 digest = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("limitOrders", VERSION, address(this)),
       keccak256(
-        abi.encode(LIMIT_ORDERS_HASH, _sender, nonces[_sender], _deadline, keccak256(abi.encodePacked(encodedOrders)))
+        abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(encodedOrders)))
       )
     );
 
@@ -165,7 +171,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert InvalidSignature(_sender, recoveredAddress);
     }
 
-    nonces[_sender] = nonces[_sender].inc();
+    nonces[_sender] = nonce.inc();
 
     _limitOrders(_sender, _orders);
   }
@@ -275,12 +281,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bytes32 _r,
     bytes32 _s,
     address _sender,
+    uint _nonce,
     uint _deadline,
     uint[] calldata _orderIds,
     CancelOrderInfo[] calldata _cancelOrderInfos
   ) external {
     if (block.timestamp > _deadline) {
       revert DeadlineExpired(_deadline);
+    }
+
+    uint nonce = nonces[_sender];
+    if (_nonce != nonce) {
+      revert InvalidNonce(nonce, _nonce);
     }
 
     bytes32[] memory encodedOrderIds = new bytes32[](_cancelOrderInfos.length);
@@ -303,7 +315,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         abi.encode(
           CANCEL_ORDERS_HASH,
           _sender,
-          nonces[_sender],
+          nonce,
           _deadline,
           keccak256(abi.encodePacked(_orderIds)),
           keccak256(abi.encodePacked(encodedCancelOrderInfos))
@@ -317,7 +329,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert InvalidSignature(_sender, recoveredAddress);
     }
 
-    nonces[_sender] = nonces[_sender].inc();
+    nonces[_sender] = nonce.inc();
 
     _cancelOrders(_sender, _orderIds, _cancelOrderInfos);
   }
