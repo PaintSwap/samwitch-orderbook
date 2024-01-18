@@ -105,6 +105,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) external override {
+    _limitOrders(_msgSender(), _orders);
+  }
+
+  function _limitOrders(address _sender, LimitOrder[] calldata _orders) private {
     uint royalty;
     uint dev;
     uint burn;
@@ -171,11 +175,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     nextOrderId = currentOrderId;
 
     if (brushToUs != 0) {
-      token.safeTransferFrom(_msgSender(), address(this), brushToUs);
+      token.safeTransferFrom(_sender, address(this), brushToUs);
     }
 
     if (brushFromUs != 0) {
-      token.safeTransfer(_msgSender(), brushFromUs);
+      token.safeTransfer(_sender, brushFromUs);
     }
 
     if (nftsToUs != 0) {
@@ -183,7 +187,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsToUs, nftsToUs)
         mstore(nftAmountsToUs, nftsToUs)
       }
-      _safeBatchTransferNFTsToUs(_msgSender(), nftIdsToUs, nftAmountsToUs);
+      _safeBatchTransferNFTsToUs(_sender, nftIdsToUs, nftAmountsToUs);
     }
 
     if (lengthFromUs != 0) {
@@ -191,7 +195,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsFromUs, lengthFromUs)
         mstore(nftAmountsFromUs, lengthFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_msgSender(), nftIdsFromUs, nftAmountsFromUs);
+      _safeBatchTransferNFTsFromUs(_sender, nftIdsFromUs, nftAmountsFromUs);
     }
 
     _sendFees(royalty, dev, burn);
@@ -201,6 +205,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _orderIds Array of order IDs to be cancelled
   /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
   function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external override {
+    _cancelOrders(_msgSender(), _orderIds, _cancelOrderInfos);
+  }
+
+  function _cancelOrders(
+    address _sender,
+    uint[] calldata _orderIds,
+    CancelOrderInfo[] calldata _cancelOrderInfos
+  ) private {
     if (_orderIds.length != _cancelOrderInfos.length) {
       revert LengthMismatch();
     }
@@ -229,11 +241,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
     }
 
-    emit OrdersCancelled(_msgSender(), _orderIds);
+    emit OrdersCancelled(_sender, _orderIds);
 
     // Transfer tokens if there are any to send
     if (brushFromUs != 0) {
-      token.safeTransfer(_msgSender(), brushFromUs);
+      token.safeTransfer(_sender, brushFromUs);
     }
 
     // Send the NFTs
@@ -243,7 +255,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsFromUs, nftsFromUs)
         mstore(nftAmountsFromUs, nftsFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_msgSender(), nftIdsFromUs, nftAmountsFromUs);
+      _safeBatchTransferNFTsFromUs(_sender, nftIdsFromUs, nftAmountsFromUs);
     }
   }
 
