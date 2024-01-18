@@ -10,6 +10,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
 import {IBrushToken} from "./interfaces/IBrushToken.sol";
@@ -29,6 +32,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   using UnsafeMath for uint24;
   using UnsafeMath for uint8;
   using SafeERC20 for IBrushToken;
+  using ECDSA for bytes32;
 
   IERC1155 public nft;
   IBrushToken public token;
@@ -51,8 +55,29 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint80[1_099_511_627_776] private brushClaimable; // Can pack 3 brush claimables into 1 word
   mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
 
+  mapping(address => uint) public nonces;
+
   uint private constant MAX_ORDERS_HIT = 500;
   uint private constant NUM_ORDERS_PER_SEGMENT = 4;
+
+  string private constant VERSION = "1";
+
+  string public constant EIP712_DOMAIN_TYPE =
+    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+  bytes32 public constant EIP712_DOMAIN_HASH = keccak256(abi.encodePacked(EIP712_DOMAIN_TYPE));
+
+  string public constant LIMIT_ORDER_TYPE = "LimitOrder(uint8 side,uint256 tokenId,uint72 price,uint24 quantity)";
+  bytes32 public constant LIMIT_ORDER_HASH = keccak256(abi.encodePacked(LIMIT_ORDER_TYPE));
+  string public constant LIMIT_ORDERS_TYPE =
+    "limitOrders(address sender,uint256 nonce,uint256 deadline,LimitOrder[] orders)";
+  bytes32 public constant LIMIT_ORDERS_HASH = keccak256(abi.encodePacked(LIMIT_ORDERS_TYPE, LIMIT_ORDER_TYPE));
+
+  string public constant CANCEL_ORDER_INFO_TYPE = "CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)";
+  bytes32 public constant CANCEL_ORDER_INFO_HASH =
+    keccak256(abi.encodePacked("CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)"));
+  string public constant CANCEL_ORDERS_TYPE =
+    "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrderInfo[] cancelOrderInfos)";
+  bytes32 public constant CANCEL_ORDERS_HASH = keccak256(abi.encodePacked(CANCEL_ORDERS_TYPE, CANCEL_ORDER_INFO_TYPE));
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -106,6 +131,43 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) external override {
     _limitOrders(_msgSender(), _orders);
+  }
+
+  function limitOrdersIfSignatureMatch(
+    uint8 _v,
+    bytes32 _r,
+    bytes32 _s,
+    address _sender,
+    uint _deadline,
+    LimitOrder[] calldata _orders
+  ) external {
+    if (block.timestamp > _deadline) {
+      revert DeadlineExpired(_deadline);
+    }
+
+    bytes32[] memory encodedOrders = new bytes32[](_orders.length);
+    for (uint256 i = 0; i < _orders.length; i++) {
+      encodedOrders[i] = keccak256(
+        abi.encode(LIMIT_ORDER_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price, _orders[i].quantity)
+      );
+    }
+
+    bytes32 digest = MessageHashUtils.toTypedDataHash(
+      _getDomainSeparator("limitOrders", VERSION, address(this)),
+      keccak256(
+        abi.encode(LIMIT_ORDERS_HASH, _sender, nonces[_sender], _deadline, keccak256(abi.encodePacked(encodedOrders)))
+      )
+    );
+
+    address recoveredAddress = digest.recover(_v, _r, _s);
+
+    if (recoveredAddress != _sender || recoveredAddress == address(0)) {
+      revert InvalidSignature(_sender, recoveredAddress);
+    }
+
+    nonces[_sender] = nonces[_sender].inc();
+
+    _limitOrders(_sender, _orders);
   }
 
   function _limitOrders(address _sender, LimitOrder[] calldata _orders) private {
@@ -206,6 +268,58 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
   function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external override {
     _cancelOrders(_msgSender(), _orderIds, _cancelOrderInfos);
+  }
+
+  function cancelOrdersIfSignatureMatch(
+    uint8 _v,
+    bytes32 _r,
+    bytes32 _s,
+    address _sender,
+    uint _deadline,
+    uint[] calldata _orderIds,
+    CancelOrderInfo[] calldata _cancelOrderInfos
+  ) external {
+    if (block.timestamp > _deadline) {
+      revert DeadlineExpired(_deadline);
+    }
+
+    bytes32[] memory encodedOrderIds = new bytes32[](_cancelOrderInfos.length);
+    bytes32[] memory encodedCancelOrderInfos = new bytes32[](_cancelOrderInfos.length);
+    for (uint256 i = 0; i < _cancelOrderInfos.length; i++) {
+      encodedOrderIds[i] = keccak256(abi.encode(_orderIds[i]));
+      encodedCancelOrderInfos[i] = keccak256(
+        abi.encode(
+          CANCEL_ORDER_INFO_HASH,
+          _cancelOrderInfos[i].side,
+          _cancelOrderInfos[i].tokenId,
+          _cancelOrderInfos[i].price
+        )
+      );
+    }
+
+    bytes32 digest = MessageHashUtils.toTypedDataHash(
+      _getDomainSeparator("cancelOrders", VERSION, address(this)),
+      keccak256(
+        abi.encode(
+          CANCEL_ORDERS_HASH,
+          _sender,
+          nonces[_sender],
+          _deadline,
+          keccak256(abi.encodePacked(_orderIds)),
+          keccak256(abi.encodePacked(encodedCancelOrderInfos))
+        )
+      )
+    );
+
+    address recoveredAddress = digest.recover(_v, _r, _s);
+
+    if (recoveredAddress != _sender || recoveredAddress == address(0)) {
+      revert InvalidSignature(_sender, recoveredAddress);
+    }
+
+    nonces[_sender] = nonces[_sender].inc();
+
+    _cancelOrders(_sender, _orderIds, _cancelOrderInfos);
   }
 
   function _cancelOrders(
@@ -472,6 +586,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   // TODO: editOrder
+
+  function _getDomainSeparator(
+    string memory _name,
+    string memory _version,
+    address _verifier
+  ) private view returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(EIP712_DOMAIN_HASH, keccak256(bytes(_name)), keccak256(bytes(_version)), block.chainid, _verifier)
+      );
+  }
 
   function _buyTakeFromOrderBook(
     uint _tokenId,

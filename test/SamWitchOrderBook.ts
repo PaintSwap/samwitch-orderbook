@@ -1,20 +1,13 @@
 import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
-import {SamWitchOrderBook} from "../typechain-types";
+import {SamWitchOrderBook, ISamWitchOrderBook} from "../typechain-types";
 
 describe("SamWitchOrderBook", function () {
   enum OrderSide {
     Buy,
     Sell,
   }
-
-  type LimitOrder = {
-    side: OrderSide;
-    tokenId: number;
-    price: number;
-    quantity: number;
-  };
 
   type OrderBookEntryHelper = {
     maker: string;
@@ -35,7 +28,7 @@ describe("SamWitchOrderBook", function () {
       [await erc1155.getAddress(), await brush.getAddress(), dev.address, 30, 30, maxOrdersPerPrice],
       {
         kind: "uups",
-      }
+      },
     )) as unknown as SamWitchOrderBook;
 
     const initialBrush = 1000000;
@@ -99,6 +92,109 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
   });
 
+  it("Add to order book via EIP712", async function () {
+    const {orderBook, tokenId, alice} = await loadFixture(deployContractsFixture);
+
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const verifyingContract = await orderBook.getAddress();
+    const sender = await alice.getAddress();
+    const deadline = ((await ethers.provider.getBlock("latest"))?.timestamp || 0) + 100;
+    const nonce = await orderBook.nonces(sender);
+
+    const price = 100;
+    const quantity = 10;
+    const orders: ISamWitchOrderBook.LimitOrderStruct[] = [
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ];
+
+    const limitOrdersRequest = {
+      domain: {
+        name: "limitOrders",
+        version: "1",
+        chainId: chainId,
+        verifyingContract,
+      },
+      types: {
+        limitOrders: [
+          {
+            name: "sender",
+            type: "address",
+          },
+          {
+            name: "nonce",
+            type: "uint256",
+          },
+          {
+            name: "deadline",
+            type: "uint256",
+          },
+          {
+            name: "orders",
+            type: "LimitOrder[]",
+          },
+        ],
+        LimitOrder: [
+          {
+            name: "side",
+            type: "uint8",
+            internalType: "enum OrderSide",
+          },
+          {
+            name: "tokenId",
+            type: "uint256",
+          },
+          {
+            name: "price",
+            type: "uint72",
+          },
+          {
+            name: "quantity",
+            type: "uint24",
+          },
+        ],
+      },
+      message: {
+        sender,
+        nonce,
+        deadline,
+        orders,
+      },
+    };
+
+    const signature = await alice.signTypedData(
+      limitOrdersRequest.domain,
+      limitOrdersRequest.types,
+      limitOrdersRequest.message,
+    );
+
+    const sigBreakdown = ethers.Signature.from(signature);
+    await orderBook.limitOrdersIfSignatureMatch(
+      sigBreakdown.v,
+      sigBreakdown.r,
+      sigBreakdown.s,
+      sender,
+      deadline,
+      orders,
+    );
+    expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
+    expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
+
+    expect(
+      orderBook.limitOrdersIfSignatureMatch(sigBreakdown.v, sigBreakdown.r, sigBreakdown.s, sender, deadline, orders),
+    ).to.be.reverted;
+  });
+
   it("Take from order book", async function () {
     const {orderBook, erc1155, brush, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
 
@@ -157,9 +253,8 @@ describe("SamWitchOrderBook", function () {
 
   describe("Cancelling orders", function () {
     it("Cancel a single order", async function () {
-      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} = await loadFixture(
-        deployContractsFixture
-      );
+      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+        await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
@@ -182,7 +277,7 @@ describe("SamWitchOrderBook", function () {
       // Try cancel non-existent order
       await expect(orderBook.cancelOrders([3], [{side: OrderSide.Buy, tokenId, price}])).to.be.revertedWithCustomError(
         orderBook,
-        "OrderNotFound"
+        "OrderNotFound",
       );
 
       // Cancel buy
@@ -191,7 +286,7 @@ describe("SamWitchOrderBook", function () {
 
       // No longer exists
       await expect(
-        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
+        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       // Cancel the sell
@@ -199,7 +294,7 @@ describe("SamWitchOrderBook", function () {
 
       // No longer exists
       await expect(
-        orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
+        orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       // Check you get the brush back
@@ -209,6 +304,111 @@ describe("SamWitchOrderBook", function () {
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+    });
+
+    it("Cancel a single order via EIP712", async function () {
+      const {orderBook, owner, alice, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+        await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+      const verifyingContract = await orderBook.getAddress();
+      const sender = await owner.getAddress();
+      const deadline = ((await ethers.provider.getBlock("latest"))?.timestamp || 0) + 100;
+      const nonce = await orderBook.nonces(sender);
+
+      const orderIds = [1];
+      const cancelOrderInfos: ISamWitchOrderBook.CancelOrderInfoStruct[] = [{side: OrderSide.Buy, tokenId, price}];
+
+      const cancelOrdersRequest = {
+        domain: {
+          name: "cancelOrders",
+          version: "1",
+          chainId: chainId,
+          verifyingContract,
+        },
+        types: {
+          cancelOrders: [
+            {
+              name: "sender",
+              type: "address",
+            },
+            {
+              name: "nonce",
+              type: "uint256",
+            },
+            {
+              name: "deadline",
+              type: "uint256",
+            },
+            {
+              name: "orderIds",
+              type: "uint256[]",
+            },
+            {
+              name: "cancelOrderInfos",
+              type: "CancelOrderInfo[]",
+            },
+          ],
+          CancelOrderInfo: [
+            {
+              name: "side",
+              type: "uint8",
+              internalType: "enum OrderSide",
+            },
+            {
+              name: "tokenId",
+              type: "uint256",
+            },
+            {
+              name: "price",
+              type: "uint72",
+            },
+          ],
+        },
+        message: {
+          sender,
+          nonce,
+          deadline,
+          orderIds,
+          cancelOrderInfos,
+        },
+      };
+
+      const signature = await owner.signTypedData(
+        cancelOrdersRequest.domain,
+        cancelOrdersRequest.types,
+        cancelOrdersRequest.message,
+      );
+
+      const sigBreakdown = ethers.Signature.from(signature);
+      // Cancel buy
+      await orderBook.cancelOrdersIfSignatureMatch(
+        sigBreakdown.v,
+        sigBreakdown.r,
+        sigBreakdown.s,
+        sender,
+        deadline,
+        orderIds,
+        cancelOrderInfos,
+      );
     });
 
     it("Cancel an order at the beginning, middle and end of the same segment", async function () {
@@ -225,7 +425,7 @@ describe("SamWitchOrderBook", function () {
         quantity,
       };
 
-      const limitOrders = new Array<LimitOrder>(4).fill(limitOrder);
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(4).fill(limitOrder);
       await orderBook.limitOrders(limitOrders);
 
       // Cancel a buy in the middle
@@ -256,7 +456,7 @@ describe("SamWitchOrderBook", function () {
       const price = 100;
       const quantity = 10;
 
-      const limitOrders = new Array<LimitOrder>(2).fill({
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(2).fill({
         side: OrderSide.Buy,
         tokenId,
         price,
@@ -280,7 +480,7 @@ describe("SamWitchOrderBook", function () {
       const price = 100;
       const quantity = 10;
 
-      const limitOrders = new Array<LimitOrder>(8).fill({
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(8).fill({
         side: OrderSide.Buy,
         tokenId,
         price,
@@ -289,7 +489,7 @@ describe("SamWitchOrderBook", function () {
       await orderBook.limitOrders(limitOrders);
 
       // Consume whole order to add a tombstone offset
-      const sellLimitOrders = new Array<LimitOrder>(4).fill({
+      const sellLimitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(4).fill({
         side: OrderSide.Sell,
         tokenId,
         price,
@@ -319,7 +519,7 @@ describe("SamWitchOrderBook", function () {
 
       // Check you get the brush back
       expect(await brush.balanceOf(owner)).to.eq(
-        initialBrush - price * quantity - calcFees(price * quantity * 4, true)
+        initialBrush - price * quantity - calcFees(price * quantity * 4, true),
       );
       expect(await brush.balanceOf(orderBook)).to.eq(price * quantity);
 
@@ -347,7 +547,7 @@ describe("SamWitchOrderBook", function () {
       };
 
       // 4 segments
-      const limitOrders = new Array<LimitOrder>(16).fill(limitOrder);
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(16).fill(limitOrder);
       await orderBook.limitOrders(limitOrders);
 
       // order ids for the limit orders: [1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]
@@ -382,9 +582,8 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Bulk cancel orders", async function () {
-      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} = await loadFixture(
-        deployContractsFixture
-      );
+      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+        await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
@@ -411,15 +610,15 @@ describe("SamWitchOrderBook", function () {
         [
           {side: OrderSide.Buy, tokenId, price},
           {side: OrderSide.Sell, tokenId, price: price + 1},
-        ]
+        ],
       );
 
       // Check both no longer exist
       await expect(
-        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}])
+        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
       await expect(
-        orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}])
+        orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
@@ -537,9 +736,8 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Full segment consumption, sell side", async function () {
-    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} = await loadFixture(
-      deployContractsFixture
-    );
+    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} =
+      await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -594,15 +792,14 @@ describe("SamWitchOrderBook", function () {
     const orderId = 1;
     await orderBook.claimTokens([orderId, orderId + 1, orderId + 2, orderId + 3]);
     expect(await brush.balanceOf(owner)).to.eq(
-      initialBrush + price * quantity * 4 - calcFees(price * quantity * 4, true)
+      initialBrush + price * quantity * 4 - calcFees(price * quantity * 4, true),
     );
     expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * quantity * 4);
   });
 
   it("Full segment & partial segment consumption, sell side", async function () {
-    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} = await loadFixture(
-      deployContractsFixture
-    );
+    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} =
+      await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -739,14 +936,14 @@ describe("SamWitchOrderBook", function () {
     const price = 100;
     const quantity = 1;
 
-    const limitOrder: LimitOrder = {
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
       side: OrderSide.Sell,
       tokenId,
       price,
       quantity,
     };
 
-    const limitOrders = new Array<LimitOrder>(maxOrdersPerPrice).fill(limitOrder);
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
     await orderBook.limitOrders(limitOrders);
 
     const tick = Number(await orderBook.getTick(tokenId));
@@ -768,14 +965,14 @@ describe("SamWitchOrderBook", function () {
     const price = 100;
     const quantity = 1;
 
-    const limitOrder: LimitOrder = {
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
       side: OrderSide.Buy,
       tokenId,
       price,
       quantity,
     };
 
-    const limitOrders = new Array<LimitOrder>(maxOrdersPerPrice).fill(limitOrder);
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
     await orderBook.limitOrders(limitOrders);
 
     const tick = Number(await orderBook.getTick(tokenId));
@@ -805,7 +1002,7 @@ describe("SamWitchOrderBook", function () {
           price,
           quantity,
         },
-      ])
+      ]),
     )
       .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
       .withArgs(10);
@@ -832,7 +1029,7 @@ describe("SamWitchOrderBook", function () {
           price,
           quantity,
         },
-      ])
+      ]),
     ).to.not.be.reverted;
     expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(20);
   });
@@ -852,7 +1049,7 @@ describe("SamWitchOrderBook", function () {
           price,
           quantity,
         },
-      ])
+      ]),
     )
       .to.be.revertedWithCustomError(orderBook, "PriceNotMultipleOfTick")
       .withArgs(10);
@@ -879,7 +1076,7 @@ describe("SamWitchOrderBook", function () {
           price,
           quantity,
         },
-      ])
+      ]),
     ).to.not.be.reverted;
     expect(await brush.balanceOf(orderBook)).to.eq(quantity * price);
   });
@@ -893,14 +1090,14 @@ describe("SamWitchOrderBook", function () {
 
     const prices = [price, price + 1, price + 2, price + 3, price + 4];
     for (const price of prices) {
-      const limitOrder: LimitOrder = {
+      const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
         side: OrderSide.Buy,
         tokenId,
         price,
         quantity,
       };
 
-      const limitOrders = new Array<LimitOrder>(maxOrdersPerPrice).fill(limitOrder);
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
       await orderBook.connect(alice).limitOrders(limitOrders);
     }
 
@@ -920,9 +1117,8 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Check all fees (buying into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
-      deployContractsFixture
-    );
+    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      await loadFixture(deployContractsFixture);
 
     await erc1155.setRoyaltyFee(1000); // 10%
     await orderBook.updateRoyaltyFee();
@@ -962,9 +1158,8 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Check all fees (selling into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} = await loadFixture(
-      deployContractsFixture
-    );
+    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      await loadFixture(deployContractsFixture);
 
     await erc1155.setRoyaltyFee(1000); // 10%
     await orderBook.updateRoyaltyFee();
@@ -1106,7 +1301,7 @@ describe("SamWitchOrderBook", function () {
           price: ethers.parseEther("4800"),
           quantity,
         },
-      ])
+      ]),
     ).to.throw;
 
     await expect(
@@ -1117,7 +1312,7 @@ describe("SamWitchOrderBook", function () {
           price: ethers.parseEther("4700"),
           quantity,
         },
-      ])
+      ]),
     ).to.throw;
   });
 

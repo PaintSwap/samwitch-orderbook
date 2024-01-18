@@ -57,6 +57,9 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error NothingToClaim();
   error TooManyOrdersHit();
 
+  error DeadlineExpired(uint deadline);
+  error InvalidSignature(address sender, address recoveredAddress);
+
   function limitOrders(LimitOrder[] calldata _orders) external;
 
   function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external;
