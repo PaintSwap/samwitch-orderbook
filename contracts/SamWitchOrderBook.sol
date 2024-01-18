@@ -146,11 +146,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert DeadlineExpired(_deadline);
     }
 
+    // check that the nonce matches the current nonce
     uint nonce = nonces[_sender];
     if (_nonce != nonce) {
       revert InvalidNonce(nonce, _nonce);
     }
 
+    // we need to encode each of the array eleemnts
     bytes32[] memory encodedOrders = new bytes32[](_orders.length);
     for (uint256 i = 0; i < _orders.length; i++) {
       encodedOrders[i] = keccak256(
@@ -158,21 +160,24 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       );
     }
 
+    // this is the signed message hash
     bytes32 digest = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("limitOrders", VERSION, address(this)),
-      keccak256(
-        abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(encodedOrders)))
-      )
+      keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(encodedOrders))))
     );
 
+    // recover the signer from the signature
     address recoveredAddress = digest.recover(_v, _r, _s);
 
+    // check that the signer is the sender
     if (recoveredAddress != _sender || recoveredAddress == address(0)) {
       revert InvalidSignature(_sender, recoveredAddress);
     }
 
+    // increment the nonce
     nonces[_sender] = nonce.inc();
 
+    // execute limit orders
     _limitOrders(_sender, _orders);
   }
 
