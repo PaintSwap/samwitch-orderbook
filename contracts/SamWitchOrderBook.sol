@@ -273,6 +273,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _orderIds Array of order IDs to be cancelled
   /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
   function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external override {
+    if (_orderIds.length != _cancelOrderInfos.length) {
+      revert LengthMismatch();
+    }
     _cancelOrders(_msgSender(), _orderIds, _cancelOrderInfos);
   }
 
@@ -286,6 +289,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] calldata _orderIds,
     CancelOrderInfo[] calldata _cancelOrderInfos
   ) external {
+    if (_orderIds.length != _cancelOrderInfos.length) {
+      revert LengthMismatch();
+    }
+
     if (block.timestamp > _deadline) {
       revert DeadlineExpired(_deadline);
     }
@@ -339,9 +346,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] calldata _orderIds,
     CancelOrderInfo[] calldata _cancelOrderInfos
   ) private {
-    if (_orderIds.length != _cancelOrderInfos.length) {
-      revert LengthMismatch();
-    }
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
     uint[] memory nftIdsFromUs = new uint[](_cancelOrderInfos.length);
