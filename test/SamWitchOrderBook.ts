@@ -9,12 +9,6 @@ describe("SamWitchOrderBook", function () {
     Sell,
   }
 
-  type OrderBookEntryHelper = {
-    maker: string;
-    quantity: bigint;
-    id: bigint;
-  };
-
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
@@ -344,7 +338,7 @@ describe("SamWitchOrderBook", function () {
       const nonce = await orderBook.nonces(sender);
 
       const orderIds = [1];
-      const cancelOrderInfos: ISamWitchOrderBook.CancelOrderInfoStruct[] = [{side: OrderSide.Buy, tokenId, price}];
+      const cancelOrderInfos: ISamWitchOrderBook.CancelOrderStruct[] = [{side: OrderSide.Buy, tokenId, price}];
 
       const cancelOrdersRequest = {
         domain: {
@@ -373,10 +367,10 @@ describe("SamWitchOrderBook", function () {
             },
             {
               name: "cancelOrderInfos",
-              type: "CancelOrderInfo[]",
+              type: "CancelOrder[]",
             },
           ],
-          CancelOrderInfo: [
+          CancelOrder: [
             {
               name: "side",
               type: "uint8",
@@ -1334,7 +1328,7 @@ describe("SamWitchOrderBook", function () {
     return Math.floor(royalty + burnt + devAmount);
   };
 
-  const outputAllOrders = (orders: OrderBookEntryHelper[]) => {
+  const outputAllOrders = (orders: ISamWitchOrderBook.OrderBookEntryHelperStruct[]) => {
     for (const order of orders) {
       console.log(`${order.id} | ${order.quantity}`);
     }

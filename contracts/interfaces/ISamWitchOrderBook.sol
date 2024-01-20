@@ -28,7 +28,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint128 minQuantity;
   }
 
-  struct CancelOrderInfo {
+  struct CancelOrder {
     OrderSide side;
     uint tokenId;
     uint72 price;
@@ -63,7 +63,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function limitOrders(LimitOrder[] calldata _orders) external;
 
-  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external;
+  function cancelOrders(uint[] calldata _orderIds, CancelOrder[] calldata _cancelOrderInfos) external;
 
   function claimTokens(uint[] calldata _orderIds) external;
 

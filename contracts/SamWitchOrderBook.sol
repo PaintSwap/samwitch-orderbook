@@ -52,13 +52,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       )
     );
 
-  bytes32 private constant CANCEL_ORDER_INFO_HASH =
-    keccak256("CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)");
+  bytes32 private constant CANCEL_ORDER_INFO_HASH = keccak256("CancelOrder(uint8 side,uint256 tokenId,uint72 price)");
   bytes32 private constant CANCEL_ORDERS_HASH =
     keccak256(
       abi.encodePacked(
-        "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrderInfo[] cancelOrderInfos)",
-        "CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)"
+        "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrder[] cancelOrderInfos)",
+        "CancelOrder(uint8 side,uint256 tokenId,uint72 price)"
       )
     );
 
@@ -160,9 +159,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     // we need to encode each of the array elements
-    bytes32[] memory encodedOrders = new bytes32[](_orders.length);
+    bytes32[] memory hashedOrders = new bytes32[](_orders.length);
     for (uint256 i = 0; i < _orders.length; i++) {
-      encodedOrders[i] = keccak256(
+      hashedOrders[i] = keccak256(
         // use encode here to prevent collisions
         abi.encode(LIMIT_ORDER_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price, _orders[i].quantity)
       );
@@ -172,7 +171,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bytes32 hash = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("limitOrders", VERSION, address(this)),
       // encode the prevent collisions, encodedOrders can be packed because they are all hashes
-      keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(encodedOrders))))
+      keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(hashedOrders))))
     );
 
     // recover the signer from the signature
@@ -285,12 +284,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Cancel multiple orders in the order book
   /// @param _orderIds Array of order IDs to be cancelled
-  /// @param _cancelOrderInfos Information about the orders so that they can be found in the order book
-  function cancelOrders(uint[] calldata _orderIds, CancelOrderInfo[] calldata _cancelOrderInfos) external override {
-    if (_orderIds.length != _cancelOrderInfos.length) {
+  /// @param _orders Information about the orders so that they can be found in the order book
+  function cancelOrders(uint[] calldata _orderIds, CancelOrder[] calldata _orders) external override {
+    if (_orderIds.length != _orders.length) {
       revert LengthMismatch();
     }
-    _cancelOrders(_msgSender(), _orderIds, _cancelOrderInfos);
+    _cancelOrders(_msgSender(), _orderIds, _orders);
   }
 
   function cancelOrdersIfSignatureMatch(
@@ -301,9 +300,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint _nonce,
     uint _deadline,
     uint[] calldata _orderIds,
-    CancelOrderInfo[] calldata _cancelOrderInfos
+    CancelOrder[] calldata _orders
   ) external {
-    if (_orderIds.length != _cancelOrderInfos.length) {
+    if (_orderIds.length != _orders.length) {
       revert LengthMismatch();
     }
 
@@ -317,17 +316,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     // encode all of the elements of each array
-    bytes32[] memory encodedOrderIds = new bytes32[](_cancelOrderInfos.length);
-    bytes32[] memory encodedCancelOrderInfos = new bytes32[](_cancelOrderInfos.length);
-    for (uint256 i = 0; i < _cancelOrderInfos.length; i++) {
-      encodedOrderIds[i] = keccak256(abi.encode(_orderIds[i]));
-      encodedCancelOrderInfos[i] = keccak256(
-        abi.encode(
-          CANCEL_ORDER_INFO_HASH,
-          _cancelOrderInfos[i].side,
-          _cancelOrderInfos[i].tokenId,
-          _cancelOrderInfos[i].price
-        )
+    bytes32[] memory hashedOrders = new bytes32[](_orders.length);
+    for (uint256 i = 0; i < _orders.length; i++) {
+      hashedOrders[i] = keccak256(
+        abi.encode(CANCEL_ORDER_INFO_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price)
       );
     }
 
@@ -341,7 +333,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           nonce,
           _deadline,
           keccak256(abi.encodePacked(_orderIds)),
-          keccak256(abi.encodePacked(encodedCancelOrderInfos))
+          keccak256(abi.encodePacked(hashedOrders))
         )
       )
     );
@@ -354,20 +346,16 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     nonces[_sender] = nonce.inc();
 
-    _cancelOrders(_sender, _orderIds, _cancelOrderInfos);
+    _cancelOrders(_sender, _orderIds, _orders);
   }
 
-  function _cancelOrders(
-    address _sender,
-    uint[] calldata _orderIds,
-    CancelOrderInfo[] calldata _cancelOrderInfos
-  ) private {
+  function _cancelOrders(address _sender, uint[] calldata _orderIds, CancelOrder[] calldata _orders) private {
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
-    uint[] memory nftIdsFromUs = new uint[](_cancelOrderInfos.length);
-    uint[] memory nftAmountsFromUs = new uint[](_cancelOrderInfos.length);
-    for (uint i = 0; i < _cancelOrderInfos.length; ++i) {
-      CancelOrderInfo calldata cancelOrderInfo = _cancelOrderInfos[i];
+    uint[] memory nftIdsFromUs = new uint[](_orders.length);
+    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
+    for (uint i = 0; i < _orders.length; ++i) {
+      CancelOrder calldata cancelOrderInfo = _orders[i];
       (OrderSide side, uint tokenId, uint72 price) = (
         cancelOrderInfo.side,
         cancelOrderInfo.tokenId,
