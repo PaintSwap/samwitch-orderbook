@@ -189,17 +189,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _limitOrders(address _sender, LimitOrder[] calldata _orders) private {
+    uint numberOfOrders = _orders.length;
     uint royalty;
     uint dev;
     uint burn;
     uint brushToUs;
     uint brushFromUs;
     uint nftsToUs;
-    uint[] memory nftIdsToUs = new uint[](_orders.length);
-    uint[] memory nftAmountsToUs = new uint[](_orders.length);
+    uint[] memory nftIdsToUs = new uint[](numberOfOrders);
+    uint[] memory nftAmountsToUs = new uint[](numberOfOrders);
     uint lengthFromUs;
-    uint[] memory nftIdsFromUs = new uint[](_orders.length);
-    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
+    uint[] memory nftIdsFromUs = new uint[](numberOfOrders);
+    uint[] memory nftAmountsFromUs = new uint[](numberOfOrders);
 
     // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
@@ -207,7 +208,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // read the next order ID so we can increment in memory
     uint40 currentOrderId = nextOrderId;
-    for (uint i = 0; i < _orders.length; ++i) {
+    for (uint i = 0; i < numberOfOrders; ++i) {
       LimitOrder calldata limitOrder = _orders[i];
       (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
         currentOrderId,
@@ -352,15 +353,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     // calling function should check _orderIds.length != _orders.length
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
-    uint[] memory nftIdsFromUs = new uint[](_orders.length);
-    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
-    for (uint i = 0; i < _orders.length; ++i) {
-      CancelOrder calldata cancelOrderInfo = _orders[i];
-      (OrderSide side, uint tokenId, uint72 price) = (
-        cancelOrderInfo.side,
-        cancelOrderInfo.tokenId,
-        cancelOrderInfo.price
-      );
+    uint numberOfOrders = _orderIds.length;
+    uint[] memory nftIdsFromUs = new uint[](numberOfOrders);
+    uint[] memory nftAmountsFromUs = new uint[](numberOfOrders);
+    for (uint i = 0; i < numberOfOrders; ++i) {
+      CancelOrder calldata cancelOrder = _orders[i];
+      (OrderSide side, uint tokenId, uint72 price) = (cancelOrder.side, cancelOrder.tokenId, cancelOrder.price);
 
       if (side == OrderSide.Buy) {
         uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidValues[tokenId][price], bids[tokenId]);
