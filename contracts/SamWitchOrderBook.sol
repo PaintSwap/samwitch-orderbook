@@ -477,8 +477,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint40[] calldata _orderIds,
     bool takeAwayFees
   ) external view override returns (uint amount_) {
-    uint limit = _orderIds.length;
-    for (uint i = 0; i < limit; ++i) {
+    for (uint i = 0; i < _orderIds.length; ++i) {
       amount_ += brushClaimable[_orderIds[i]];
     }
     if (takeAwayFees) {
@@ -495,8 +494,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] calldata _tokenIds
   ) external view override returns (uint[] memory amounts_) {
     amounts_ = new uint[](_orderIds.length);
-    uint limit = _orderIds.length;
-    for (uint i = 0; i < limit; ++i) {
+    for (uint i = 0; i < _orderIds.length; ++i) {
       amounts_[i] = tokenIdsClaimable[_orderIds[i]][_tokenIds[i]];
     }
   }
@@ -591,12 +589,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
   /// @param _tokenIdInfos Array of TokenIdInfo to be set
   function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external payable onlyOwner {
-    uint limit = _tokenIds.length;
-    if (limit != _tokenIdInfos.length) {
+    if (_tokenIds.length != _tokenIdInfos.length) {
       revert LengthMismatch();
     }
 
-    for (uint i = 0; i < limit; ++i) {
+    for (uint i = 0; i < _tokenIds.length; ++i) {
       tokenIdInfos[_tokenIds[i]] = _tokenIdInfos[i];
     }
 
@@ -1121,8 +1118,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     if (_offset == 0 && packed >> 64 == bytes32(0)) {
       // Only 1 order in this segment, so remove the segment by shifting all other segments to the left.
-      uint limit = orderBookEntries.length.sub(1);
-      for (uint i = _index; i < limit; ++i) {
+      for (uint i = _index; i < orderBookEntries.length.sub(1); ++i) {
         orderBookEntries[i] = orderBookEntries[i.inc()];
       }
       orderBookEntries.pop();
