@@ -21,7 +21,7 @@
     "@types/mocha": ">=10.0.6",
     "@types/node": ">=20.11.5",
     "chai": "4.x",
-    "dotenv": "^16.3.1",
+    "dotenv": "^16.3.2",
     "ethers": "^6.10.0",
     "hardhat": "^2.19.4",
     "hardhat-abi-exporter": "^2.10.1",
