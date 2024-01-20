@@ -66,7 +66,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   IBrushToken public token;
 
   address private devAddr;
-  uint8 private devFee; // Base 10000, max 2.55%
+  uint16 private devFee; // Base 10000
   uint8 private burntFee;
   uint16 private royaltyFee;
   uint16 private maxOrdersPerPrice;
@@ -101,7 +101,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     IERC1155 _nft,
     address _token,
     address _devAddr,
-    uint8 _devFee,
+    uint16 _devFee,
     uint8 _burntFee,
     uint16 _maxOrdersPerPrice
   ) external payable initializer {
@@ -112,6 +112,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (_devFee != 0) {
       if (_devAddr == address(0)) {
         revert ZeroAddress();
+      } else if (_devFee > 1000) {
+        revert DevFeeNotSet();
       }
     } else if (_devAddr != address(0)) {
       revert DevFeeNotSet();
