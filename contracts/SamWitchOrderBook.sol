@@ -104,7 +104,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint8 _devFee,
     uint8 _burntFee,
     uint16 _maxOrdersPerPrice
-  ) external initializer {
+  ) external payable initializer {
     __UUPSUpgradeable_init();
     __Ownable_init(_msgSender());
 
@@ -170,7 +170,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     // this is the signed message hash
     bytes32 hash = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("limitOrders", VERSION, address(this)),
-      // encode the prevent collisions, encodedOrders can be packed because they are all hashes
       keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(hashedOrders))))
     );
 
@@ -350,6 +349,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _cancelOrders(address _sender, uint[] calldata _orderIds, CancelOrder[] calldata _orders) private {
+    // calling function should check _orderIds.length != _orders.length
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
     uint[] memory nftIdsFromUs = new uint[](_orders.length);
@@ -583,7 +583,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice The maximum amount of orders allowed at a specific price level
   /// @param _maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
-  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public onlyOwner {
+  function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public payable onlyOwner {
     maxOrdersPerPrice = _maxOrdersPerPrice;
     emit SetMaxOrdersPerPriceLevel(_maxOrdersPerPrice);
   }
@@ -592,7 +592,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ///         placed and the minimum of specific tokenIds in this nft collection.
   /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
   /// @param _tokenIdInfos Array of TokenIdInfo to be set
-  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external onlyOwner {
+  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external payable onlyOwner {
     uint limit = _tokenIds.length;
     if (limit != _tokenIdInfos.length) {
       revert LengthMismatch();
