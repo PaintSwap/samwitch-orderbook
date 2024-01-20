@@ -338,7 +338,7 @@ describe("SamWitchOrderBook", function () {
       const nonce = await orderBook.nonces(sender);
 
       const orderIds = [1];
-      const cancelOrderInfos: ISamWitchOrderBook.CancelOrderStruct[] = [{side: OrderSide.Buy, tokenId, price}];
+      const orderInfos: ISamWitchOrderBook.CancelOrderStruct[] = [{side: OrderSide.Buy, tokenId, price}];
 
       const cancelOrdersRequest = {
         domain: {
@@ -366,7 +366,7 @@ describe("SamWitchOrderBook", function () {
               type: "uint256[]",
             },
             {
-              name: "cancelOrderInfos",
+              name: "orders",
               type: "CancelOrder[]",
             },
           ],
@@ -391,7 +391,7 @@ describe("SamWitchOrderBook", function () {
           nonce,
           deadline,
           orderIds,
-          cancelOrderInfos,
+          orders: orderInfos,
         },
       };
 
@@ -411,7 +411,7 @@ describe("SamWitchOrderBook", function () {
         nonce,
         deadline,
         orderIds,
-        cancelOrderInfos,
+        orderInfos,
       );
     });
 
@@ -558,17 +558,17 @@ describe("SamWitchOrderBook", function () {
 
       // Cancel a buy in the middle
       let orderIds = [9, 10, 11, 12];
-      let cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
-      await orderBook.cancelOrders(orderIds, cancelOrderInfos);
+      let orderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
+      await orderBook.cancelOrders(orderIds, orderInfos);
       // Cancel a buy at the start
       orderIds = [1, 2, 3, 4];
-      cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
-      await orderBook.cancelOrders(orderIds, cancelOrderInfos);
+      orderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
+      await orderBook.cancelOrders(orderIds, orderInfos);
 
       // Cancel a buy at the end
       orderIds = [13, 14, 15, 16];
-      cancelOrderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
-      await orderBook.cancelOrders(orderIds, cancelOrderInfos);
+      orderInfos = orderIds.map(() => ({side: OrderSide.Buy, tokenId, price}));
+      await orderBook.cancelOrders(orderIds, orderInfos);
 
       // The only one left should be orderIds
       orderIds = [5, 6, 7, 8];

@@ -56,7 +56,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   bytes32 private constant CANCEL_ORDERS_HASH =
     keccak256(
       abi.encodePacked(
-        "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrder[] cancelOrderInfos)",
+        "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrder[] orders)",
         "CancelOrder(uint8 side,uint256 tokenId,uint72 price)"
       )
     );
