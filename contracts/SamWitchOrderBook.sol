@@ -152,22 +152,24 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert InvalidNonce(nonce, _nonce);
     }
 
-    // we need to encode each of the array eleemnts
+    // we need to encode each of the array elements
     bytes32[] memory encodedOrders = new bytes32[](_orders.length);
     for (uint256 i = 0; i < _orders.length; i++) {
       encodedOrders[i] = keccak256(
+        // use encode here to prevent collisions
         abi.encode(LIMIT_ORDER_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price, _orders[i].quantity)
       );
     }
 
     // this is the signed message hash
-    bytes32 digest = MessageHashUtils.toTypedDataHash(
+    bytes32 hash = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("limitOrders", VERSION, address(this)),
+      // encode the prevent collisions, encodedOrders can be packed because they are all hashes
       keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(encodedOrders))))
     );
 
     // recover the signer from the signature
-    address recoveredAddress = digest.recover(_v, _r, _s);
+    address recoveredAddress = hash.recover(_v, _r, _s);
 
     // check that the signer is the sender
     if (recoveredAddress != _sender || recoveredAddress == address(0)) {
@@ -307,6 +309,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert InvalidNonce(nonce, _nonce);
     }
 
+    // encode all of the elements of each array
     bytes32[] memory encodedOrderIds = new bytes32[](_cancelOrderInfos.length);
     bytes32[] memory encodedCancelOrderInfos = new bytes32[](_cancelOrderInfos.length);
     for (uint256 i = 0; i < _cancelOrderInfos.length; i++) {
@@ -321,7 +324,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       );
     }
 
-    bytes32 digest = MessageHashUtils.toTypedDataHash(
+    // this is the signed data
+    bytes32 hash = MessageHashUtils.toTypedDataHash(
       _getDomainSeparator("cancelOrders", VERSION, address(this)),
       keccak256(
         abi.encode(
@@ -335,7 +339,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       )
     );
 
-    address recoveredAddress = digest.recover(_v, _r, _s);
+    address recoveredAddress = hash.recover(_v, _r, _s);
 
     if (recoveredAddress != _sender || recoveredAddress == address(0)) {
       revert InvalidSignature(_sender, recoveredAddress);
