@@ -56,7 +56,7 @@ const lowRunsConfig: SolcUserConfig = {
     ...defaultConfig.settings,
     optimizer: {
       ...defaultConfig.settings.optimizer,
-      runs: 800,
+      runs: 999,
     },
   },
 };

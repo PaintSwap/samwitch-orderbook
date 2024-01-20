@@ -34,6 +34,35 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   using SafeERC20 for IBrushToken;
   using ECDSA for bytes32;
 
+  // constants
+  uint16 private constant MAX_ORDERS_HIT = 500;
+  uint8 private constant NUM_ORDERS_PER_SEGMENT = 4;
+
+  string private constant VERSION = "1";
+  bytes32 private constant EIP712_DOMAIN_HASH =
+    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
+  bytes32 private constant LIMIT_ORDER_HASH =
+    keccak256("LimitOrder(uint8 side,uint256 tokenId,uint72 price,uint24 quantity)");
+  bytes32 private constant LIMIT_ORDERS_HASH =
+    keccak256(
+      abi.encodePacked(
+        "limitOrders(address sender,uint256 nonce,uint256 deadline,LimitOrder[] orders)",
+        "LimitOrder(uint8 side,uint256 tokenId,uint72 price,uint24 quantity)"
+      )
+    );
+
+  bytes32 private constant CANCEL_ORDER_INFO_HASH =
+    keccak256("CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)");
+  bytes32 private constant CANCEL_ORDERS_HASH =
+    keccak256(
+      abi.encodePacked(
+        "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrderInfo[] cancelOrderInfos)",
+        "CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)"
+      )
+    );
+
+  // state
   IERC1155 public nft;
   IBrushToken public token;
 
@@ -56,28 +85,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
 
   mapping(address => uint) public nonces;
-
-  uint private constant MAX_ORDERS_HIT = 500;
-  uint private constant NUM_ORDERS_PER_SEGMENT = 4;
-
-  string private constant VERSION = "1";
-
-  string public constant EIP712_DOMAIN_TYPE =
-    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
-  bytes32 public constant EIP712_DOMAIN_HASH = keccak256(abi.encodePacked(EIP712_DOMAIN_TYPE));
-
-  string public constant LIMIT_ORDER_TYPE = "LimitOrder(uint8 side,uint256 tokenId,uint72 price,uint24 quantity)";
-  bytes32 public constant LIMIT_ORDER_HASH = keccak256(abi.encodePacked(LIMIT_ORDER_TYPE));
-  string public constant LIMIT_ORDERS_TYPE =
-    "limitOrders(address sender,uint256 nonce,uint256 deadline,LimitOrder[] orders)";
-  bytes32 public constant LIMIT_ORDERS_HASH = keccak256(abi.encodePacked(LIMIT_ORDERS_TYPE, LIMIT_ORDER_TYPE));
-
-  string public constant CANCEL_ORDER_INFO_TYPE = "CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)";
-  bytes32 public constant CANCEL_ORDER_INFO_HASH =
-    keccak256(abi.encodePacked("CancelOrderInfo(uint8 side,uint256 tokenId,uint72 price)"));
-  string public constant CANCEL_ORDERS_TYPE =
-    "cancelOrders(address sender,uint256 nonce,uint256 deadline,uint256[] orderIds,CancelOrderInfo[] cancelOrderInfos)";
-  bytes32 public constant CANCEL_ORDERS_HASH = keccak256(abi.encodePacked(CANCEL_ORDERS_TYPE, CANCEL_ORDER_INFO_TYPE));
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
