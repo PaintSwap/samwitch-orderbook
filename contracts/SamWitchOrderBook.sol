@@ -797,7 +797,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
 
           _orderIdsPool[numberOfOrders] = orderId;
-          _quantitiesPool[numberOfOrders++] = quantityNFTClaimable;
+          _quantitiesPool[numberOfOrders] = quantityNFTClaimable;
+          numberOfOrders = numberOfOrders.inc();
 
           if (numberOfOrders >= MAX_ORDERS_HIT) {
             revert TooManyOrdersHit();
