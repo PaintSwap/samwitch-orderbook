@@ -14,9 +14,16 @@ pragma solidity ^0.8.23;
 // Enjoy. (c) BokkyPooBah / Bok Consulting Pty Ltd 2020. The MIT Licence.
 // ----------------------------------------------------------------------------
 library BokkyPooBahsRedBlackTreeLibrary {
+  uint72 private constant EMPTY = 0;
+
   uint8 constant RED_FLAG_BIT = uint8(7);
   uint8 constant RED_FLAG_MASK = uint8(1 << RED_FLAG_BIT);
   uint8 constant NUM_IN_SEGMENT_MASK = uint8((1 << RED_FLAG_BIT) - 1);
+
+  struct Tree {
+    uint72 root;
+    mapping(uint72 => Node) nodes;
+  }
 
   struct Node {
     uint72 parent;
@@ -55,13 +62,6 @@ library BokkyPooBahsRedBlackTreeLibrary {
       return numInSegmentDeleted;
     }
   }
-
-  struct Tree {
-    uint72 root;
-    mapping(uint72 => Node) nodes;
-  }
-
-  uint72 private constant EMPTY = 0;
 
   function first(Tree storage self) internal view returns (uint72 _key) {
     _key = self.root;
@@ -127,7 +127,6 @@ library BokkyPooBahsRedBlackTreeLibrary {
   function edit(Tree storage self, uint72 key, uint32 extraTombstoneOffset, uint8 numInSegmentDeleted) internal {
     require(exists(self, key));
     self.nodes[key].tombstoneOffset += extraTombstoneOffset;
-    // self.nodes[key].numInSegmentDeleted = numInSegmentDeleted;
     setNumInSegmentDeleted(self.nodes[key], numInSegmentDeleted);
   }
 
