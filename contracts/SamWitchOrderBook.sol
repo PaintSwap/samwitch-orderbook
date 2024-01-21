@@ -162,7 +162,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // we need to encode each of the array elements
     bytes32[] memory hashedOrders = new bytes32[](_orders.length);
-    for (uint256 i = 0; i < _orders.length; i++) {
+    for (uint i = 0; i < _orders.length; i++) {
       hashedOrders[i] = keccak256(
         // use encode here to prevent collisions
         abi.encode(LIMIT_ORDER_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price, _orders[i].quantity)
@@ -319,7 +319,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // encode all of the elements of each array
     bytes32[] memory hashedOrders = new bytes32[](_orders.length);
-    for (uint256 i = 0; i < _orders.length; i++) {
+    for (uint i = 0; i < _orders.length; i++) {
       hashedOrders[i] = keccak256(
         abi.encode(CANCEL_ORDER_INFO_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price)
       );

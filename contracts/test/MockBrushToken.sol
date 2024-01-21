@@ -7,11 +7,11 @@ import {IBrushToken} from "../interfaces/IBrushToken.sol";
 contract MockBrushToken is ERC20("PaintSwap Token", "BRUSH"), IBrushToken {
   uint public amountBurnt;
 
-  function mint(address _to, uint256 _amount) external {
+  function mint(address _to, uint _amount) external {
     _mint(_to, _amount);
   }
 
-  function burn(uint256 _amount) external {
+  function burn(uint _amount) external {
     amountBurnt += _amount;
     _burn(msg.sender, _amount);
   }
