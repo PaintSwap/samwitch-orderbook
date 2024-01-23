@@ -94,7 +94,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _nft Address of the nft
   /// @param _token The quote token
   /// @param _devAddr The address to receive trade fees
-  /// @param _devFee The fee to send to the dev address (max 2.55%)
+  /// @param _devFee The fee to send to the dev address (max 10%)
   /// @param _burntFee The fee to burn (max 2.55%)
   /// @param _maxOrdersPerPrice The maximum number of orders allowed at each price level
   function initialize(
