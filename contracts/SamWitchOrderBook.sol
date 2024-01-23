@@ -351,8 +351,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     _cancelOrders(_sender, _orderIds, _orders);
   }
 
+  /// @dev calling function should check _orderIds.length != _orders.length
   function _cancelOrders(address _sender, uint[] calldata _orderIds, CancelOrder[] calldata _orders) private {
-    // calling function should check _orderIds.length != _orders.length
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
     uint numberOfOrders = _orderIds.length;
