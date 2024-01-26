@@ -1,7 +1,7 @@
 import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
-import {SamWitchOrderBook} from "../typechain-types";
+import {ISamWitchOrderBook, SamWitchOrderBook} from "../typechain-types";
 
 describe("SamWitchOrderBook", function () {
   enum OrderSide {
