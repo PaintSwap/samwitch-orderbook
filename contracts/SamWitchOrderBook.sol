@@ -11,7 +11,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
@@ -32,7 +31,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   using UnsafeMath for uint24;
   using UnsafeMath for uint8;
   using SafeERC20 for IBrushToken;
-  using ECDSA for bytes32;
 
   // constants
   uint16 private constant MAX_ORDERS_HIT = 500;
@@ -138,71 +136,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) external override {
-    _limitOrders(_msgSender(), _orders);
-  }
-
-  function limitOrdersIfSignatureMatch(
-    uint8 _v,
-    bytes32 _r,
-    bytes32 _s,
-    address _sender,
-    uint _nonce,
-    uint _deadline,
-    LimitOrder[] calldata _orders
-  ) external {
-    if (block.timestamp > _deadline) {
-      revert DeadlineExpired(_deadline);
-    }
-
-    // check that the nonce matches the current nonce
-    uint nonce = nonces[_sender];
-    if (_nonce != nonce) {
-      revert InvalidNonce(nonce, _nonce);
-    }
-
-    // we need to encode each of the array elements
-    bytes32[] memory hashedOrders = new bytes32[](_orders.length);
-    for (uint i = 0; i < _orders.length; i++) {
-      hashedOrders[i] = keccak256(
-        // use encode here to prevent collisions
-        abi.encode(LIMIT_ORDER_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price, _orders[i].quantity)
-      );
-    }
-
-    // this is the signed message hash
-    bytes32 hash = MessageHashUtils.toTypedDataHash(
-      _getDomainSeparator("limitOrders", VERSION, address(this)),
-      keccak256(abi.encode(LIMIT_ORDERS_HASH, _sender, nonce, _deadline, keccak256(abi.encodePacked(hashedOrders))))
-    );
-
-    // recover the signer from the signature
-    address recoveredAddress = hash.recover(_v, _r, _s);
-
-    // check that the signer is the sender
-    if (recoveredAddress != _sender || recoveredAddress == address(0)) {
-      revert InvalidSignature(_sender, recoveredAddress);
-    }
-
-    // increment the nonce
-    nonces[_sender] = nonce.inc();
-
-    // execute limit orders
-    _limitOrders(_sender, _orders);
-  }
-
-  function _limitOrders(address _sender, LimitOrder[] calldata _orders) private {
-    uint numberOfOrders = _orders.length;
     uint royalty;
     uint dev;
     uint burn;
     uint brushToUs;
     uint brushFromUs;
     uint nftsToUs;
-    uint[] memory nftIdsToUs = new uint[](numberOfOrders);
-    uint[] memory nftAmountsToUs = new uint[](numberOfOrders);
+    uint[] memory nftIdsToUs = new uint[](_orders.length);
+    uint[] memory nftAmountsToUs = new uint[](_orders.length);
     uint lengthFromUs;
-    uint[] memory nftIdsFromUs = new uint[](numberOfOrders);
-    uint[] memory nftAmountsFromUs = new uint[](numberOfOrders);
+    uint[] memory nftIdsFromUs = new uint[](_orders.length);
+    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
+    address sender = _msgSender();
 
     // This is done here so that it can be used in many limit orders without wasting too much space
     uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
@@ -210,7 +155,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // read the next order ID so we can increment in memory
     uint40 currentOrderId = nextOrderId;
-    for (uint i = 0; i < numberOfOrders; ++i) {
+    for (uint i = 0; i < _orders.length; ++i) {
       LimitOrder calldata limitOrder = _orders[i];
       (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
         currentOrderId,
@@ -258,11 +203,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     nextOrderId = currentOrderId;
 
     if (brushToUs != 0) {
-      token.safeTransferFrom(_sender, address(this), brushToUs);
+      token.safeTransferFrom(sender, address(this), brushToUs);
     }
 
     if (brushFromUs != 0) {
-      token.safeTransfer(_sender, brushFromUs);
+      token.safeTransfer(sender, brushFromUs);
     }
 
     if (nftsToUs != 0) {
@@ -270,7 +215,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsToUs, nftsToUs)
         mstore(nftAmountsToUs, nftsToUs)
       }
-      _safeBatchTransferNFTsToUs(_sender, nftIdsToUs, nftAmountsToUs);
+      _safeBatchTransferNFTsToUs(sender, nftIdsToUs, nftAmountsToUs);
     }
 
     if (lengthFromUs != 0) {
@@ -278,7 +223,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsFromUs, lengthFromUs)
         mstore(nftAmountsFromUs, lengthFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_sender, nftIdsFromUs, nftAmountsFromUs);
+      _safeBatchTransferNFTsFromUs(sender, nftIdsFromUs, nftAmountsFromUs);
     }
 
     _sendFees(royalty, dev, burn);
@@ -291,68 +236,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (_orderIds.length != _orders.length) {
       revert LengthMismatch();
     }
-    _cancelOrders(_msgSender(), _orderIds, _orders);
-  }
 
-  function cancelOrdersIfSignatureMatch(
-    uint8 _v,
-    bytes32 _r,
-    bytes32 _s,
-    address _sender,
-    uint _nonce,
-    uint _deadline,
-    uint[] calldata _orderIds,
-    CancelOrder[] calldata _orders
-  ) external {
-    if (_orderIds.length != _orders.length) {
-      revert LengthMismatch();
-    }
+    address sender = _msgSender();
 
-    if (block.timestamp > _deadline) {
-      revert DeadlineExpired(_deadline);
-    }
-
-    uint nonce = nonces[_sender];
-    if (_nonce != nonce) {
-      revert InvalidNonce(nonce, _nonce);
-    }
-
-    // encode all of the elements of each array
-    bytes32[] memory hashedOrders = new bytes32[](_orders.length);
-    for (uint i = 0; i < _orders.length; i++) {
-      hashedOrders[i] = keccak256(
-        abi.encode(CANCEL_ORDER_INFO_HASH, _orders[i].side, _orders[i].tokenId, _orders[i].price)
-      );
-    }
-
-    // this is the signed data
-    bytes32 hash = MessageHashUtils.toTypedDataHash(
-      _getDomainSeparator("cancelOrders", VERSION, address(this)),
-      keccak256(
-        abi.encode(
-          CANCEL_ORDERS_HASH,
-          _sender,
-          nonce,
-          _deadline,
-          keccak256(abi.encodePacked(_orderIds)),
-          keccak256(abi.encodePacked(hashedOrders))
-        )
-      )
-    );
-
-    address recoveredAddress = hash.recover(_v, _r, _s);
-
-    if (recoveredAddress != _sender || recoveredAddress == address(0)) {
-      revert InvalidSignature(_sender, recoveredAddress);
-    }
-
-    nonces[_sender] = nonce.inc();
-
-    _cancelOrders(_sender, _orderIds, _orders);
-  }
-
-  /// @dev calling function should check _orderIds.length != _orders.length
-  function _cancelOrders(address _sender, uint[] calldata _orderIds, CancelOrder[] calldata _orders) private {
     uint brushFromUs = 0;
     uint nftsFromUs = 0;
     uint numberOfOrders = _orderIds.length;
@@ -375,11 +261,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
     }
 
-    emit OrdersCancelled(_sender, _orderIds);
+    emit OrdersCancelled(sender, _orderIds);
 
     // Transfer tokens if there are any to send
     if (brushFromUs != 0) {
-      token.safeTransfer(_sender, brushFromUs);
+      token.safeTransfer(sender, brushFromUs);
     }
 
     // Send the NFTs
@@ -389,7 +275,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         mstore(nftIdsFromUs, nftsFromUs)
         mstore(nftAmountsFromUs, nftsFromUs)
       }
-      _safeBatchTransferNFTsFromUs(_sender, nftIdsFromUs, nftAmountsFromUs);
+      _safeBatchTransferNFTsFromUs(sender, nftIdsFromUs, nftAmountsFromUs);
     }
   }
 

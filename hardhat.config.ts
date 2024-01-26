@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [defaultConfig, lowRunsConfig, mediumRunsConfig, highRunsConfig],
     overrides: {
-      "contracts/SamWitchOrderBook.sol": lowRunsConfig,
+      "contracts/SamWitchOrderBook.sol": mediumRunsConfig,
     },
   },
   gasReporter: {
