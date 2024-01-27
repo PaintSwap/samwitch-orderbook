@@ -43,7 +43,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint8 private burntFee;
   uint16 private royaltyFee;
   uint16 private maxOrdersPerPrice;
-  uint40 private nextOrderId;
+  uint40 public nextOrderId;
   address private royaltyRecipient;
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
@@ -138,7 +138,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         orderIdsPool,
         quantitiesPool
       );
-      currentOrderId = uint40(currentOrderId.inc());
+      if (quantityAddedToBook != 0) {
+        currentOrderId = uint40(currentOrderId.inc());
+      }
 
       if (limitOrder.side == OrderSide.Buy) {
         brushToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
@@ -174,8 +176,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
       }
     }
-    // update the state
-    nextOrderId = currentOrderId;
+    // update the state if any
+    if (currentOrderId != nextOrderId) {
+      nextOrderId = currentOrderId;
+    }
 
     if (brushToUs != 0) {
       token.safeTransferFrom(sender, address(this), brushToUs);
@@ -571,18 +575,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
       }
 
-      if (uint(packed) == 0) {
-        break; // Whole segment is empty
-      }
-
       if (numSegmentsFullyConsumed != 0) {
-        uint tombstoneOffset = node.tombstoneOffset;
+        tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
 
-        // We consumed all orders at this price level, so remove all
-        if (numSegmentsFullyConsumed == packedOrders.length - tombstoneOffset) {
+        // Consumed all orders at this price level, so remove it from the tree
+        if (numSegmentsFullyConsumed == packedOrders.length - node.tombstoneOffset) {
           tree[_tokenId].remove(bestPrice); // TODO: A ranged delete would be nice
-        } else {
-          tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
         }
       }
 
@@ -593,8 +591,16 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             packed &= _clearOrderMask(i);
           }
         }
-        packedOrders[lastSegment] = packed;
-        break;
+        if (uint(packed) == 0) {
+          tree[_tokenId].remove(bestPrice);
+          packedOrders.pop();
+        } else {
+          packedOrders[lastSegment] = packed;
+        }
+
+        if (eatIntoLastOrder) {
+          break;
+        }
       }
     }
     if (numberOfOrders != 0) {

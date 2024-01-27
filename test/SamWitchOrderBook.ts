@@ -259,6 +259,10 @@ describe("SamWitchOrderBook", function () {
       ]),
     ).to.not.emit(orderBook, "FailedToAddToBook");
 
+    const orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 2 * tick);
+    expect(orders.length).to.eq(1);
+    expect(orders[0].quantity).eq(quantity / 2);
+
     await orderBook.limitOrders([
       {
         side: OrderSide.Sell,
@@ -553,7 +557,7 @@ describe("SamWitchOrderBook", function () {
     });
   });
 
-  it.skip("Consume a segment and whole price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
+  it("Consume a segment and whole price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
     const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
@@ -567,18 +571,22 @@ describe("SamWitchOrderBook", function () {
       quantity,
     };
 
-    // 1 segment, 1 order in it
-    await orderBook.limitOrders([limitOrder]);
-    // Consume the order
+    // 2 segment
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(4).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    expect(await orderBook.nextOrderId()).to.eq(5);
+
+    // Consume 1 segment
     await orderBook.limitOrders([
       {
         side: OrderSide.Sell,
         tokenId,
         price: price,
-        quantity,
+        quantity: quantity * 4,
       },
     ]);
-
+    expect(await orderBook.nextOrderId()).to.eq(5);
     expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
 
     // Re-add it, should start in the next segment
@@ -588,7 +596,7 @@ describe("SamWitchOrderBook", function () {
     expect(node.tombstoneOffset).to.eq(1);
 
     let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
-    const orderId = 2;
+    const orderId = 5;
     expect(orders.length).to.eq(1);
     expect(orders[0].id).to.eq(orderId);
 
