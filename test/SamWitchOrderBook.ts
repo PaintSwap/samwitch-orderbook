@@ -590,7 +590,6 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
 
     // Re-add it, should start in the next segment
-    console.log("Re-add");
     await orderBook.limitOrders([limitOrder]);
     const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
     expect(node.tombstoneOffset).to.eq(1);

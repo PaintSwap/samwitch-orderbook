@@ -35,8 +35,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint8 private constant NUM_ORDERS_PER_SEGMENT = 4;
 
   // state
-  IERC1155 public nft;
-  IBrushToken public token;
+  IERC1155 private nft;
+  IBrushToken private token;
 
   address private devAddr;
   uint16 private devFee; // Base 10000
@@ -55,8 +55,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   mapping(uint orderId => address maker) private orderBookIdToMaker;
   uint80[1_099_511_627_776] private brushClaimable; // Can pack 3 brush claimables into 1 word
   mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private tokenIdsClaimable;
-
-  mapping(address => uint) public nonces;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -576,10 +574,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
 
       if (numSegmentsFullyConsumed != 0) {
+        uint tombstoneOffset = node.tombstoneOffset;
         tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
 
         // Consumed all orders at this price level, so remove it from the tree
-        if (numSegmentsFullyConsumed == packedOrders.length - node.tombstoneOffset) {
+        if (numSegmentsFullyConsumed == packedOrders.length - tombstoneOffset) {
           tree[_tokenId].remove(bestPrice); // TODO: A ranged delete would be nice
         }
       }
