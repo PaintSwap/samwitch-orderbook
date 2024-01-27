@@ -86,7 +86,7 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
   });
 
-  it("Take from order book", async function () {
+  it("Take from sell order book", async function () {
     const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
@@ -140,6 +140,62 @@ describe("SamWitchOrderBook", function () {
       },
     ]);
     expect(await orderBook.getHighestBid(tokenId)).to.equal(price + 2);
+  });
+
+  it("Take from buy order book", async function () {
+    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Set up order books
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
+
+    // Sell
+    const numToSell = 2;
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price,
+        quantity: numToSell,
+      },
+    ]);
+
+    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price - 1,
+        quantity: quantity - numToSell,
+      },
+    ]); // Buy the rest
+    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
+
+    // There's nothing left on the sell side, this adds to the buy order side
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price - 1,
+        quantity: 1,
+      },
+    ]);
+    expect(await orderBook.getLowestAsk(tokenId)).to.equal(price - 1);
   });
 
   describe("Cancelling orders", function () {
