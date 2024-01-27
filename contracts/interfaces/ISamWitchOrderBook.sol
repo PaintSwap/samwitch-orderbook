@@ -34,12 +34,12 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint72 price;
   }
 
+  event AddedToBook(address maker, OrderSide side, uint orderId, uint tokenId, uint price, uint quantity);
   event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
   event OrdersCancelled(address maker, uint[] orderIds);
   event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
-  event AddedToBook(address maker, OrderSide side, uint orderId, uint price, uint quantity);
-  event ClaimedTokens(address maker, uint[] orderIds, uint amount);
-  event ClaimedNFTs(address maker, uint[] orderIds, uint[] tokenIds, uint[] amounts);
+  event ClaimedTokens(address user, uint[] orderIds, uint amount);
+  event ClaimedNFTs(address user, uint[] orderIds, uint[] tokenIds, uint[] amounts);
   event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
   event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
 

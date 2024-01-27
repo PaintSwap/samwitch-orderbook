@@ -964,7 +964,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     } else {
       price = _addToBookSide(askValues[_tokenId], asks[_tokenId], _price, _newOrderId, _quantity, int128(tick));
     }
-    emit AddedToBook(_msgSender(), _side, _newOrderId, price, _quantity);
+    emit AddedToBook(_msgSender(), _side, _newOrderId, _tokenId, price, _quantity);
   }
 
   function _calcFees(uint _cost) private view returns (uint royalty_, uint dev_, uint burn_) {
