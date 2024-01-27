@@ -199,7 +199,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Failed orders", async function () {
-    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
@@ -268,7 +268,6 @@ describe("SamWitchOrderBook", function () {
       },
     ]);
     await orderBook.setTokenIdInfos([tokenId], [{tick: 1, minQuantity: 20}]);
-
     await expect(
       orderBook.limitOrders([
         {
@@ -552,50 +551,50 @@ describe("SamWitchOrderBook", function () {
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
     });
+  });
 
-    it.skip("Consume a segment and whole check price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
-      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+  it.skip("Consume a segment and whole price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
+    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
-      // Set up order books
-      const price = 100;
-      const quantity = 10;
+    // Set up order books
+    const price = 100;
+    const quantity = 10;
 
-      const limitOrder = {
-        side: OrderSide.Buy,
+    const limitOrder = {
+      side: OrderSide.Buy,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    // 1 segment, 1 order in it
+    await orderBook.limitOrders([limitOrder]);
+    // Consume the order
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
         tokenId,
-        price,
+        price: price,
         quantity,
-      };
+      },
+    ]);
 
-      // 1 segment, 1 order in it
-      await orderBook.limitOrders([limitOrder]);
-      // Consume the order
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price: price,
-          quantity,
-        },
-      ]);
+    expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
 
-      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
+    // Re-add it, should start in the next segment
+    console.log("Re-add");
+    await orderBook.limitOrders([limitOrder]);
+    const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
 
-      // Re-add it, should start in the next segment
-      console.log("Re-add");
-      await orderBook.limitOrders([limitOrder]);
-      const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
-      expect(node.tombstoneOffset).to.eq(1);
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+    const orderId = 2;
+    expect(orders.length).to.eq(1);
+    expect(orders[0].id).to.eq(orderId);
 
-      let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
-      const orderId = 2;
-      expect(orders.length).to.eq(1);
-      expect(orders[0].id).to.eq(orderId);
+    // Consume it
 
-      // Consume it
-
-      // order ids for the limit orders: [1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]
-    });
+    // order ids for the limit orders: [1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]
   });
 
   it("Partial segment consumption, sell side", async function () {

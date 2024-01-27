@@ -465,12 +465,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   // TODO: editOrder
 
-  function _buyTakeFromOrderBook(
+  function _takeFromOrderBookSide(
     uint _tokenId,
     uint72 _price,
     uint24 _quantity,
     uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool
+    uint[] memory _quantitiesPool,
+    OrderSide _side, // which side are you taking from
+    mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) storage values,
+    mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) storage tree
   ) private returns (uint24 quantityRemaining_, uint cost_) {
     quantityRemaining_ = _quantity;
 
@@ -480,26 +483,27 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       mstore(_quantitiesPool, MAX_ORDERS_HIT)
     }
 
+    bool isTakingFromBuy = _side == OrderSide.Buy;
     uint numberOfOrders;
     while (quantityRemaining_ != 0) {
-      uint72 lowestAsk = getLowestAsk(_tokenId);
-      if (lowestAsk == 0 || lowestAsk > _price) {
+      uint72 bestPrice = isTakingFromBuy ? getHighestBid(_tokenId) : getLowestAsk(_tokenId);
+      if (bestPrice == 0 || isTakingFromBuy ? bestPrice < _price : bestPrice > _price) {
         // No more orders left
         break;
       }
 
       // Loop through all at this order
       uint numSegmentsFullyConsumed = 0;
-      bytes32[] storage lowestAskValues = askValues[_tokenId][lowestAsk];
-      BokkyPooBahsRedBlackTreeLibrary.Node storage lowestAskNode = asks[_tokenId].getNode(lowestAsk);
+      bytes32[] storage packedOrders = values[_tokenId][bestPrice];
+      BokkyPooBahsRedBlackTreeLibrary.Node storage node = tree[_tokenId].getNode(bestPrice);
 
       bool eatIntoLastOrder;
       uint numOrdersWithinLastSegmentFullyConsumed;
       bytes32 packed;
       uint lastSegment;
-      for (uint i = lowestAskNode.tombstoneOffset; i < lowestAskValues.length; ++i) {
+      for (uint i = node.tombstoneOffset; i < packedOrders.length; ++i) {
         lastSegment = i;
-        packed = lowestAskValues[i];
+        packed = packedOrders[i];
         uint numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
@@ -534,143 +538,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             quantityRemaining_ = 0;
             eatIntoLastOrder = true;
           }
-          cost_ += quantityNFTClaimable * lowestAsk;
+          cost_ += quantityNFTClaimable * bestPrice;
 
-          brushClaimable[orderId] += uint80(quantityNFTClaimable * lowestAsk);
-
-          _orderIdsPool[numberOfOrders] = orderId;
-          _quantitiesPool[numberOfOrders] = quantityNFTClaimable;
-          numberOfOrders = numberOfOrders.inc();
-
-          if (numberOfOrders >= MAX_ORDERS_HIT) {
-            revert TooManyOrdersHit();
-          }
-        }
-
-        if (wholeSegmentConsumed) {
-          numSegmentsFullyConsumed = numSegmentsFullyConsumed.inc();
-          numOrdersWithinLastSegmentFullyConsumed = 0;
-        } else {
-          numOrdersWithinLastSegmentFullyConsumed = numOrdersWithinLastSegmentFullyConsumed.add(
-            numOrdersWithinSegmentConsumed
-          );
-          if (eatIntoLastOrder) {
-            break;
-          }
-        }
-        if (quantityRemaining_ == 0) {
-          break;
-        }
-      }
-
-      if (uint(packed) == 0) {
-        break; // Whole segment is empty
-      }
-
-      if (numSegmentsFullyConsumed != 0) {
-        uint tombstoneOffset = lowestAskNode.tombstoneOffset;
-
-        // We consumed all orders at this price level, so remove all
-        if (numSegmentsFullyConsumed == lowestAskValues.length - tombstoneOffset) {
-          asks[_tokenId].remove(lowestAsk); // TODO: A ranged delete would be nice
-        } else {
-          asks[_tokenId].edit(lowestAsk, uint32(numSegmentsFullyConsumed));
-        }
-      }
-
-      if (eatIntoLastOrder || numOrdersWithinLastSegmentFullyConsumed != 0) {
-        // Clear the orders for this many
-        if (numOrdersWithinLastSegmentFullyConsumed != 0) {
-          for (uint i; i < numOrdersWithinLastSegmentFullyConsumed; ++i) {
-            packed &= _clearOrderMask(i);
-          }
-        }
-        lowestAskValues[lastSegment] = packed;
-        break;
-      }
-    }
-    if (numberOfOrders != 0) {
-      assembly ("memory-safe") {
-        mstore(_orderIdsPool, numberOfOrders)
-        mstore(_quantitiesPool, numberOfOrders)
-      }
-
-      emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
-    }
-  }
-
-  function _sellTakeFromOrderBook(
-    uint _tokenId,
-    uint72 _price,
-    uint24 _quantity,
-    uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool
-  ) private returns (uint24 quantityRemaining_, uint cost_) {
-    quantityRemaining_ = _quantity;
-
-    // reset the size
-    assembly ("memory-safe") {
-      mstore(_orderIdsPool, MAX_ORDERS_HIT)
-      mstore(_quantitiesPool, MAX_ORDERS_HIT)
-    }
-    uint numberOfOrders;
-    while (quantityRemaining_ != 0) {
-      uint72 highestBid = getHighestBid(_tokenId);
-      if (highestBid == 0 || highestBid < _price) {
-        // No more orders left
-        break;
-      }
-
-      // Loop through all at this order
-      uint numSegmentsFullyConsumed = 0;
-      bytes32[] storage highestBidValues = bidValues[_tokenId][highestBid];
-      BokkyPooBahsRedBlackTreeLibrary.Node storage highestBidNode = bids[_tokenId].getNode(highestBid);
-
-      bool eatIntoLastOrder;
-      uint numOrdersWithinLastSegmentFullyConsumed;
-      bytes32 packed;
-      uint lastSegment;
-      for (uint i = highestBidNode.tombstoneOffset; i < highestBidValues.length; ++i) {
-        lastSegment = i;
-        packed = highestBidValues[i];
-        uint numOrdersWithinSegmentConsumed;
-        bool wholeSegmentConsumed;
-        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-          uint remainingSegment = uint(packed >> offset.mul(64));
-          uint40 orderId = uint40(remainingSegment);
-
-          if (orderId == 0) {
-            // Check if there are any order left in this segment
-            if (remainingSegment != 0) {
-              // Skip this order in the segment as it's been deleted
-              numOrdersWithinLastSegmentFullyConsumed = numOrdersWithinLastSegmentFullyConsumed.inc();
-              continue;
-            } else {
-              break;
-            }
-          }
-          uint24 quantityL3 = uint24(uint(packed >> offset.mul(64).add(40)));
-          uint quantityNFTClaimable = 0;
-          if (quantityRemaining_ >= quantityL3) {
-            // Consume this whole order
-            quantityRemaining_ -= quantityL3;
-            // Is the last one in the segment being fully consumed?
-            wholeSegmentConsumed = offset == NUM_ORDERS_PER_SEGMENT.dec();
-            numOrdersWithinSegmentConsumed = numOrdersWithinSegmentConsumed.inc();
-            quantityNFTClaimable = quantityL3;
+          if (isTakingFromBuy) {
+            tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
           } else {
-            // Eat into the order
-            packed = bytes32(
-              (uint(packed) & ~(uint(0xffffff) << offset.mul(64).add(40))) |
-                (uint(quantityL3 - quantityRemaining_) << offset.mul(64).add(40))
-            );
-            quantityNFTClaimable = quantityRemaining_;
-            quantityRemaining_ = 0;
-            eatIntoLastOrder = true;
+            brushClaimable[orderId] += uint80(quantityNFTClaimable * bestPrice);
           }
-          cost_ += quantityNFTClaimable * highestBid;
-
-          tokenIdsClaimable[orderId][_tokenId] += quantityNFTClaimable;
 
           _orderIdsPool[numberOfOrders] = orderId;
           _quantitiesPool[numberOfOrders] = quantityNFTClaimable;
@@ -702,13 +576,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
 
       if (numSegmentsFullyConsumed != 0) {
-        uint tombstoneOffset = highestBidNode.tombstoneOffset;
+        uint tombstoneOffset = node.tombstoneOffset;
 
         // We consumed all orders at this price level, so remove all
-        if (numSegmentsFullyConsumed == highestBidValues.length - tombstoneOffset) {
-          bids[_tokenId].remove(highestBid); // TODO: A ranged delete would be nice
+        if (numSegmentsFullyConsumed == packedOrders.length - tombstoneOffset) {
+          tree[_tokenId].remove(bestPrice); // TODO: A ranged delete would be nice
         } else {
-          bids[_tokenId].edit(highestBid, uint32(numSegmentsFullyConsumed));
+          tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
         }
       }
 
@@ -719,7 +593,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             packed &= _clearOrderMask(i);
           }
         }
-        highestBidValues[lastSegment] = packed;
+        packedOrders[lastSegment] = packed;
         break;
       }
     }
@@ -743,9 +617,27 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ) private returns (uint24 quantityRemaining, uint cost) {
     // Take as much as possible from the order book
     if (_side == OrderSide.Buy) {
-      (quantityRemaining, cost) = _buyTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
+      (quantityRemaining, cost) = _takeFromOrderBookSide(
+        _tokenId,
+        _price,
+        _quantity,
+        _orderIdsPool,
+        _quantitiesPool,
+        OrderSide.Sell,
+        askValues,
+        asks
+      );
     } else {
-      (quantityRemaining, cost) = _sellTakeFromOrderBook(_tokenId, _price, _quantity, _orderIdsPool, _quantitiesPool);
+      (quantityRemaining, cost) = _takeFromOrderBookSide(
+        _tokenId,
+        _price,
+        _quantity,
+        _orderIdsPool,
+        _quantitiesPool,
+        OrderSide.Buy,
+        bidValues,
+        bids
+      );
     }
   }
 
@@ -859,7 +751,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert PriceNotMultipleOfTick(tick);
     }
 
-    (quantityAddedToBook_, cost_) = _takeFromOrderBook(
+    uint24 quantityRemaining;
+    (quantityRemaining, cost_) = _takeFromOrderBook(
       _limitOrder.side,
       _limitOrder.tokenId,
       _limitOrder.price,
@@ -869,11 +762,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     );
 
     // Add the rest to the order book if has the minimum required, in order to keep order books healthy
-    if (quantityAddedToBook_ >= tokenIdInfo.minQuantity) {
+    if (quantityRemaining >= tokenIdInfo.minQuantity) {
+      quantityAddedToBook_ = quantityRemaining;
       _addToBook(_newOrderId, tick, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook_);
-    } else if (quantityAddedToBook_ != 0) {
-      failedQuantity_ = quantityAddedToBook_;
-      quantityAddedToBook_ = 0;
+    } else if (quantityRemaining != 0) {
+      failedQuantity_ = quantityRemaining;
       emit FailedToAddToBook(_msgSender(), _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, failedQuantity_);
     }
   }

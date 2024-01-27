@@ -154,7 +154,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
         if (doFixup) {
             removeFixup(self, probe);
         }
-        // Don't delete the node, so that we can re-use the tombstone offset if readding this price
+        // Don't delete the node, so that we can re-use the tombstone offset if re-adding this price
         self.nodes[cursor].parent = EMPTY;
     }
 
