@@ -198,6 +198,89 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price - 1);
   });
 
+  it("Failed orders", async function () {
+    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Set up order books
+    const price = 100;
+    const quantity = 10;
+    const tick = 1;
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + tick,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity,
+      },
+    ]);
+
+    // Cancel buy
+    const orderId = 1;
+    await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+    // Add a couple buy orders
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - tick,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - 3 * tick,
+        quantity,
+      },
+    ]);
+
+    // Remove a whole sell order and eat into the next
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price: price + 2 * tick,
+          quantity: quantity + quantity / 2,
+        },
+      ]),
+    ).to.not.emit(orderBook, "FailedToAddToBook");
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price - tick,
+        quantity: quantity - 3,
+      },
+    ]);
+    await orderBook.setTokenIdInfos([tokenId], [{tick: 1, minQuantity: 20}]);
+
+    await expect(
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price - tick,
+          quantity: quantity,
+        },
+      ]),
+    ).to.emit(orderBook, "FailedToAddToBook");
+  });
+
   describe("Cancelling orders", function () {
     it("Cancel a single order", async function () {
       const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
@@ -1085,7 +1168,7 @@ describe("SamWitchOrderBook", function () {
     expect(await brush.balanceOf(owner)).to.eq(initialBrush);
     await expect(orderBook.claimTokens([orderId]))
       .to.emit(orderBook, "ClaimedTokens")
-      .withArgs(owner.address, [orderId], cost - fees);
+      .withArgs(owner.address, [orderId], cost, fees);
     expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
     expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
 

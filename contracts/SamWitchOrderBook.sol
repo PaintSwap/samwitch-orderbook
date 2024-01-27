@@ -285,7 +285,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       amountExclFees = amount.sub(fees);
     }
 
-    emit ClaimedTokens(_msgSender(), _orderIds, amountExclFees);
+    emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
 
     if (amountExclFees != 0) {
       token.safeTransfer(_msgSender(), amountExclFees);
@@ -589,13 +589,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         break;
       }
     }
+    if (numberOfOrders != 0) {
+      assembly ("memory-safe") {
+        mstore(_orderIdsPool, numberOfOrders)
+        mstore(_quantitiesPool, numberOfOrders)
+      }
 
-    assembly ("memory-safe") {
-      mstore(_orderIdsPool, numberOfOrders)
-      mstore(_quantitiesPool, numberOfOrders)
+      emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
     }
-
-    emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
   }
 
   function _sellTakeFromOrderBook(
@@ -722,13 +723,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         break;
       }
     }
+    if (numberOfOrders != 0) {
+      assembly ("memory-safe") {
+        mstore(_orderIdsPool, numberOfOrders)
+        mstore(_quantitiesPool, numberOfOrders)
+      }
 
-    assembly ("memory-safe") {
-      mstore(_orderIdsPool, numberOfOrders)
-      mstore(_quantitiesPool, numberOfOrders)
+      emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
     }
-
-    emit OrdersMatched(_msgSender(), _orderIdsPool, _quantitiesPool);
   }
 
   function _takeFromOrderBook(
@@ -869,7 +871,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     // Add the rest to the order book if has the minimum required, in order to keep order books healthy
     if (quantityAddedToBook_ >= tokenIdInfo.minQuantity) {
       _addToBook(_newOrderId, tick, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook_);
-    } else {
+    } else if (quantityAddedToBook_ != 0) {
       failedQuantity_ = quantityAddedToBook_;
       quantityAddedToBook_ = 0;
       emit FailedToAddToBook(_msgSender(), _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, failedQuantity_);

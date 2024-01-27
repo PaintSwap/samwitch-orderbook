@@ -24,6 +24,7 @@ async function main() {
   const SamWitchOrderBook = await ethers.getContractFactory("SamWitchOrderBook");
   const swob = (await upgrades.deployProxy(SamWitchOrderBook, [estforItems, brush, dev, 30, 30, maxOrdersPerPrice], {
     kind: "uups",
+    timeout: 600 * 1000, // 10 minutes
   })) as unknown as SamWitchOrderBook;
   await swob.waitForDeployment();
   console.log("Deployed SamWitchOrderBook to:", await swob.getAddress());
