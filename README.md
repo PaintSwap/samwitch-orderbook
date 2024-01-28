@@ -18,7 +18,7 @@ Constraints:
 
 - The order quantity is limited to ~16mil
 - The maximum number of orders in the book that can ever be added is limited to 1 trillion
-- The maximum number of orders that can be added to a specific price level is between 4.2 - 16 billion
+- The maximum number of orders that can be added to a specific price level in its lifetime is 16 billion
 
 While this order book was created for `ERC1155` NFTs it could be adapted for `ERC20` tokens.
 
@@ -28,7 +28,6 @@ Potential improvements:
 
 - Use an `orderId` per price level insted of global, so that they are always sequential
 - Range delete of the red-black tree using split/join
-- The tree, either pack `red` & `numDeletedInSegment` or reduce number of decimals for the `price` and use `uint64` instead
 
 To start copy the `.env.sample` file to `.env` and fill in `PRIVATE_KEY` at a minimum (starts with `0x`).
 
