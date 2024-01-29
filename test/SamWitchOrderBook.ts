@@ -203,12 +203,11 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Failed orders", async function () {
-    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, tokenId, tick} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
     const quantity = 10;
-    const tick = 1;
 
     await orderBook.limitOrders([
       {
@@ -286,6 +285,50 @@ describe("SamWitchOrderBook", function () {
         },
       ]),
     ).to.emit(orderBook, "FailedToAddToBook");
+  });
+
+  describe("Make limit order", function () {
+    it("Invalid limit orders", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await expect(
+        orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: 0,
+          },
+        ]),
+      ).to.be.revertedWithCustomError(orderBook, "NoQuantity");
+
+      await expect(
+        orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price: 0,
+            quantity,
+          },
+        ]),
+      ).to.be.revertedWithCustomError(orderBook, "PriceZero");
+
+      await expect(
+        orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId: tokenId + 1,
+            price,
+            quantity,
+          },
+        ]),
+      )
+        .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
+        .withArgs(tokenId + 1);
+    });
   });
 
   describe("Cancelling orders", function () {
@@ -558,6 +601,150 @@ describe("SamWitchOrderBook", function () {
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+    });
+
+    it("Cancelling a non-existent order should revert", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 2;
+      await expect(orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]))
+        .to.be.revertedWithCustomError(orderBook, "OrderNotFound")
+        .withArgs(orderId, price);
+    });
+
+    it("Cancelling an order with the wrong maker should revert", async function () {
+      const {orderBook, tokenId, alice} = await loadFixture(deployContractsFixture);
+
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 1;
+      await expect(
+        orderBook.connect(alice).cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
+      ).to.be.revertedWithCustomError(orderBook, "NotMaker");
+    });
+
+    it("Cancelling an order twice should revert", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 2;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+      await expect(
+        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+    });
+
+    it("Cancelling an order that has been consumed should revert", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 1;
+      await expect(
+        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+    });
+
+    it("Cancelling an order after some orders in a segment are consumed", async function () {
+      const {orderBook, tokenId, alice} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 1;
+      await expect(
+        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
+      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
     });
   });
 
@@ -865,7 +1052,7 @@ describe("SamWitchOrderBook", function () {
   it("Partial order consumption", async function () {});
 
   it("Max number of orders for a price should increment it by the tick, sell orders", async function () {
-    const {orderBook, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, tick} = await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -881,8 +1068,6 @@ describe("SamWitchOrderBook", function () {
     const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
     await orderBook.limitOrders(limitOrders);
 
-    const tick = Number(await orderBook.getTick(tokenId));
-
     // Try to add one more and it will be added to the next tick price
     await orderBook.connect(alice).limitOrders([limitOrder]);
 
@@ -894,7 +1079,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Max number of orders for a price should increment it by the tick, buy orders", async function () {
-    const {orderBook, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, tick} = await loadFixture(deployContractsFixture);
 
     // Set up order book
     const price = 100;
@@ -909,8 +1094,6 @@ describe("SamWitchOrderBook", function () {
 
     const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
     await orderBook.limitOrders(limitOrders);
-
-    const tick = Number(await orderBook.getTick(tokenId));
 
     // Try to add one more and it will be added to the next tick price
     await orderBook.connect(alice).limitOrders([limitOrder]);

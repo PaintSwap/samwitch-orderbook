@@ -931,7 +931,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint40 orderId = uint40(uint(packed) >> _offset.mul(64));
 
     address maker = orderBookIdToMaker[orderId];
-    if (maker == address(0) || maker != _msgSender()) {
+    if (maker != _msgSender()) {
       revert NotMaker();
     }
 
