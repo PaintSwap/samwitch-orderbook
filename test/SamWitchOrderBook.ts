@@ -40,7 +40,9 @@ describe("SamWitchOrderBook", function () {
     await erc1155.safeTransferFrom(owner, alice, tokenId, initialQuantity, "0x");
     await erc1155.connect(alice).setApprovalForAll(orderBook, true);
 
-    await orderBook.setTokenIdInfos([tokenId], [{tick: 1, minQuantity: 1}]);
+    const tick = 1;
+    const minQuantity = 1;
+    await orderBook.setTokenIdInfos([tokenId], [{tick, minQuantity}]);
 
     return {
       orderBook,
@@ -58,6 +60,8 @@ describe("SamWitchOrderBook", function () {
       tokenId,
       initialQuantity,
       maxOrdersPerPrice,
+      tick,
+      minQuantity,
     };
   }
 
@@ -1245,6 +1249,519 @@ describe("SamWitchOrderBook", function () {
         },
       ]),
     ).to.throw;
+  });
+
+  it("System test (many orders)", async function () {
+    const {orderBook, owner, tokenId, brush, erc1155, tick} = await loadFixture(deployContractsFixture);
+
+    const initialBrush = 1000000;
+    await brush.mint(owner.address, initialBrush * 30);
+    await brush.approve(orderBook, initialBrush * 30);
+
+    const price = 100;
+    const quantity = 10;
+
+    await erc1155.mintSpecificId(tokenId, quantity * 40);
+
+    // Set up buy order book
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity: quantity + 1,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity + 2,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity + 1,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity: quantity + 2,
+      },
+      {
+        // order id 8
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity: quantity + 3,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 5 * tick,
+        quantity: quantity + 2,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity - 1,
+      },
+      {
+        // 11
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity,
+      },
+      {
+        // 12
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity + 4,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity - 1,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity + 4,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity + 4,
+      },
+
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - 2,
+        quantity: quantity + 2,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity + 1,
+      },
+      {
+        // 20
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - 1,
+        quantity: quantity + 4,
+      },
+
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity + 4,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity + 4,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity,
+      },
+
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity + 2,
+      },
+      {
+        // 25
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity + 3,
+      },
+
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity + 4,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity,
+      },
+
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity + 4,
+      },
+      {
+        // 29
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 8 * tick,
+        quantity: quantity,
+      },
+      {
+        // 30
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2 * tick,
+        quantity: quantity + 4,
+      },
+    ]);
+
+    // Use this to output all orders
+    /* outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 8 * tick));
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 5 * tick));
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 4 * tick));
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 2 * tick));
+
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price));
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price - tick));
+    outputAllOrders(await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price - 2 * tick));
+    */
+
+    // Price - [orders (orderId)]
+    // Sell
+    // 108 - [quantity (4), quantity (5), quantity + 1 (6), quantity - 1 (14)], [quantity + 4 (15), quantity + 4 (16), quantity + 4 (26), quantity (27)], [quantity (29)]
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+    // 102 - [quantity (1), quantity + 1 (2), quantity + 2 (7), quantity + 3 (8)], [quantity + 4 (30)]
+
+    // Buy
+    // Price - orders
+    // 100 - [quantity (17), quantity + 1 (19), quantity + 2 (24), quantity + 3 (25)], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    await orderBook.cancelOrders([5], [{side: OrderSide.Sell, tokenId, price: price + 8 * tick}]);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 8 * tick)).length).to.eq(8);
+
+    // Price - [orders (orderId)]
+    // Sell
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+    // 102 - [quantity (1), quantity + 1 (2), quantity + 2 (7), quantity + 3 (8)], [quantity + 4 (11)]
+
+    // Buy
+    // Price - orders
+    // 100 - [quantity (17), quantity + 1 (19), quantity + 2 (24), quantity + 3 (25)], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 3 * tick,
+        quantity: quantity + quantity + 1 + quantity + 2 + quantity + 3 + quantity + 4 + quantity,
+      },
+    ]);
+    expect(await orderBook.nextOrderId()).to.eq(32);
+
+    // (Remove whole 102 price level, add 103 price level)
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 103 - [quantity (31)]
+    // 100 - [quantity (17), quantity + 1 (19), quantity + 2 (24), quantity + 3 (25)], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price,
+        quantity: quantity + quantity + 1 + 2,
+      },
+    ]);
+
+    // (Consume 103 level, 2 orders at 100 and eat into another)
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, quantity (24), quantity + 3 (25)], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // (Consume 103 order 2 orders and eat into another)
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price,
+        quantity: quantity + quantity + quantity + 3,
+      },
+    ]);
+
+    let node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Add a buy above the one with a tomstone offset on a price level which was removed (103)
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 3 * tick,
+        quantity: quantity - 6,
+      },
+    ]);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 103 - [quantity - 6 (32)]
+    // 100 - [0, 0, 0, 0], [quantity + 4 (28)]
+    // 99 - [quantity + 4 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Take out 103, 100, and a bit of 99
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price - 1,
+        quantity: quantity + 4 + quantity - 6 + 3,
+      },
+    ]);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Add a buy with a previous tomstone offset on a price level which was removed (100)
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price,
+        quantity: quantity,
+      },
+    ]);
+
+    expect(await orderBook.getHighestBid(tokenId)).to.eq(price);
+    node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+    expect(node.tombstoneOffset).to.eq(1);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price)).length).to.eq(1);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price))[0]).to.deep.eq([
+      owner.address,
+      quantity,
+      33n,
+    ]);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [quantity (4), quantity + 1 (6), quantity - 1 (14), quantity + 4 (15)], [quantity + 4 (16), quantity + 4 (26), quantity (27), quantity (29)], []
+    // 105 - [quantity + 2 (9)]
+    // 104 - [quantity + 2 (3), quantity - 1 (10), quantity (11), quantity (12)], [quantity + 4 (13), quantity + 4 (21), quantity + 4 (22), quantity (23)]
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity (33)]
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Consume all of 104, 105, and one segment of 108, 1 order and eat into another of another segment
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price + 8 * tick,
+        quantity:
+          quantity +
+          2 +
+          quantity -
+          1 +
+          quantity +
+          quantity +
+          quantity +
+          4 +
+          quantity +
+          4 +
+          quantity +
+          4 +
+          quantity +
+          quantity +
+          2 +
+          quantity +
+          quantity +
+          1 +
+          quantity -
+          1 +
+          quantity +
+          4 +
+          quantity +
+          4 +
+          quantity,
+      },
+    ]);
+
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 8 * tick)).length).to.eq(3);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 5 * tick)).length).to.eq(0);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 4 * tick)).length).to.eq(0);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [0, 0, 0, 0], [0, 4 (26), quantity (27), quantity (29)], []
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity (33)]
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity,
+      },
+    ]);
+
+    node = await orderBook.getNode(OrderSide.Sell, tokenId, price + 4 * tick);
+    expect(node.tombstoneOffset).to.eq(2);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 4 * tick)).length).to.eq(1);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [0, 0, 0, 0], [0, 4 (26), quantity (27), quantity (29)], []
+    // 104 - [0, 0, 0, 0], [0, 0, 0, 0], [quantity (34)]
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity (33)]
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Cancel the order should remove this order from the tree
+    await orderBook.cancelOrders([34], [{side: OrderSide.Sell, tokenId, price: price + 4 * tick}]);
+
+    await expect(orderBook.getNode(OrderSide.Sell, tokenId, price + 4 * tick)).to.be.reverted;
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [0, 0, 0, 0], [0, 4 (26), quantity (27), quantity (29)], []
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity (33)]
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
+
+    // Re add the order to check tombstone offset again
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 4 * tick,
+        quantity: quantity + 1,
+      },
+    ]);
+
+    node = await orderBook.getNode(OrderSide.Sell, tokenId, price + 4 * tick);
+    expect(node.tombstoneOffset).to.eq(2);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 4 * tick)).length).to.eq(1);
+    expect((await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 4 * tick))[0]).to.deep.eq([
+      owner.address,
+      quantity + 1,
+      35n,
+    ]);
+
+    // Sell
+    // Price - [orders (orderId)]
+    // 108 - [0, 0, 0, 0], [0, 4 (26), quantity (27), quantity (29)], []
+    // 104 - [0, 0, 0, 0], [0, 0, 0, 0], [quantity + 1 (35)]
+
+    // Buy
+    // Price - orders
+    // 100 - [0, 0, 0, 0], [quantity (33)]
+    // 99 - [quantity + 1 (20)]
+    // 98 - [quantity + 2 (18)]
   });
 
   // Assuming royalty fee is 10%, burnt fee is 0.3% and dev fee is 0.3%
