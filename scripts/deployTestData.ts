@@ -34,7 +34,14 @@ async function main() {
   await tx.wait();
   console.log("erc1155.setApprovalForAll");
 
-  tx = await orderBook.setTokenIdInfos([tokenId], [{tick, minQuantity: 3}]);
+  tx = await orderBook.setTokenIdInfos(
+    [tokenId, tokenId + 1, tokenId + 2],
+    [
+      {tick, minQuantity: 3},
+      {tick, minQuantity: 4},
+      {tick, minQuantity: 5},
+    ],
+  );
   await tx.wait();
   console.log("orderBook.setTokenIdInfos");
 
@@ -121,11 +128,11 @@ async function main() {
   console.log("orderBook.limitOrders - Some failed to sell");
 
   // Claim nft
-  tx = await orderBook.claimNFTs([6], [tokenId]);
+  tx = await orderBook.claimNFTs([4], [tokenId]);
   await tx.wait();
   console.log("claimNFTs");
   // Claim token
-  tx = await orderBook.claimTokens([2]);
+  tx = await orderBook.claimTokens([2, 3]);
   await tx.wait();
   console.log("claimTokens");
 }
