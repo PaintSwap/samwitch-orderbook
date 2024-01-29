@@ -1105,6 +1105,121 @@ describe("SamWitchOrderBook", function () {
     expect(orders.length).to.eq(1);
   });
 
+  it("Max number of orders for a price should increment it by the tick, where the price level exists already and has spare segments", async function () {
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, tick} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 100;
+    const quantity = 1;
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Buy,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    await orderBook.connect(alice).limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - tick,
+        quantity,
+      },
+    ]);
+
+    // Try to add one more and it will be added to the next tick price
+    await orderBook.connect(alice).limitOrders([limitOrder]);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+    expect(orders.length).to.eq(maxOrdersPerPrice);
+
+    orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price - tick);
+    expect(orders.length).to.eq(2);
+  });
+
+  it("Multiple ticks iterated when there are the max number of orders and no spare orders in the last segment", async function () {
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, erc1155, tick} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 100;
+    const quantity = 1;
+    await erc1155.mintSpecificId(tokenId, 10000);
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    const limitOrderNextTick: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId,
+      price: price + tick,
+      quantity,
+    };
+
+    let limitOrdersNextTick = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(
+      limitOrderNextTick,
+    );
+    await orderBook.limitOrders(limitOrdersNextTick);
+
+    // Try to add one more and it will be added to the tick * 2 price
+    await orderBook.connect(alice).limitOrders([limitOrder]);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 2 * tick);
+    expect(orders.length).to.eq(1);
+  });
+
+  it("Multiple ticks iterated, space at the end of the segment for it", async function () {
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, erc1155, tick} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 100;
+    const quantity = 1;
+    await erc1155.mintSpecificId(tokenId, 10000);
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    const limitOrderNextTick: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId,
+      price: price + tick,
+      quantity,
+    };
+
+    let limitOrdersNextTick = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(
+      limitOrderNextTick,
+    );
+    await orderBook.limitOrders(limitOrdersNextTick);
+
+    await orderBook.cancelOrders([maxOrdersPerPrice * 2 - 2], [{side: OrderSide.Sell, tokenId, price: price + tick}]);
+
+    // Try to add one more and it will be added to the tick * 2 price
+    await orderBook.connect(alice).limitOrders([limitOrder]);
+
+    let orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + tick);
+    expect(orders.length).to.eq(100);
+
+    orders = await orderBook.allOrdersAtPrice(OrderSide.Sell, tokenId, price + 2 * tick);
+    expect(orders.length).to.eq(0);
+  });
+
   it("Price must be modulus of tick quantity must be > min quantity, sell", async function () {
     const {orderBook, erc1155, tokenId} = await loadFixture(deployContractsFixture);
 

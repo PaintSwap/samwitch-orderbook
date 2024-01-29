@@ -15,6 +15,8 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 import {IBrushToken} from "./interfaces/IBrushToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 
+import "hardhat/console.sol";
+
 /// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @author 0xDoubleSharp
@@ -804,18 +806,21 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         // Loop until we find a suitable place to put this
         while (true) {
           price_ = uint72(uint128(int72(price_) + _tickIncrement));
+          console.log(price_);
           if (!_tree.exists(price_)) {
             _tree.insert(price_);
             break;
           } else if (
-            (_packedOrdersPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) >=
-            maxOrdersPerPrice &&
+            (_packedOrdersPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) <
+            maxOrdersPerPrice ||
             uint(
               _packedOrdersPriceMap[price_][_packedOrdersPriceMap[price_].length.dec()] >>
                 NUM_ORDERS_PER_SEGMENT.dec().mul(64)
-            ) !=
+            ) ==
             0
           ) {
+            // There are orders left or the last segment is not filled yet
+            console.log("WHAT");
             break;
           }
         }
