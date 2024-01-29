@@ -584,18 +584,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
 
       if (eatIntoLastOrder || numOrdersWithinLastSegmentFullyConsumed != 0) {
-        // Clear the orders for this many
+        // This segment wasn't completely filled before
         if (numOrdersWithinLastSegmentFullyConsumed != 0) {
           for (uint i; i < numOrdersWithinLastSegmentFullyConsumed; ++i) {
             packed &= _clearOrderMask(i);
           }
         }
         if (uint(packed) == 0) {
+          // All orders in the segment are consumed, delete from tree
           tree[_tokenId].remove(bestPrice);
-          packedOrders.pop();
-        } else {
-          packedOrders[lastSegment] = packed;
         }
+
+        packedOrders[lastSegment] = packed;
 
         if (eatIntoLastOrder) {
           break;
