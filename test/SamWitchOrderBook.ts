@@ -65,6 +65,81 @@ describe("SamWitchOrderBook", function () {
     };
   }
 
+  it("Initialize function constraints", async function () {
+    const {dev, brush, erc1155} = await loadFixture(deployContractsFixture);
+
+    const maxOrdersPerPrice = 100;
+    const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
+    let devFee = 0;
+    let burntFee = 30;
+    await expect(
+      upgrades.deployProxy(
+        OrderBook,
+        [await erc1155.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        {
+          kind: "uups",
+        },
+      ),
+    ).to.be.revertedWithCustomError(OrderBook, "DevFeeNotSet");
+
+    // Set the dev fee but don't set the dev address
+    devFee = 30;
+    await expect(
+      upgrades.deployProxy(
+        OrderBook,
+        [await erc1155.getAddress(), await brush.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
+        {
+          kind: "uups",
+        },
+      ),
+    ).to.be.revertedWithCustomError(OrderBook, "ZeroAddress");
+
+    devFee = 10000;
+    await expect(
+      upgrades.deployProxy(
+        OrderBook,
+        [await erc1155.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        {
+          kind: "uups",
+        },
+      ),
+    ).to.be.revertedWithCustomError(OrderBook, "DevFeeTooHigh");
+
+    devFee = 30;
+    const erc721 = await ethers.deployContract("MockERC721");
+    await expect(
+      upgrades.deployProxy(
+        OrderBook,
+        [await erc721.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        {
+          kind: "uups",
+        },
+      ),
+    ).to.be.revertedWithCustomError(OrderBook, "NotERC1155");
+
+    // No dev fee set
+    devFee = 0;
+    await upgrades.deployProxy(
+      OrderBook,
+      [await erc1155.getAddress(), await brush.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
+      {
+        kind: "uups",
+      },
+    );
+
+    const orderBook = await OrderBook.deploy();
+    await expect(
+      orderBook.initialize(
+        erc1155.getAddress(),
+        await brush.getAddress(),
+        dev.address,
+        devFee,
+        burntFee,
+        maxOrdersPerPrice,
+      ),
+    );
+  });
+
   it("Add to order book", async function () {
     const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 

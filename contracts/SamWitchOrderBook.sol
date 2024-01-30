@@ -84,7 +84,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (_devAddr == address(0)) {
         revert ZeroAddress();
       } else if (_devFee > 1000) {
-        revert DevFeeNotSet();
+        revert DevFeeTooHigh();
       }
     } else if (_devAddr != address(0)) {
       revert DevFeeNotSet();

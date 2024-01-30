@@ -45,6 +45,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   error ZeroAddress();
   error DevFeeNotSet();
+  error DevFeeTooHigh();
   error NotERC1155();
   error NoQuantity();
   error OrderNotFound(uint orderId, uint price);
