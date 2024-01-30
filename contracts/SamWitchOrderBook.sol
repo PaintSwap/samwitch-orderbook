@@ -426,7 +426,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     OrderSide _side,
     uint _tokenId,
     uint72 _price
-  ) external view override returns (OrderBookEntryHelper[] memory orderBookEntries) {
+  ) external view override returns (OrderBookEntryHelper[] memory) {
     if (_side == OrderSide.Buy) {
       return _allOrdersAtPriceSide(bidValues[_tokenId][_price], bids[_tokenId], _price);
     } else {
