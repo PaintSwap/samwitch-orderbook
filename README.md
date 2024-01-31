@@ -4,6 +4,8 @@
 
 ![swob](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/977c060f-e6e7-418f-9d44-1012599f41c6)
 
+![Code coverage](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/34d71d0b-45c4-4871-a5ed-67922b417a95)
+
 This efficient order book utilises the `BokkyPooBahsRedBlackTreeLibrary` library for sorting prices allowing `O(log n)` for tree segment insertion, traversal, and deletion. It supports batch orders and batch cancelling, `ERC2981` royalties, and a dev and burn fee on each trade.
 
 It is kept gas efficient by packing data in many areas:
@@ -16,7 +18,7 @@ The order book is kept healthy by requiring a minimum quantity that can be added
 
 Constraints:
 
-- The order quantity is limited to ~16mil
+- The order quantity to be added to the book is limited to ~16mil
 - The maximum number of orders in the book that can ever be added is limited to 1 trillion
 - The maximum number of orders that can be added to a specific price level in its lifetime is 16 billion
 

@@ -15,6 +15,8 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 import {IBrushToken} from "./interfaces/IBrushToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 
+import "hardhat/console.sol";
+
 /// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)
 /// @author 0xDoubleSharp
@@ -43,7 +45,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint8 private burntFee;
   uint16 private royaltyFee;
   uint16 private maxOrdersPerPrice;
-  uint40 public nextOrderId;
+  uint40 private nextOrderId;
   address private royaltyRecipient;
 
   mapping(uint tokenId => TokenIdInfo tokenIdInfo) public tokenIdInfos;
@@ -79,17 +81,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     __UUPSUpgradeable_init();
     __Ownable_init(_msgSender());
 
-    // make sure dev address/fee is set appropriately
-    if (_devFee != 0) {
-      if (_devAddr == address(0)) {
-        revert ZeroAddress();
-      } else if (_devFee > 1000) {
-        revert DevFeeTooHigh();
-      }
-    } else if (_devAddr != address(0)) {
-      revert DevFeeNotSet();
-    }
-
+    setFees(_devAddr, _devFee, _burntFee);
     // nft must be an ERC1155 via ERC165
     if (!_nft.supportsInterface(type(IERC1155).interfaceId)) {
       revert NotERC1155();
@@ -99,9 +91,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     token = IBrushToken(_token);
     updateRoyaltyFee();
 
-    devFee = _devFee; // 30 = 0.3% fee,
-    devAddr = _devAddr;
-    burntFee = _burntFee; // 30 = 0.3% fee,
     setMaxOrdersPerPrice(_maxOrdersPerPrice); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
     nextOrderId = 1;
   }
@@ -256,7 +245,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
   }
 
-  /// @notice Claim NFTs associated with filled or partially filled orders.
+  /// @notice Claim tokens associated with filled or partially filled orders.
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
   function claimTokens(uint[] calldata _orderIds) public override {
@@ -276,22 +265,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       brushClaimable[orderId] = 0;
     }
 
-    if (amount == 0) {
-      revert NothingToClaim();
-    }
-
     (uint royalty, uint dev, uint burn) = _calcFees(amount);
     uint fees = royalty.add(dev).add(burn);
-    uint amountExclFees = 0;
-    if (amount > fees) {
-      amountExclFees = amount.sub(fees);
-    }
-
+    token.safeTransfer(_msgSender(), amount.sub(fees));
     emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
-
-    if (amountExclFees != 0) {
-      token.safeTransfer(_msgSender(), amountExclFees);
-    }
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
@@ -316,9 +293,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       tokenIdsClaimableForOrder[tokenId] = 0;
     }
 
-    emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, nftAmountsFromUs);
-
     _safeBatchTransferNFTsFromUs(_msgSender(), _tokenIds, nftAmountsFromUs);
+    emit ClaimedNFTs(_msgSender(), _orderIds, _tokenIds, nftAmountsFromUs);
   }
 
   /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
@@ -337,15 +313,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Get the amount of tokens claimable for these orders
   /// @param _orderIds The order IDs to get the claimable tokens for
-  /// @param takeAwayFees Whether to take away the fees from the claimable amount
+  /// @param _takeAwayFees Whether to take away the fees from the claimable amount
   function tokensClaimable(
     uint40[] calldata _orderIds,
-    bool takeAwayFees
+    bool _takeAwayFees
   ) external view override returns (uint amount_) {
     for (uint i = 0; i < _orderIds.length; ++i) {
       amount_ += brushClaimable[_orderIds[i]];
     }
-    if (takeAwayFees) {
+    if (_takeAwayFees) {
       (uint royalty, uint dev, uint burn) = _calcFees(amount_);
       amount_ = amount_.sub(royalty).sub(dev).sub(burn);
     }
@@ -404,18 +380,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
   }
 
-  /// @notice Get the tick size for a specific token ID
-  /// @param _tokenId The token ID to get the tick size for
-  function getTick(uint _tokenId) external view override returns (uint) {
-    return tokenIdInfos[_tokenId].tick;
-  }
-
-  /// @notice The minimum amount that can be added to the order book for a specific token ID, to keep the order book healthy
-  /// @param _tokenId The token ID to get the minimum quantity for
-  function getMinAmount(uint _tokenId) external view override returns (uint) {
-    return tokenIdInfos[_tokenId].minQuantity;
-  }
-
   /// @notice Get all orders at a specific price level
   /// @param _side The side of the order book to get orders from
   /// @param _tokenId The token ID to get orders for
@@ -439,6 +403,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       (address _royaltyRecipient, uint _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
       royaltyRecipient = _royaltyRecipient;
       royaltyFee = uint16(_royaltyFee);
+    } else {
+      royaltyRecipient = address(0);
+      royaltyFee = 0;
     }
   }
 
@@ -465,7 +432,25 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
   }
 
-  // TODO: editOrder
+  /// @notice Set the fees for the contract
+  /// @param _devAddr The address to receive trade fees
+  /// @param _devFee The fee to send to the dev address (max 10%)
+  /// @param _burntFee The fee to burn (max 2%)
+  function setFees(address _devAddr, uint16 _devFee, uint8 _burntFee) public onlyOwner {
+    if (_devFee != 0) {
+      if (_devAddr == address(0)) {
+        revert ZeroAddress();
+      } else if (_devFee > 1000) {
+        revert DevFeeTooHigh();
+      }
+    } else if (_devAddr != address(0)) {
+      revert DevFeeNotSet();
+    }
+    devFee = _devFee; // 30 = 0.3% fee
+    devAddr = _devAddr;
+    burntFee = _burntFee;
+    emit SetFees(_devAddr, _devFee, _burntFee);
+  }
 
   function _takeFromOrderBookSide(
     uint _tokenId,
@@ -704,19 +689,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
     uint tombstoneOffset = node.tombstoneOffset;
-    uint numInSegmentDeleted;
-    {
-      uint packed = uint(_packedOrderBookEntries[tombstoneOffset]);
-      for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-        uint remainingSegment = uint64(packed >> offset.mul(64));
-        uint64 order = uint64(remainingSegment);
-        if (order == 0) {
-          numInSegmentDeleted = numInSegmentDeleted.inc();
-        } else {
-          break;
-        }
-      }
-    }
 
     (uint index, uint offset) = _find(
       _packedOrderBookEntries,
@@ -724,7 +696,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       _packedOrderBookEntries.length,
       _orderId
     );
-    if (index == type(uint).max || (index == tombstoneOffset && offset < numInSegmentDeleted)) {
+    if (index == type(uint).max) {
       revert OrderNotFound(_orderId, _price);
     }
     quantity_ = uint24(uint(_packedOrderBookEntries[index]) >> offset.mul(64).add(40));
@@ -1001,7 +973,5 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   // solhint-disable-next-line no-empty-blocks
-  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-    // upgradeable by owner
-  }
+  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

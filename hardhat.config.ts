@@ -1,4 +1,4 @@
-import {HardhatUserConfig, task} from "hardhat/config";
+import {HardhatUserConfig} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "hardhat-abi-exporter";
@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [defaultConfig, lowRunsConfig, mediumRunsConfig, highRunsConfig],
     overrides: {
-      "contracts/SamWitchOrderBook.sol": highRunsConfig,
+      "contracts/SamWitchOrderBook.sol": mediumRunsConfig,
     },
   },
   gasReporter: {
