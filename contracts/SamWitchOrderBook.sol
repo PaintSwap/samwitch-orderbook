@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.24;
 
 import {UnsafeMath} from "@0xdoublesharp/unsafe-math/contracts/UnsafeMath.sol";
 
@@ -14,8 +14,6 @@ import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary
 
 import {IBrushToken} from "./interfaces/IBrushToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
-
-import "hardhat/console.sol";
 
 /// @title SamWitchOrderBook (SWOB)
 /// @author Sam Witch (PaintSwap & Estfor Kingdom)

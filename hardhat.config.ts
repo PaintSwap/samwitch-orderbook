@@ -9,7 +9,7 @@ import {SolcUserConfig} from "hardhat/types";
 import "dotenv/config";
 
 const defaultConfig: SolcUserConfig = {
-  version: "0.8.23",
+  version: "0.8.24",
   settings: {
     evmVersion: "paris",
     optimizer: {
