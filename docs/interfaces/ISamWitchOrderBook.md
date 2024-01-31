@@ -1,90 +1,66 @@
 # ISamWitchOrderBook
 
-
-
-
-
-
-
-
-
 ## Methods
 
 ### allOrdersAtPrice
 
 ```solidity
-function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct ISamWitchOrderBook.OrderBookEntryHelper[] orderBookEntries)
+function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct ISamWitchOrderBook.OrderBookEntryHelper[] orderBookEntries)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _side | enum ISamWitchOrderBook.OrderSide | undefined |
-| _tokenId | uint256 | undefined |
-| _price | uint72 | undefined |
+| Name    | Type                              | Description |
+| ------- | --------------------------------- | ----------- |
+| side    | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId | uint256                           | undefined   |
+| price   | uint72                            | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| orderBookEntries | ISamWitchOrderBook.OrderBookEntryHelper[] | undefined |
+| Name             | Type                                      | Description |
+| ---------------- | ----------------------------------------- | ----------- |
+| orderBookEntries | ISamWitchOrderBook.OrderBookEntryHelper[] | undefined   |
 
 ### cancelOrders
 
 ```solidity
-function cancelOrders(uint256[] _orderIds, ISamWitchOrderBook.CancelOrder[] _cancelOrderInfos) external nonpayable
+function cancelOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] cancelOrderInfos) external nonpayable
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orderIds | uint256[] | undefined |
-| _cancelOrderInfos | ISamWitchOrderBook.CancelOrder[] | undefined |
+| Name             | Type                             | Description |
+| ---------------- | -------------------------------- | ----------- |
+| orderIds         | uint256[]                        | undefined   |
+| cancelOrderInfos | ISamWitchOrderBook.CancelOrder[] | undefined   |
 
 ### claimAll
 
 ```solidity
-function claimAll(uint256[] _brushOrderIds, uint256[] _nftOrderIds, uint256[] _tokenIds) external nonpayable
+function claimAll(uint256[] brushOrderIds, uint256[] nftOrderIds, uint256[] tokenIds) external nonpayable
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _brushOrderIds | uint256[] | undefined |
-| _nftOrderIds | uint256[] | undefined |
-| _tokenIds | uint256[] | undefined |
+| Name          | Type      | Description |
+| ------------- | --------- | ----------- |
+| brushOrderIds | uint256[] | undefined   |
+| nftOrderIds   | uint256[] | undefined   |
+| tokenIds      | uint256[] | undefined   |
 
 ### claimNFTs
 
 ```solidity
-function claimNFTs(uint256[] _orderIds, uint256[] _tokenIds) external nonpayable
+function claimNFTs(uint256[] orderIds, uint256[] tokenIds) external nonpayable
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orderIds | uint256[] | undefined |
-| _tokenIds | uint256[] | undefined |
+| Name     | Type      | Description |
+| -------- | --------- | ----------- |
+| orderIds | uint256[] | undefined   |
+| tokenIds | uint256[] | undefined   |
 
 ### claimTokens
 
@@ -92,190 +68,118 @@ function claimNFTs(uint256[] _orderIds, uint256[] _tokenIds) external nonpayable
 function claimTokens(uint256[] _orderIds) external nonpayable
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orderIds | uint256[] | undefined |
+| Name       | Type      | Description |
+| ---------- | --------- | ----------- |
+| \_orderIds | uint256[] | undefined   |
 
 ### getHighestBid
 
 ```solidity
-function getHighestBid(uint256 _tokenId) external view returns (uint72)
+function getHighestBid(uint256 tokenId) external view returns (uint72)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _tokenId | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| tokenId | uint256 | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| _0 | uint72 | undefined |
+| Name | Type   | Description |
+| ---- | ------ | ----------- |
+| \_0  | uint72 | undefined   |
 
 ### getLowestAsk
 
 ```solidity
-function getLowestAsk(uint256 _tokenId) external view returns (uint72)
+function getLowestAsk(uint256 tokenId) external view returns (uint72)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _tokenId | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| tokenId | uint256 | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| _0 | uint72 | undefined |
-
-### getMinAmount
-
-```solidity
-function getMinAmount(uint256 _tokenId) external view returns (uint256)
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| _tokenId | uint256 | undefined |
-
-#### Returns
-
-| Name | Type | Description |
-|---|---|---|
-| _0 | uint256 | undefined |
+| Name | Type   | Description |
+| ---- | ------ | ----------- |
+| \_0  | uint72 | undefined   |
 
 ### getNode
 
 ```solidity
-function getNode(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct BokkyPooBahsRedBlackTreeLibrary.Node)
+function getNode(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct BokkyPooBahsRedBlackTreeLibrary.Node)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _side | enum ISamWitchOrderBook.OrderSide | undefined |
-| _tokenId | uint256 | undefined |
-| _price | uint72 | undefined |
+| Name    | Type                              | Description |
+| ------- | --------------------------------- | ----------- |
+| side    | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId | uint256                           | undefined   |
+| price   | uint72                            | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| _0 | BokkyPooBahsRedBlackTreeLibrary.Node | undefined |
-
-### getTick
-
-```solidity
-function getTick(uint256 _tokenId) external view returns (uint256)
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| _tokenId | uint256 | undefined |
-
-#### Returns
-
-| Name | Type | Description |
-|---|---|---|
-| _0 | uint256 | undefined |
+| Name | Type                                 | Description |
+| ---- | ------------------------------------ | ----------- |
+| \_0  | BokkyPooBahsRedBlackTreeLibrary.Node | undefined   |
 
 ### limitOrders
 
 ```solidity
-function limitOrders(ISamWitchOrderBook.LimitOrder[] _orders) external nonpayable
+function limitOrders(ISamWitchOrderBook.LimitOrder[] orders) external nonpayable
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orders | ISamWitchOrderBook.LimitOrder[] | undefined |
+| Name   | Type                            | Description |
+| ------ | ------------------------------- | ----------- |
+| orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
 
 ### nftsClaimable
 
 ```solidity
-function nftsClaimable(uint40[] _orderIds, uint256[] _tokenIds) external view returns (uint256[] amounts)
+function nftsClaimable(uint40[] orderIds, uint256[] tokenIds) external view returns (uint256[] amounts)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orderIds | uint40[] | undefined |
-| _tokenIds | uint256[] | undefined |
+| Name     | Type      | Description |
+| -------- | --------- | ----------- |
+| orderIds | uint40[]  | undefined   |
+| tokenIds | uint256[] | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| amounts | uint256[] | undefined |
+| Name    | Type      | Description |
+| ------- | --------- | ----------- |
+| amounts | uint256[] | undefined   |
 
 ### nodeExists
 
 ```solidity
-function nodeExists(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (bool)
+function nodeExists(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (bool)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _side | enum ISamWitchOrderBook.OrderSide | undefined |
-| _tokenId | uint256 | undefined |
-| _price | uint72 | undefined |
+| Name    | Type                              | Description |
+| ------- | --------------------------------- | ----------- |
+| side    | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId | uint256                           | undefined   |
+| price   | uint72                            | undefined   |
 
 #### Returns
 
 | Name | Type | Description |
-|---|---|---|
-| _0 | bool | undefined |
+| ---- | ---- | ----------- |
+| \_0  | bool | undefined   |
 
 ### onERC1155BatchReceived
 
@@ -283,25 +187,23 @@ function nodeExists(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, u
 function onERC1155BatchReceived(address operator, address from, uint256[] ids, uint256[] values, bytes data) external nonpayable returns (bytes4)
 ```
 
-
-
-*Handles the receipt of a multiple ERC1155 token types. This function is called at the end of a `safeBatchTransferFrom` after the balances have been updated. NOTE: To accept the transfer(s), this must return `bytes4(keccak256(&quot;onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)&quot;))` (i.e. 0xbc197c81, or its own function selector).*
+_Handles the receipt of a multiple ERC1155 token types. This function is called at the end of a `safeBatchTransferFrom` after the balances have been updated. NOTE: To accept the transfer(s), this must return `bytes4(keccak256(&quot;onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)&quot;))` (i.e. 0xbc197c81, or its own function selector)._
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| operator | address | The address which initiated the batch transfer (i.e. msg.sender) |
-| from | address | The address which previously owned the token |
-| ids | uint256[] | An array containing ids of each token being transferred (order and length must match values array) |
-| values | uint256[] | An array containing amounts of each token being transferred (order and length must match ids array) |
-| data | bytes | Additional data with no specified format |
+| Name     | Type      | Description                                                                                         |
+| -------- | --------- | --------------------------------------------------------------------------------------------------- |
+| operator | address   | The address which initiated the batch transfer (i.e. msg.sender)                                    |
+| from     | address   | The address which previously owned the token                                                        |
+| ids      | uint256[] | An array containing ids of each token being transferred (order and length must match values array)  |
+| values   | uint256[] | An array containing amounts of each token being transferred (order and length must match ids array) |
+| data     | bytes     | Additional data with no specified format                                                            |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| _0 | bytes4 | `bytes4(keccak256(&quot;onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)&quot;))` if transfer is allowed |
+| Name | Type   | Description                                                                                                               |
+| ---- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| \_0  | bytes4 | `bytes4(keccak256(&quot;onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)&quot;))` if transfer is allowed |
 
 ### onERC1155Received
 
@@ -309,25 +211,23 @@ function onERC1155BatchReceived(address operator, address from, uint256[] ids, u
 function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes data) external nonpayable returns (bytes4)
 ```
 
-
-
-*Handles the receipt of a single ERC1155 token type. This function is called at the end of a `safeTransferFrom` after the balance has been updated. NOTE: To accept the transfer, this must return `bytes4(keccak256(&quot;onERC1155Received(address,address,uint256,uint256,bytes)&quot;))` (i.e. 0xf23a6e61, or its own function selector).*
+_Handles the receipt of a single ERC1155 token type. This function is called at the end of a `safeTransferFrom` after the balance has been updated. NOTE: To accept the transfer, this must return `bytes4(keccak256(&quot;onERC1155Received(address,address,uint256,uint256,bytes)&quot;))` (i.e. 0xf23a6e61, or its own function selector)._
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
+| Name     | Type    | Description                                                |
+| -------- | ------- | ---------------------------------------------------------- |
 | operator | address | The address which initiated the transfer (i.e. msg.sender) |
-| from | address | The address which previously owned the token |
-| id | uint256 | The ID of the token being transferred |
-| value | uint256 | The amount of tokens being transferred |
-| data | bytes | Additional data with no specified format |
+| from     | address | The address which previously owned the token               |
+| id       | uint256 | The ID of the token being transferred                      |
+| value    | uint256 | The amount of tokens being transferred                     |
+| data     | bytes   | Additional data with no specified format                   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| _0 | bytes4 | `bytes4(keccak256(&quot;onERC1155Received(address,address,uint256,uint256,bytes)&quot;))` if transfer is allowed |
+| Name | Type   | Description                                                                                                      |
+| ---- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| \_0  | bytes4 | `bytes4(keccak256(&quot;onERC1155Received(address,address,uint256,uint256,bytes)&quot;))` if transfer is allowed |
 
 ### supportsInterface
 
@@ -335,46 +235,38 @@ function onERC1155Received(address operator, address from, uint256 id, uint256 v
 function supportsInterface(bytes4 interfaceId) external view returns (bool)
 ```
 
-
-
-*Returns true if this contract implements the interface defined by `interfaceId`. See the corresponding https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section] to learn more about how these ids are created. This function call must use less than 30 000 gas.*
+_Returns true if this contract implements the interface defined by `interfaceId`. See the corresponding https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section] to learn more about how these ids are created. This function call must use less than 30 000 gas._
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| interfaceId | bytes4 | undefined |
+| Name        | Type   | Description |
+| ----------- | ------ | ----------- |
+| interfaceId | bytes4 | undefined   |
 
 #### Returns
 
 | Name | Type | Description |
-|---|---|---|
-| _0 | bool | undefined |
+| ---- | ---- | ----------- |
+| \_0  | bool | undefined   |
 
 ### tokensClaimable
 
 ```solidity
-function tokensClaimable(uint40[] _orderIds, bool takeAwayFees) external view returns (uint256 amount)
+function tokensClaimable(uint40[] orderIds, bool takeAwayFees) external view returns (uint256 amount)
 ```
-
-
-
-
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| _orderIds | uint40[] | undefined |
-| takeAwayFees | bool | undefined |
+| Name         | Type     | Description |
+| ------------ | -------- | ----------- |
+| orderIds     | uint40[] | undefined   |
+| takeAwayFees | bool     | undefined   |
 
 #### Returns
 
-| Name | Type | Description |
-|---|---|---|
-| amount | uint256 | undefined |
-
-
+| Name   | Type    | Description |
+| ------ | ------- | ----------- |
+| amount | uint256 | undefined   |
 
 ## Events
 
@@ -384,20 +276,16 @@ function tokensClaimable(uint40[] _orderIds, bool takeAwayFees) external view re
 event AddedToBook(address maker, enum ISamWitchOrderBook.OrderSide side, uint256 orderId, uint256 tokenId, uint256 price, uint256 quantity)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| maker  | address | undefined |
-| side  | enum ISamWitchOrderBook.OrderSide | undefined |
-| orderId  | uint256 | undefined |
-| tokenId  | uint256 | undefined |
-| price  | uint256 | undefined |
-| quantity  | uint256 | undefined |
+| Name     | Type                              | Description |
+| -------- | --------------------------------- | ----------- |
+| maker    | address                           | undefined   |
+| side     | enum ISamWitchOrderBook.OrderSide | undefined   |
+| orderId  | uint256                           | undefined   |
+| tokenId  | uint256                           | undefined   |
+| price    | uint256                           | undefined   |
+| quantity | uint256                           | undefined   |
 
 ### ClaimedNFTs
 
@@ -405,18 +293,14 @@ event AddedToBook(address maker, enum ISamWitchOrderBook.OrderSide side, uint256
 event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[] amounts)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| user  | address | undefined |
-| orderIds  | uint256[] | undefined |
-| tokenIds  | uint256[] | undefined |
-| amounts  | uint256[] | undefined |
+| Name     | Type      | Description |
+| -------- | --------- | ----------- |
+| user     | address   | undefined   |
+| orderIds | uint256[] | undefined   |
+| tokenIds | uint256[] | undefined   |
+| amounts  | uint256[] | undefined   |
 
 ### ClaimedTokens
 
@@ -424,18 +308,14 @@ event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[
 event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fees)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| user  | address | undefined |
-| orderIds  | uint256[] | undefined |
-| amount  | uint256 | undefined |
-| fees  | uint256 | undefined |
+| Name     | Type      | Description |
+| -------- | --------- | ----------- |
+| user     | address   | undefined   |
+| orderIds | uint256[] | undefined   |
+| amount   | uint256   | undefined   |
+| fees     | uint256   | undefined   |
 
 ### FailedToAddToBook
 
@@ -443,19 +323,15 @@ event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fe
 event FailedToAddToBook(address maker, enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint256 price, uint256 quantity)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| maker  | address | undefined |
-| side  | enum ISamWitchOrderBook.OrderSide | undefined |
-| tokenId  | uint256 | undefined |
-| price  | uint256 | undefined |
-| quantity  | uint256 | undefined |
+| Name     | Type                              | Description |
+| -------- | --------------------------------- | ----------- |
+| maker    | address                           | undefined   |
+| side     | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId  | uint256                           | undefined   |
+| price    | uint256                           | undefined   |
+| quantity | uint256                           | undefined   |
 
 ### OrdersCancelled
 
@@ -463,16 +339,12 @@ event FailedToAddToBook(address maker, enum ISamWitchOrderBook.OrderSide side, u
 event OrdersCancelled(address maker, uint256[] orderIds)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| maker  | address | undefined |
-| orderIds  | uint256[] | undefined |
+| Name     | Type      | Description |
+| -------- | --------- | ----------- |
+| maker    | address   | undefined   |
+| orderIds | uint256[] | undefined   |
 
 ### OrdersMatched
 
@@ -480,17 +352,27 @@ event OrdersCancelled(address maker, uint256[] orderIds)
 event OrdersMatched(address taker, uint256[] orderIds, uint256[] quantities)
 ```
 
+#### Parameters
 
+| Name       | Type      | Description |
+| ---------- | --------- | ----------- |
+| taker      | address   | undefined   |
+| orderIds   | uint256[] | undefined   |
+| quantities | uint256[] | undefined   |
 
+### SetFees
 
+```solidity
+event SetFees(address devAddr, uint256 devFee, uint256 burntFee)
+```
 
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| taker  | address | undefined |
-| orderIds  | uint256[] | undefined |
-| quantities  | uint256[] | undefined |
+| Name     | Type    | Description |
+| -------- | ------- | ----------- |
+| devAddr  | address | undefined   |
+| devFee   | uint256 | undefined   |
+| burntFee | uint256 | undefined   |
 
 ### SetMaxOrdersPerPriceLevel
 
@@ -498,15 +380,11 @@ event OrdersMatched(address taker, uint256[] orderIds, uint256[] quantities)
 event SetMaxOrdersPerPriceLevel(uint256 maxOrdersPerPrice)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| maxOrdersPerPrice  | uint256 | undefined |
+| Name              | Type    | Description |
+| ----------------- | ------- | ----------- |
+| maxOrdersPerPrice | uint256 | undefined   |
 
 ### SetTokenIdInfos
 
@@ -514,18 +392,12 @@ event SetMaxOrdersPerPriceLevel(uint256 maxOrdersPerPrice)
 event SetTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenIdInfos)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| tokenIds  | uint256[] | undefined |
-| tokenIdInfos  | ISamWitchOrderBook.TokenIdInfo[] | undefined |
-
-
+| Name         | Type                             | Description |
+| ------------ | -------------------------------- | ----------- |
+| tokenIds     | uint256[]                        | undefined   |
+| tokenIdInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
 
 ## Errors
 
@@ -535,15 +407,11 @@ event SetTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] token
 error DeadlineExpired(uint256 deadline)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| deadline | uint256 | undefined |
+| Name     | Type    | Description |
+| -------- | ------- | ----------- |
+| deadline | uint256 | undefined   |
 
 ### DevFeeNotSet
 
@@ -551,10 +419,11 @@ error DeadlineExpired(uint256 deadline)
 error DevFeeNotSet()
 ```
 
+### DevFeeTooHigh
 
-
-
-
+```solidity
+error DevFeeTooHigh()
+```
 
 ### InvalidNonce
 
@@ -562,16 +431,12 @@ error DevFeeNotSet()
 error InvalidNonce(uint256 invalid, uint256 nonce)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| invalid | uint256 | undefined |
-| nonce | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| invalid | uint256 | undefined   |
+| nonce   | uint256 | undefined   |
 
 ### InvalidSignature
 
@@ -579,16 +444,12 @@ error InvalidNonce(uint256 invalid, uint256 nonce)
 error InvalidSignature(address sender, address recoveredAddress)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| sender | address | undefined |
-| recoveredAddress | address | undefined |
+| Name             | Type    | Description |
+| ---------------- | ------- | ----------- |
+| sender           | address | undefined   |
+| recoveredAddress | address | undefined   |
 
 ### LengthMismatch
 
@@ -596,21 +457,11 @@ error InvalidSignature(address sender, address recoveredAddress)
 error LengthMismatch()
 ```
 
-
-
-
-
-
 ### NoQuantity
 
 ```solidity
 error NoQuantity()
 ```
-
-
-
-
-
 
 ### NotERC1155
 
@@ -618,21 +469,11 @@ error NoQuantity()
 error NotERC1155()
 ```
 
-
-
-
-
-
 ### NotMaker
 
 ```solidity
 error NotMaker()
 ```
-
-
-
-
-
 
 ### NothingToClaim
 
@@ -640,27 +481,18 @@ error NotMaker()
 error NothingToClaim()
 ```
 
-
-
-
-
-
 ### OrderNotFound
 
 ```solidity
 error OrderNotFound(uint256 orderId, uint256 price)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| orderId | uint256 | undefined |
-| price | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| orderId | uint256 | undefined   |
+| price   | uint256 | undefined   |
 
 ### OrderNotFoundInTree
 
@@ -668,16 +500,12 @@ error OrderNotFound(uint256 orderId, uint256 price)
 error OrderNotFoundInTree(uint256 orderId, uint256 price)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| orderId | uint256 | undefined |
-| price | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| orderId | uint256 | undefined   |
+| price   | uint256 | undefined   |
 
 ### PriceNotMultipleOfTick
 
@@ -685,15 +513,11 @@ error OrderNotFoundInTree(uint256 orderId, uint256 price)
 error PriceNotMultipleOfTick(uint256 tick)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| tick | uint256 | undefined |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| tick | uint256 | undefined   |
 
 ### PriceZero
 
@@ -701,26 +525,17 @@ error PriceNotMultipleOfTick(uint256 tick)
 error PriceZero()
 ```
 
-
-
-
-
-
 ### TokenDoesntExist
 
 ```solidity
 error TokenDoesntExist(uint256 tokenId)
 ```
 
-
-
-
-
 #### Parameters
 
-| Name | Type | Description |
-|---|---|---|
-| tokenId | uint256 | undefined |
+| Name    | Type    | Description |
+| ------- | ------- | ----------- |
+| tokenId | uint256 | undefined   |
 
 ### TooManyOrdersHit
 
@@ -728,20 +543,8 @@ error TokenDoesntExist(uint256 tokenId)
 error TooManyOrdersHit()
 ```
 
-
-
-
-
-
 ### ZeroAddress
 
 ```solidity
 error ZeroAddress()
 ```
-
-
-
-
-
-
-
