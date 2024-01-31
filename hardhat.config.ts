@@ -5,6 +5,7 @@ import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 import "hardhat-storage-layout";
 import "solidity-coverage";
+import "@primitivefi/hardhat-dodoc";
 import {SolcUserConfig} from "hardhat/types";
 import "dotenv/config";
 
@@ -75,6 +76,9 @@ const config: HardhatUserConfig = {
     alphaSort: true,
     runOnCompile: true,
     disambiguatePaths: false,
+  },
+  dodoc: {
+    include: ["IBrushToken.sol", "ISamWitchOrderBook.sol", "SamWitchOrderBook.sol"],
   },
   networks: {
     hardhat: {
