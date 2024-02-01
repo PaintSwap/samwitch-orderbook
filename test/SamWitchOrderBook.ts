@@ -141,12 +141,12 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Add to order book", async function () {
-    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, tokenId, owner} = await loadFixture(deployContractsFixture);
 
     const price = 100;
     const quantity = 10;
 
-    await orderBook.limitOrders([
+    const limitOrders = [
       {
         side: OrderSide.Buy,
         tokenId,
@@ -159,14 +159,34 @@ describe("SamWitchOrderBook", function () {
         price: price + 1,
         quantity,
       },
-    ]);
+    ];
+    let orderId = 1;
+    await expect(orderBook.limitOrders(limitOrders))
+      .to.emit(orderBook, "AddedToBook")
+      .withArgs(
+        owner.address,
+        limitOrders[0].side,
+        orderId,
+        limitOrders[0].tokenId,
+        limitOrders[0].price,
+        limitOrders[0].quantity,
+      )
+      .and.to.emit(orderBook, "AddedToBook")
+      .withArgs(
+        owner.address,
+        limitOrders[1].side,
+        orderId + 1,
+        limitOrders[1].tokenId,
+        limitOrders[1].price,
+        limitOrders[1].quantity,
+      );
 
     expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
   });
 
   it("Take from sell order book", async function () {
-    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, initialQuantity, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
@@ -187,16 +207,20 @@ describe("SamWitchOrderBook", function () {
     ]);
 
     // Buy
-    const numToBuy = 2;
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price: price + 1,
-        quantity: numToBuy,
-      },
-    ]);
-
+    const numToBuy = 3;
+    const orderId = 2;
+    await expect(
+      orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price: price + 1,
+          quantity: numToBuy,
+        },
+      ]),
+    )
+      .to.emit(orderBook, "OrdersMatched")
+      .withArgs(alice.address, [orderId], [numToBuy]);
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
 
     await orderBook.connect(alice).limitOrders([
@@ -243,15 +267,20 @@ describe("SamWitchOrderBook", function () {
     ]);
 
     // Sell
-    const numToSell = 2;
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price: price,
-        quantity: numToSell,
-      },
-    ]);
+    const numToSell = 3;
+    const orderId = 1;
+    await expect(
+      orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price,
+          quantity: numToSell,
+        },
+      ]),
+    )
+      .to.emit(orderBook, "OrdersMatched")
+      .withArgs(alice.address, [orderId], [numToSell]);
 
     expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
 
@@ -328,7 +357,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Failed orders", async function () {
-    const {orderBook, tokenId, tick} = await loadFixture(deployContractsFixture);
+    const {orderBook, tokenId, tick, owner} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
@@ -409,7 +438,9 @@ describe("SamWitchOrderBook", function () {
           quantity: quantity,
         },
       ]),
-    ).to.emit(orderBook, "FailedToAddToBook");
+    )
+      .to.emit(orderBook, "FailedToAddToBook")
+      .withArgs(owner.address, OrderSide.Sell, tokenId, price - tick, 7);
   });
 
   describe("Make limit order", function () {
@@ -495,7 +526,9 @@ describe("SamWitchOrderBook", function () {
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       // Cancel the sell
-      await orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]);
+      await expect(orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]))
+        .to.emit(orderBook, "OrdersCancelled")
+        .withArgs(owner.address, [orderId + 1]);
 
       // No longer exists
       await expect(
@@ -1491,6 +1524,11 @@ describe("SamWitchOrderBook", function () {
     await expect(
       orderBook.connect(alice).setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]),
     ).to.be.revertedWithCustomError(orderBook, "OwnableUnauthorizedAccount");
+
+    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}])).to.emit(
+      orderBook,
+      "SetTokenIdInfos",
+    );
   });
 
   it("Set tokenId infos argument length mismatch", async function () {
@@ -1505,7 +1543,7 @@ describe("SamWitchOrderBook", function () {
       orderBook,
       "OwnableUnauthorizedAccount",
     );
-    await expect(orderBook.setMaxOrdersPerPrice(100)).to.not.be.reverted;
+    await expect(orderBook.setMaxOrdersPerPrice(100)).to.emit(orderBook, "SetMaxOrdersPerPriceLevel").withArgs(100);
   });
 
   it("Test gas costs", async function () {
@@ -1651,6 +1689,9 @@ describe("SamWitchOrderBook", function () {
       orderBook,
       "OwnableUnauthorizedAccount",
     );
+    await expect(orderBook.setFees(ethers.ZeroAddress, 0, 0))
+      .to.emit(orderBook, "SetFees")
+      .withArgs(ethers.ZeroAddress, 0, 0);
   });
 
   describe("Claiming", function () {
@@ -1726,10 +1767,7 @@ describe("SamWitchOrderBook", function () {
 
       // Nothing to claim
       const orderId = 1;
-      await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-        orderBook,
-        "NothingToClaim",
-      );
+      await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
       await orderBook.limitOrders([
         {
@@ -1806,6 +1844,47 @@ describe("SamWitchOrderBook", function () {
       await expect(orderBook.claimTokens([orderId]))
         .to.emit(orderBook, "ClaimedTokens")
         .withArgs(owner.address, [orderId], price * quantity, (price * (quantity * 10)) / 100);
+    });
+
+    it("Claim NFTs", async function () {
+      const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: 10,
+        },
+      ]);
+
+      const orderId = 1;
+      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
+      expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
+      expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
+      expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+
+      await expect(orderBook.claimNFTs([orderId], [tokenId]))
+        .to.emit(orderBook, "ClaimedNFTs")
+        .withArgs(owner.address, [orderId], [tokenId], [10]);
+      expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
+
+      // Try to claim twice
+      await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+        orderBook,
+        "NothingToClaim",
+      );
     });
 
     it("Claim NFTs, argument length mismatch", async function () {
