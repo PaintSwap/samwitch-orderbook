@@ -34,6 +34,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint16 private constant MAX_ORDERS_HIT = 500;
   uint8 private constant NUM_ORDERS_PER_SEGMENT = 4;
 
+  uint private constant MAX_ORDER_ID = 1_099_511_627_776;
+
   // slot_0
   IERC1155 private nft;
 
@@ -52,15 +54,20 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   address private royaltyRecipient;
 
   // mappings
+  mapping(uint tokenId => TokenIdInfo tokenIdInfo) private tokenInfo;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private asksAtPrice; // quantity (uint24), id (uint40) 4x packed of these
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private bidsAtPrice; // quantity (uint24), id (uint40) 4x packed of these
-  mapping(uint orderId => address maker) private orderMaker;
-  uint80[1_099_511_627_776] private brushClaimable; // Can pack 3 brush claimables into 1 word
-  mapping(uint40 orderId => mapping(uint tokenId => uint amount)) private orderClaimableForToken;
+  // token id => price => ask(quantity (uint24), id (uint40)) x 4
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private asksAtPrice;
+  // token id => price => bid(quantity (uint24), id (uint40)) x 4
+  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private bidsAtPrice;
+  // token id => order id => amount claimable, 3 per slot
+  mapping(uint tokenId => uint80[MAX_ORDER_ID]) private amountClaimableForToken;
 
-  mapping(uint tokenId => TokenIdInfo tokenIdInfo) private tokenInfo;
+  // order id => maker address
+  mapping(uint orderId => address maker) private orderMaker;
+  // order id => amount claimable, 3 per slot
+  uint80[MAX_ORDER_ID] private brushClaimable;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -288,13 +295,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     for (uint i = 0; i < _tokenIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
       uint tokenId = _tokenIds[i];
-      mapping(uint => uint) storage tokenIdsClaimableForOrder = orderClaimableForToken[orderId];
-      uint amount = tokenIdsClaimableForOrder[tokenId];
+      uint amount = amountClaimableForToken[tokenId][orderId];
       if (amount == 0) {
         revert NothingToClaim();
       }
       nftAmountsFromUs[i] = amount;
-      tokenIdsClaimableForOrder[tokenId] = 0;
+      amountClaimableForToken[tokenId][orderId] = 0;
     }
 
     _safeBatchTransferNFTsFromUs(_msgSender(), _tokenIds, nftAmountsFromUs);
@@ -340,7 +346,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ) external view override returns (uint[] memory amounts_) {
     amounts_ = new uint[](_orderIds.length);
     for (uint i = 0; i < _orderIds.length; ++i) {
-      amounts_[i] = orderClaimableForToken[_orderIds[i]][_tokenIds[i]];
+      amounts_[i] = amountClaimableForToken[_orderIds[i]][_tokenIds[i]];
     }
   }
 
@@ -537,7 +543,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           cost_ += quantityNFTClaimable * bestPrice;
 
           if (isTakingFromBuy) {
-            orderClaimableForToken[orderId][_tokenId] += quantityNFTClaimable;
+            amountClaimableForToken[_tokenId][orderId] += uint80(quantityNFTClaimable);
           } else {
             brushClaimable[orderId] += uint80(quantityNFTClaimable * bestPrice);
           }

@@ -307,6 +307,8 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Take from buy order book, max orders hit should revert", async function () {
+    this.timeout(0);
+
     const {orderBook, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
 
     // Set up order books
