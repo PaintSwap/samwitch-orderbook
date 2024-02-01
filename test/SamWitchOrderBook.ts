@@ -140,6 +140,14 @@ describe("SamWitchOrderBook", function () {
     );
   });
 
+  it("Get token id info", async function () {
+    const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+    const info = await orderBook.getTokenInfo(tokenId);
+    expect(info.tick).to.equal(1);
+    expect(info.minQuantity).to.equal(1);
+  });
+
   it("Add to order book", async function () {
     const {orderBook, tokenId, owner} = await loadFixture(deployContractsFixture);
 

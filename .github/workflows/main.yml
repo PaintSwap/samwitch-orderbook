@@ -1,8 +1,49 @@
-name: CI
-on: [push, pull_request]
-
+name: CI - tests and coverage
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "!*" # Do not execute on tags
+    paths:
+      - "*.lock"
+      - "*.ts"
+      - "*.js"
+      - "*.json"
+      - "contracts/*"
+      - "test/*"
+  pull_request:
+    paths:
+      - "!*.MD"
 jobs:
-  Hardhat:
+  test:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+        node: ["18"]
+    name: test/node ${{ matrix.node }}/${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    env:
+      # These are just dummy values to prevent hardhat complaining about config issues
+      MAINNET_RPC: NA
+      GOERLI_RPC: NA
+      SEPOLIA_RPC: NA
+      FANTOM_RPC: NA
+      FANTOM_TESTNET_RPC: NA
+      AVALANCHE_RPC: NA
+      FANTOM_SONIC_TESTNET_RPC: NA
+      PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/setup-node@main
+        with:
+          node-version: ${{ matrix.node }}
+      - run: yarn install
+      - run: yarn deploy
+      - run: yarn test
+  coverage:
+    needs: [test]
+    name: badge
     runs-on: ubuntu-latest
     env:
       # These are just dummy values to prevent hardhat complaining about config issues
@@ -14,16 +55,92 @@ jobs:
       AVALANCHE_RPC: NA
       FANTOM_SONIC_TESTNET_RPC: NA
       PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Install packages
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@main
+      - uses: actions/setup-node@main
         with:
-          node-version: "18.x"
+          node-version: "18"
+
       - run: yarn install
-        shell: bash
-      - name: Deploy
-        run: yarn deploy
-      - name: Tests
-        run: yarn test
+      - run: |
+          COVERAGE_REPORT=$(GAS_REPORTER=false yarn coverage)
+
+          COVERAGE_STMTS="$(echo "$COVERAGE_REPORT" | grep "All files" | cut -f 2 -d'|' | xargs)"
+          COVERAGE_BRANCH="$(echo "$COVERAGE_REPORT" | grep "All files" | cut -f 3 -d'|' | xargs)"
+          COVERAGE_FUNCS="$(echo "$COVERAGE_REPORT" | grep "All files" | cut -f 4 -d'|' | xargs)"
+          COVERAGE_LINES="$(echo "$COVERAGE_REPORT" | grep "All files" | cut -f 5 -d'|' | xargs)"
+
+          COVERAGE_OVERALL="$(echo "($COVERAGE_STMTS + $COVERAGE_BRANCH + $COVERAGE_FUNCS + $COVERAGE_LINES) / 4" | bc)"
+
+          function scoreColor() {
+            VAL="$1"
+            COLOR=darkgreen
+            if (($(echo "$VAL < 80" | bc) > 0)); then COLOR=red;
+            elif (($(echo "$VAL < 90" | bc) > 0)); then COLOR=orange; 
+            elif (($(echo "$VAL < 95" | bc) > 0)); then COLOR=yellow;
+            elif (($(echo "$VAL < 98" | bc) > 0)); then COLOR=green;
+            fi
+          }
+
+          echo "$COVERAGE_REPORT"
+
+          CoverageTypes=('OVERALL' 'STMTS' 'BRANCH' 'FUNCS' 'LINES')
+          for TYPE in ${CoverageTypes[*]}; do
+            COVERAGE=$(eval echo \$COVERAGE_${TYPE})
+            scoreColor "$COVERAGE"
+
+            echo "${TYPE} ${COVERAGE}% ${COLOR}"
+
+            echo "COVERAGE_${TYPE}=$(echo "${COVERAGE}%")" >> $GITHUB_ENV
+            echo "COLOR_${TYPE}=$(echo "${COLOR}")" >> $GITHUB_ENV
+          done
+      - name: Create Overall Coverage
+        uses: schneegans/dynamic-badges-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 8264fd8eb852ea096bf7ee56a7ab695a
+          filename: overall.json
+          label: Coverage
+          message: ${{ env.COVERAGE_OVERALL }}
+          color: ${{ env.COLOR_OVERALL }}
+          namedLogo: nyc
+      - name: Create Statement Coverage
+        uses: schneegans/dynamic-badges-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 8264fd8eb852ea096bf7ee56a7ab695a
+          filename: statements.json
+          label: Covered Statements
+          message: ${{ env.COVERAGE_STMTS }}
+          color: ${{ env.COLOR_STMTS }}
+          namedLogo: nyc
+      - name: Create Branches Coverage
+        uses: schneegans/dynamic-badges-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 8264fd8eb852ea096bf7ee56a7ab695a
+          filename: branches.json
+          label: Covered Branches
+          message: ${{ env.COVERAGE_BRANCH }}
+          color: ${{ env.COLOR_BRANCH }}
+          namedLogo: nyc
+      - name: Create Functions Coverage
+        uses: schneegans/dynamic-badges-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 8264fd8eb852ea096bf7ee56a7ab695a
+          filename: functions.json
+          label: Covered Functions
+          message: ${{ env.COVERAGE_FUNCS }}
+          color: ${{ env.COLOR_FUNCS }}
+          namedLogo: nyc
+      - name: Create Lines Coverage
+        uses: schneegans/dynamic-badges-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 8264fd8eb852ea096bf7ee56a7ab695a
+          filename: lines.json
+          label: Covered Lines
+          message: ${{ env.COVERAGE_LINES }}
+          color: ${{ env.COLOR_LINES }}
+          namedLogo: nyc

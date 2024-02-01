@@ -4,7 +4,11 @@
 
 ![swob](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/977c060f-e6e7-418f-9d44-1012599f41c6)
 
-![Code coverage](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/34d71d0b-45c4-4871-a5ed-67922b417a95)
+![overall](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/overall.json)
+![statements](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/statements.json)
+![branches](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/branches.json)
+![functions](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/functions.json)
+![lines](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/lines.json)
 
 This efficient order book utilises the `BokkyPooBahsRedBlackTreeLibrary` library for sorting prices allowing `O(log n)` for tree segment insertion, traversal, and deletion. It supports batch orders and batch cancelling, `ERC2981` royalties, and a dev and burn fee on each trade.
 
