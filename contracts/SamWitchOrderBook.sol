@@ -799,7 +799,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (packedOrders.length != 0) {
       bytes32 lastPacked = packedOrders[packedOrders.length.dec()];
       // Are there are free entries in this segment
-      for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+      for (uint offset = 0; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
         uint remainingSegment = uint(lastPacked >> (offset.mul(64)));
         if (remainingSegment == 0) {
           // Found free entry one, so add to an existing segment
