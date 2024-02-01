@@ -70,7 +70,7 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
-    enabled: true,
+    enabled: process.env.GAS_REPORTER != "false",
   },
   contractSizer: {
     alphaSort: true,
