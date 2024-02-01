@@ -21,4 +21,5 @@ module.exports = {
         "jml[jl] VTOl jml : fDnTO",
     },
   },
+  skipFiles: ["BokkyPooBahsRedBlackTreeLibrary.sol", "test/"],
 };
