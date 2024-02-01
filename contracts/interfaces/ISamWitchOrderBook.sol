@@ -92,6 +92,8 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function nodeExists(OrderSide side, uint tokenId, uint72 price) external view returns (bool);
 
+  function getTokenInfo(uint tokenId) external view returns (TokenIdInfo memory);
+
   function allOrdersAtPrice(
     OrderSide side,
     uint tokenId,

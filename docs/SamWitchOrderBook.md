@@ -187,6 +187,28 @@ Get the order book entry for a specific order ID
 |---|---|---|
 | _0 | BokkyPooBahsRedBlackTreeLibrary.Node | undefined |
 
+### getTokenInfo
+
+```solidity
+function getTokenInfo(uint256 _tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
+```
+
+Get the token ID info for a specific token ID
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| _tokenId | uint256 | The token ID to get the info for |
+
+#### Returns
+
+| Name | Type | Description |
+|---|---|---|
+| _0 | ISamWitchOrderBook.TokenIdInfo | undefined |
+
 ### initialize
 
 ```solidity
@@ -440,29 +462,6 @@ function supportsInterface(bytes4 interfaceId) external view returns (bool)
 | Name | Type | Description |
 |---|---|---|
 | _0 | bool | undefined |
-
-### tokenIdInfos
-
-```solidity
-function tokenIdInfos(uint256 tokenId) external view returns (uint128 tick, uint128 minQuantity)
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| tokenId | uint256 | undefined |
-
-#### Returns
-
-| Name | Type | Description |
-|---|---|---|
-| tick | uint128 | undefined |
-| minQuantity | uint128 | undefined |
 
 ### tokensClaimable
 

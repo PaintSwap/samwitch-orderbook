@@ -170,6 +170,28 @@ function getNode(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72
 |---|---|---|
 | _0 | BokkyPooBahsRedBlackTreeLibrary.Node | undefined |
 
+### getTokenInfo
+
+```solidity
+function getTokenInfo(uint256 tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| tokenId | uint256 | undefined |
+
+#### Returns
+
+| Name | Type | Description |
+|---|---|---|
+| _0 | ISamWitchOrderBook.TokenIdInfo | undefined |
+
 ### limitOrders
 
 ```solidity
