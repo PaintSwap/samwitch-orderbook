@@ -1579,6 +1579,14 @@ describe("SamWitchOrderBook", function () {
     await expect(orderBook.setMaxOrdersPerPrice(100)).to.emit(orderBook, "SetMaxOrdersPerPriceLevel").withArgs(100);
   });
 
+  it("Set max orders per price must be a multiple of NUM_ORDERS_PER_SEGMENT", async function () {
+    const {orderBook} = await loadFixture(deployContractsFixture);
+    await expect(orderBook.setMaxOrdersPerPrice(101)).to.be.revertedWithCustomError(
+      orderBook,
+      "MaxOrdersNotMultipleOfOrdersInSegment",
+    );
+  });
+
   it("Test gas costs", async function () {
     const {orderBook, erc1155, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
 

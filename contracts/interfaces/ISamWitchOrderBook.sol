@@ -63,6 +63,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error NotMaker();
   error NothingToClaim();
   error TooManyOrdersHit();
+  error MaxOrdersNotMultipleOfOrdersInSegment();
 
   error DeadlineExpired(uint deadline);
   error InvalidNonce(uint invalid, uint nonce);

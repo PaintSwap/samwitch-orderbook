@@ -99,7 +99,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     token = IBrushToken(_token);
     updateRoyaltyFee();
 
-    setMaxOrdersPerPrice(_maxOrdersPerPrice); // This includes inside segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
+    // The max orders spans segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
+    setMaxOrdersPerPrice(_maxOrdersPerPrice);
     nextOrderId = 1;
   }
 
@@ -430,6 +431,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
   function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) public payable onlyOwner {
     maxOrdersPerPrice = _maxOrdersPerPrice;
+    if (maxOrdersPerPrice % NUM_ORDERS_PER_SEGMENT != 0) {
+      revert MaxOrdersNotMultipleOfOrdersInSegment();
+    }
     emit SetMaxOrdersPerPriceLevel(_maxOrdersPerPrice);
   }
 
