@@ -58,9 +58,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
   // token id => price => ask(quantity (uint24), id (uint40)) x 4
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private asksAtPrice;
+  mapping(uint tokenId => mapping(uint price => bytes32[] segments)) private asksAtPrice;
   // token id => price => bid(quantity (uint24), id (uint40)) x 4
-  mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private bidsAtPrice;
+  mapping(uint tokenId => mapping(uint price => bytes32[] segments)) private bidsAtPrice;
   // token id => order id => amount claimable, 3 per slot
   mapping(uint tokenId => uint80[MAX_ORDER_ID]) private amountClaimableForToken;
   // order id => (maker, claimable)
@@ -146,7 +146,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           dev = dev.add(_dev);
           burn = burn.add(_burn);
 
-          // Transfer the NFTs straight to the user
+          // Transfer the NFTs taken from the order book straight to the taker
           nftIdsFromUs[lengthFromUs] = limitOrder.tokenId;
           nftAmountsFromUs[lengthFromUs] = uint(limitOrder.quantity).sub(quantityAddedToBook);
           lengthFromUs = lengthFromUs.inc();
@@ -172,7 +172,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
       }
     }
-    // update the state if any
+    // update the state if any orders were added to the book
     if (currentOrderId != nextOrderId) {
       nextOrderId = currentOrderId;
     }
@@ -407,7 +407,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     OrderSide _side,
     uint _tokenId,
     uint72 _price
-  ) external view override returns (OrderBookEntryHelper[] memory) {
+  ) external view override returns (Order[] memory) {
     if (_side == OrderSide.Buy) {
       return _allOrdersAtPriceSide(bidsAtPrice[_tokenId][_price], bids[_tokenId], _price);
     } else {
@@ -480,7 +480,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool,
     OrderSide _side, // which side are you taking from
-    mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) storage values,
+    mapping(uint tokenId => mapping(uint price => bytes32[] segments)) storage values,
     mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) storage tree
   ) private returns (uint24 quantityRemaining_, uint cost_) {
     quantityRemaining_ = _quantity;
@@ -502,20 +502,20 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
       // Loop through all at this order
       uint numSegmentsFullyConsumed = 0;
-      bytes32[] storage packedOrders = values[_tokenId][bestPrice];
+      bytes32[] storage segments = values[_tokenId][bestPrice];
       BokkyPooBahsRedBlackTreeLibrary.Node storage node = tree[_tokenId].getNode(bestPrice);
 
       bool eatIntoLastOrder;
       uint numOrdersWithinLastSegmentFullyConsumed;
-      bytes32 packed;
+      bytes32 segment;
       uint lastSegment;
-      for (uint i = node.tombstoneOffset; i < packedOrders.length; ++i) {
+      for (uint i = node.tombstoneOffset; i < segments.length; ++i) {
         lastSegment = i;
-        packed = packedOrders[i];
+        segment = segments[i];
         uint numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
         for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-          uint remainingSegment = uint(packed >> offset.mul(64));
+          uint remainingSegment = uint(segment >> offset.mul(64));
           uint40 orderId = uint40(remainingSegment);
           if (orderId == 0) {
             // Check if there are any order left in this segment
@@ -527,7 +527,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
               break;
             }
           }
-          uint24 quantityL3 = uint24(uint(packed >> offset.mul(64).add(40)));
+          uint24 quantityL3 = uint24(uint(segment >> offset.mul(64).add(40)));
           uint quantityNFTClaimable = 0;
           if (quantityRemaining_ >= quantityL3) {
             // Consume this whole order
@@ -538,8 +538,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             quantityNFTClaimable = quantityL3;
           } else {
             // Eat into the order
-            packed = bytes32(
-              (uint(packed) & ~(uint(0xffffff) << offset.mul(64).add(40))) |
+            segment = bytes32(
+              (uint(segment) & ~(uint(0xffffff) << offset.mul(64).add(40))) |
                 (uint(quantityL3 - quantityRemaining_) << offset.mul(64).add(40))
             );
             quantityNFTClaimable = quantityRemaining_;
@@ -584,7 +584,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
 
         // Consumed all orders at this price level, so remove it from the tree
-        if (numSegmentsFullyConsumed == packedOrders.length - tombstoneOffset) {
+        if (numSegmentsFullyConsumed == segments.length - tombstoneOffset) {
           tree[_tokenId].remove(bestPrice); // TODO: A ranged delete would be nice
         }
       }
@@ -593,15 +593,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         // This segment wasn't completely filled before
         if (numOrdersWithinLastSegmentFullyConsumed != 0) {
           for (uint i; i < numOrdersWithinLastSegmentFullyConsumed; ++i) {
-            packed &= _clearOrderMask(i);
+            segment &= _clearOrderMask(i);
           }
         }
-        if (uint(packed) == 0) {
+        if (uint(segment) == 0) {
           // All orders in the segment are consumed, delete from tree
           tree[_tokenId].remove(bestPrice);
         }
 
-        packedOrders[lastSegment] = packed;
+        segments[lastSegment] = segment;
 
         if (eatIntoLastOrder) {
           break;
@@ -653,21 +653,21 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _allOrdersAtPriceSide(
-    bytes32[] storage _packedOrderBookEntries,
+    bytes32[] storage _segments,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
     uint72 _price
-  ) private view returns (OrderBookEntryHelper[] memory orderBookEntries_) {
+  ) private view returns (Order[] memory orders_) {
     if (!_tree.exists(_price)) {
-      return orderBookEntries_;
+      return orders_;
     }
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
     uint tombstoneOffset = node.tombstoneOffset;
 
     uint numInSegmentDeleted;
     {
-      uint packed = uint(_packedOrderBookEntries[tombstoneOffset]);
+      uint segment = uint(_segments[tombstoneOffset]);
       for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-        uint remainingSegment = uint64(packed >> offset.mul(64));
+        uint remainingSegment = uint64(segment >> offset.mul(64));
         uint64 order = uint64(remainingSegment);
         if (order == 0) {
           numInSegmentDeleted = numInSegmentDeleted.inc();
@@ -677,30 +677,28 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
     }
 
-    orderBookEntries_ = new OrderBookEntryHelper[](
-      (_packedOrderBookEntries.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted
-    );
+    orders_ = new Order[]((_segments.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted);
     uint numberOfEntries;
-    for (uint i = numInSegmentDeleted; i < orderBookEntries_.length.add(numInSegmentDeleted); ++i) {
-      uint packed = uint(_packedOrderBookEntries[i.div(NUM_ORDERS_PER_SEGMENT).add(tombstoneOffset)]);
+    for (uint i = numInSegmentDeleted; i < orders_.length.add(numInSegmentDeleted); ++i) {
+      uint segment = uint(_segments[i.div(NUM_ORDERS_PER_SEGMENT).add(tombstoneOffset)]);
       uint offset = i.mod(NUM_ORDERS_PER_SEGMENT);
-      uint40 id = uint40(packed >> offset.mul(64));
+      uint40 id = uint40(segment >> offset.mul(64));
       if (id != 0) {
-        uint24 quantity = uint24(packed >> offset.mul(64).add(40));
-        orderBookEntries_[numberOfEntries] = OrderBookEntryHelper(orderInfoById[id].maker, quantity, id);
+        uint24 quantity = uint24(segment >> offset.mul(64).add(40));
+        orders_[numberOfEntries] = Order(orderInfoById[id].maker, quantity, id);
         numberOfEntries = numberOfEntries.inc();
       }
     }
 
     assembly ("memory-safe") {
-      mstore(orderBookEntries_, numberOfEntries)
+      mstore(orders_, numberOfEntries)
     }
   }
 
   function _cancelOrdersSide(
     uint _orderId,
     uint72 _price,
-    bytes32[] storage _packedOrderBookEntries,
+    bytes32[] storage _segments,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
   ) private returns (uint24 quantity_) {
     // Loop through all of them until we hit ours.
@@ -711,17 +709,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
     uint tombstoneOffset = node.tombstoneOffset;
 
-    (uint index, uint offset) = _find(
-      _packedOrderBookEntries,
-      tombstoneOffset,
-      _packedOrderBookEntries.length,
-      _orderId
-    );
+    (uint index, uint offset) = _find(_segments, tombstoneOffset, _segments.length, _orderId);
     if (index == type(uint).max) {
       revert OrderNotFound(_orderId, _price);
     }
-    quantity_ = uint24(uint(_packedOrderBookEntries[index]) >> offset.mul(64).add(40));
-    _cancelOrder(_packedOrderBookEntries, _price, index, offset, tombstoneOffset, _tree);
+    quantity_ = uint24(uint(_segments[index]) >> offset.mul(64).add(40));
+    _cancelOrder(_segments, _price, index, offset, tombstoneOffset, _tree);
   }
 
   function _makeLimitOrder(
@@ -770,7 +763,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _addToBookSide(
-    mapping(uint price => bytes32[]) storage _packedOrdersPriceMap,
+    mapping(uint price => bytes32[]) storage _segmentsPriceMap,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
     uint72 _price,
     uint _orderId,
@@ -785,13 +778,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       uint tombstoneOffset = _tree.getNode(price_).tombstoneOffset;
       // Check if this would go over the max number of orders allowed at this price level
       bool lastSegmentFilled = uint(
-        _packedOrdersPriceMap[price_][_packedOrdersPriceMap[price_].length.dec()] >>
-          NUM_ORDERS_PER_SEGMENT.dec().mul(64)
+        _segmentsPriceMap[price_][_segmentsPriceMap[price_].length.dec()] >> NUM_ORDERS_PER_SEGMENT.dec().mul(64)
       ) != 0;
 
       // Check if last segment is full
       if (
-        (_packedOrdersPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) >= maxOrdersPerPrice &&
+        (_segmentsPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) >= maxOrdersPerPrice &&
         lastSegmentFilled
       ) {
         // Loop until we find a suitable place to put this
@@ -801,11 +793,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             _tree.insert(price_);
             break;
           } else if (
-            (_packedOrdersPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) <
-            maxOrdersPerPrice ||
+            (_segmentsPriceMap[price_].length.sub(tombstoneOffset)).mul(NUM_ORDERS_PER_SEGMENT) < maxOrdersPerPrice ||
             uint(
-              _packedOrdersPriceMap[price_][_packedOrdersPriceMap[price_].length.dec()] >>
-                NUM_ORDERS_PER_SEGMENT.dec().mul(64)
+              _segmentsPriceMap[price_][_segmentsPriceMap[price_].length.dec()] >> NUM_ORDERS_PER_SEGMENT.dec().mul(64)
             ) ==
             0
           ) {
@@ -817,19 +807,19 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     // Read last one. Decide if we can add to the existing segment or if we need to add a new segment
-    bytes32[] storage packedOrders = _packedOrdersPriceMap[price_];
+    bytes32[] storage segments = _segmentsPriceMap[price_];
     bool pushToEnd = true;
-    if (packedOrders.length != 0) {
-      bytes32 lastPacked = packedOrders[packedOrders.length.dec()];
+    if (segments.length != 0) {
+      bytes32 lastSegment = segments[segments.length.dec()];
       // Are there are free entries in this segment
       for (uint offset = 0; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-        uint remainingSegment = uint(lastPacked >> (offset.mul(64)));
+        uint remainingSegment = uint(lastSegment >> (offset.mul(64)));
         if (remainingSegment == 0) {
           // Found free entry one, so add to an existing segment
-          bytes32 newPacked = lastPacked |
+          bytes32 newSegment = lastSegment |
             (bytes32(_orderId) << (offset.mul(64))) |
             (bytes32(_quantity) << (offset.mul(64).add(40)));
-          packedOrders[packedOrders.length.dec()] = newPacked;
+          segments[segments.length.dec()] = newSegment;
           pushToEnd = false;
           break;
         }
@@ -837,8 +827,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     if (pushToEnd) {
-      bytes32 packedOrder = bytes32(_orderId) | (bytes32(_quantity) << 40);
-      packedOrders.push(packedOrder);
+      bytes32 segment = bytes32(_orderId) | (bytes32(_quantity) << 40);
+      segments.push(segment);
     }
   }
 
@@ -882,18 +872,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _find(
-    bytes32[] storage packedData,
+    bytes32[] storage segments,
     uint begin,
     uint end,
     uint value
   ) private view returns (uint mid_, uint offset_) {
     while (begin < end) {
       mid_ = begin.add(end.sub(begin).div(2));
-      uint packed = uint(packedData[mid_]);
+      uint segment = uint(segments[mid_]);
       offset_ = 0;
 
       for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
-        uint40 id = uint40(packed >> (offset_.mul(8)));
+        uint40 id = uint40(segment >> (offset_.mul(8)));
         if (id == value) {
           return (mid_, i); // Return the index where the ID is found
         } else if (id < value) {
@@ -910,31 +900,31 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
     }
 
-    return (type(uint).max, type(uint).max); // ID not found in any segment of the packed data
+    return (type(uint).max, type(uint).max); // ID not found in any segment of the segment data
   }
 
   function _cancelOrder(
-    bytes32[] storage orderBookEntries,
+    bytes32[] storage _segments,
     uint72 _price,
     uint _index,
     uint _offset,
     uint _tombstoneOffset,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
   ) private {
-    bytes32 packed = orderBookEntries[_index];
-    uint40 orderId = uint40(uint(packed) >> _offset.mul(64));
+    bytes32 segment = _segments[_index];
+    uint40 orderId = uint40(uint(segment) >> _offset.mul(64));
 
     if (orderInfoById[orderId].maker != _msgSender()) {
       revert NotMaker();
     }
 
-    if (_offset == 0 && packed >> 64 == bytes32(0)) {
+    if (_offset == 0 && segment >> 64 == bytes32(0)) {
       // Only 1 order in this segment, so remove the segment by shifting all other segments to the left.
-      for (uint i = _index; i < orderBookEntries.length.sub(1); ++i) {
-        orderBookEntries[i] = orderBookEntries[i.inc()];
+      for (uint i = _index; i < _segments.length.sub(1); ++i) {
+        _segments[i] = _segments[i.inc()];
       }
-      orderBookEntries.pop();
-      if (orderBookEntries.length - _tombstoneOffset == 0) {
+      _segments.pop();
+      if (_segments.length - _tombstoneOffset == 0) {
         // Last one at this price level so trash it in the tree
         _tree.remove(_price);
       }
@@ -946,18 +936,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
-      for (uint i = indexToRemove; i < orderBookEntries.length.mul(NUM_ORDERS_PER_SEGMENT).dec(); ++i) {
+      for (uint i = indexToRemove; i < _segments.length.mul(NUM_ORDERS_PER_SEGMENT).dec(); ++i) {
         nextElementIndex = (i.inc()) / NUM_ORDERS_PER_SEGMENT;
         nextOffsetIndex = (i.inc()) % NUM_ORDERS_PER_SEGMENT;
 
-        bytes32 nextElement = orderBookEntries[nextElementIndex];
+        bytes32 nextSegment = _segments[nextElementIndex];
 
         uint currentElementIndex = i / NUM_ORDERS_PER_SEGMENT;
         uint currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
 
-        bytes32 currentElement = orderBookEntries[currentElementIndex];
+        bytes32 currentElement = _segments[currentElementIndex];
 
-        uint newOrder = uint64(uint(nextElement >> nextOffsetIndex.mul(64)));
+        uint newOrder = uint64(uint(nextSegment >> nextOffsetIndex.mul(64)));
         if (newOrder == 0) {
           nextElementIndex = currentElementIndex;
           nextOffsetIndex = currentOffsetIndex;
@@ -967,15 +957,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         // Clear the current order and set it with the shifted order
         currentElement &= _clearOrderMask(currentOffsetIndex);
         currentElement |= bytes32(newOrder) << currentOffsetIndex.mul(64);
-        orderBookEntries[currentElementIndex] = currentElement;
+        _segments[currentElementIndex] = currentElement;
       }
       if (nextOffsetIndex == 0) {
-        orderBookEntries.pop();
+        _segments.pop();
       } else {
         // Clear the last element
-        bytes32 lastElement = orderBookEntries[nextElementIndex];
+        bytes32 lastElement = _segments[nextElementIndex];
         lastElement &= _clearOrderMask(nextOffsetIndex);
-        orderBookEntries[nextElementIndex] = lastElement;
+        _segments[nextElementIndex] = lastElement;
       }
     }
   }

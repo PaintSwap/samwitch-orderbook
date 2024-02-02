@@ -2761,7 +2761,7 @@ describe("SamWitchOrderBook", function () {
     return Math.floor(royalty + burnt + devAmount);
   };
 
-  const outputAllOrders = (orders: ISamWitchOrderBook.OrderBookEntryHelperStruct[]) => {
+  const outputAllOrders = (orders: ISamWitchOrderBook.OrderStruct[]) => {
     for (const order of orders) {
       console.log(`${order.id} | ${order.quantity}`);
     }

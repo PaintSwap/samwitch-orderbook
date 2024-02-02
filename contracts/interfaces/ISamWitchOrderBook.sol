@@ -33,7 +33,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint80 claimable;
   }
 
-  struct OrderBookEntryHelper {
+  struct Order {
     address maker;
     uint24 quantity;
     uint40 id;
@@ -106,5 +106,5 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     OrderSide side,
     uint tokenId,
     uint72 price
-  ) external view returns (OrderBookEntryHelper[] memory orderBookEntries);
+  ) external view returns (Order[] memory orderBookEntries);
 }
