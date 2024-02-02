@@ -54,7 +54,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   address private royaltyRecipient;
 
   // mappings
-  mapping(uint tokenId => TokenIdInfo tokenIdInfo) private tokenInfo;
+  mapping(uint tokenId => TokenInfo tokenInfo) private tokenInfoById;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
   mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
   // token id => price => ask(quantity (uint24), id (uint40)) x 4
@@ -63,11 +63,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   mapping(uint tokenId => mapping(uint price => bytes32[] packedOrders)) private bidsAtPrice;
   // token id => order id => amount claimable, 3 per slot
   mapping(uint tokenId => uint80[MAX_ORDER_ID]) private amountClaimableForToken;
-
-  // order id => maker address
-  mapping(uint orderId => address maker) private orderMaker;
-  // order id => amount claimable, 3 per slot
-  uint80[MAX_ORDER_ID] private brushClaimable;
+  // order id => (maker, claimable)
+  OrderInfo[MAX_ORDER_ID] private orderInfoById;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -263,17 +260,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint amount;
     for (uint i = 0; i < _orderIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
-      uint80 claimableAmount = brushClaimable[orderId];
+      OrderInfo storage orderInfo = orderInfoById[orderId];
+      uint80 claimableAmount = orderInfo.claimable;
       if (claimableAmount == 0) {
         revert NothingToClaim();
       }
 
-      address maker = orderMaker[orderId];
-      if (maker != _msgSender()) {
+      if (orderInfo.maker != _msgSender()) {
         revert NotMaker();
       }
+
+      orderInfo.claimable = 0;
       amount += claimableAmount;
-      brushClaimable[orderId] = 0;
     }
 
     (uint royalty, uint dev, uint burn) = _calcFees(amount);
@@ -329,7 +327,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bool _takeAwayFees
   ) external view override returns (uint amount_) {
     for (uint i = 0; i < _orderIds.length; ++i) {
-      amount_ += brushClaimable[_orderIds[i]];
+      amount_ += orderInfoById[_orderIds[i]].claimable;
     }
     if (_takeAwayFees) {
       (uint royalty, uint dev, uint burn) = _calcFees(amount_);
@@ -352,8 +350,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Get the token ID info for a specific token ID
   /// @param _tokenId The token ID to get the info for
-  function getTokenInfo(uint _tokenId) public view override returns (TokenIdInfo memory) {
-    return tokenInfo[_tokenId];
+  function getTokenInfo(uint _tokenId) external view override returns (TokenInfo memory) {
+    return tokenInfoById[_tokenId];
+  }
+
+  function getOrderInfo(uint40 _orderId) external view override returns (OrderInfo memory) {
+    return orderInfoById[_orderId];
   }
 
   /// @notice Get the highest bid for a specific token ID
@@ -433,18 +435,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Set constraints like minimum quantity of an order that is allowed to be
   ///         placed and the minimum of specific tokenIds in this nft collection.
-  /// @param _tokenIds Array of token IDs for which to set TokenIdInfo
-  /// @param _tokenIdInfos Array of TokenIdInfo to be set
-  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external payable onlyOwner {
-    if (_tokenIds.length != _tokenIdInfos.length) {
+  /// @param _tokenIds Array of token IDs for which to set TokenInfo
+  /// @param _tokenInfos Array of TokenInfo to be set
+  function setTokenInfos(uint[] calldata _tokenIds, TokenInfo[] calldata _tokenInfos) external payable onlyOwner {
+    if (_tokenIds.length != _tokenInfos.length) {
       revert LengthMismatch();
     }
 
     for (uint i = 0; i < _tokenIds.length; ++i) {
-      tokenInfo[_tokenIds[i]] = _tokenIdInfos[i];
+      tokenInfoById[_tokenIds[i]] = _tokenInfos[i];
     }
 
-    emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
+    emit SetTokenInfos(_tokenIds, _tokenInfos);
   }
 
   /// @notice Set the fees for the contract
@@ -545,7 +547,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           if (isTakingFromBuy) {
             amountClaimableForToken[_tokenId][orderId] += uint80(quantityNFTClaimable);
           } else {
-            brushClaimable[orderId] += uint80(quantityNFTClaimable * bestPrice);
+            orderInfoById[orderId].claimable += uint80(quantityNFTClaimable * bestPrice);
           }
 
           _orderIdsPool[numberOfOrders] = orderId;
@@ -681,7 +683,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       uint40 id = uint40(packed >> offset.mul(64));
       if (id != 0) {
         uint24 quantity = uint24(packed >> offset.mul(64).add(40));
-        orderBookEntries_[numberOfEntries] = OrderBookEntryHelper(orderMaker[id], quantity, id);
+        orderBookEntries_[numberOfEntries] = OrderBookEntryHelper(orderInfoById[id].maker, quantity, id);
         numberOfEntries = numberOfEntries.inc();
       }
     }
@@ -732,8 +734,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert PriceZero();
     }
 
-    TokenIdInfo storage tokenIdInfo = tokenInfo[_limitOrder.tokenId];
-    uint128 tick = tokenIdInfo.tick;
+    TokenInfo storage tokenInfo = tokenInfoById[_limitOrder.tokenId];
+    uint128 tick = tokenInfo.tick;
 
     if (tick == 0) {
       revert TokenDoesntExist(_limitOrder.tokenId);
@@ -754,7 +756,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     );
 
     // Add the rest to the order book if has the minimum required, in order to keep order books healthy
-    if (quantityRemaining >= tokenIdInfo.minQuantity) {
+    if (quantityRemaining >= tokenInfo.minQuantity) {
       quantityAddedToBook_ = quantityRemaining;
       _addToBook(_newOrderId, tick, _limitOrder.side, _limitOrder.tokenId, _limitOrder.price, quantityAddedToBook_);
     } else if (quantityRemaining != 0) {
@@ -844,7 +846,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint72 _price,
     uint24 _quantity
   ) private {
-    orderMaker[_newOrderId] = _msgSender();
+    orderInfoById[_newOrderId] = OrderInfo(_msgSender(), 0);
     uint72 price;
     // Price can update if the price level is at capacity
     if (_side == OrderSide.Buy) {
@@ -918,8 +920,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     bytes32 packed = orderBookEntries[_index];
     uint40 orderId = uint40(uint(packed) >> _offset.mul(64));
 
-    address maker = orderMaker[orderId];
-    if (maker != _msgSender()) {
+    if (orderInfoById[orderId].maker != _msgSender()) {
       revert NotMaker();
     }
 

@@ -10,22 +10,16 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     Sell
   }
 
+  struct TokenInfo {
+    uint128 tick;
+    uint128 minQuantity;
+  }
+
   struct LimitOrder {
     OrderSide side;
     uint tokenId;
     uint72 price;
     uint24 quantity;
-  }
-
-  struct OrderBookEntryHelper {
-    address maker;
-    uint24 quantity;
-    uint40 id;
-  }
-
-  struct TokenIdInfo {
-    uint128 tick;
-    uint128 minQuantity;
   }
 
   struct CancelOrder {
@@ -34,13 +28,24 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint72 price;
   }
 
+  struct OrderInfo {
+    address maker;
+    uint80 claimable;
+  }
+
+  struct OrderBookEntryHelper {
+    address maker;
+    uint24 quantity;
+    uint40 id;
+  }
+
   event AddedToBook(address maker, OrderSide side, uint orderId, uint tokenId, uint price, uint quantity);
   event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
   event OrdersCancelled(address maker, uint[] orderIds);
   event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
   event ClaimedTokens(address user, uint[] orderIds, uint amount, uint fees);
   event ClaimedNFTs(address user, uint[] orderIds, uint[] tokenIds, uint[] amounts);
-  event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenIdInfos);
+  event SetTokenInfos(uint[] tokenIds, TokenInfo[] tokenInfos);
   event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
   event SetFees(address devAddr, uint devFee, uint burntFee);
 
@@ -92,7 +97,9 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function nodeExists(OrderSide side, uint tokenId, uint72 price) external view returns (bool);
 
-  function getTokenInfo(uint tokenId) external view returns (TokenIdInfo memory);
+  function getTokenInfo(uint tokenId) external view returns (TokenInfo memory);
+
+  function getOrderInfo(uint40 _orderId) external view returns (OrderInfo memory);
 
   function allOrdersAtPrice(
     OrderSide side,

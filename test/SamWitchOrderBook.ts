@@ -42,7 +42,7 @@ describe("SamWitchOrderBook", function () {
 
     const tick = 1;
     const minQuantity = 1;
-    await orderBook.setTokenIdInfos([tokenId], [{tick, minQuantity}]);
+    await orderBook.setTokenInfos([tokenId], [{tick, minQuantity}]);
 
     return {
       orderBook,
@@ -146,6 +146,32 @@ describe("SamWitchOrderBook", function () {
     const info = await orderBook.getTokenInfo(tokenId);
     expect(info.tick).to.equal(1);
     expect(info.minQuantity).to.equal(1);
+  });
+
+  it("Get order id info", async function () {
+    const {orderBook, tokenId, owner} = await loadFixture(deployContractsFixture);
+
+    const price = 100;
+    const quantity = 10;
+    const limitOrders = [
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ];
+    let orderId = 1;
+    await orderBook.limitOrders(limitOrders);
+    let order = await orderBook.getOrderInfo(orderId);
+    expect(order.maker).to.equal(await owner.getAddress());
+    expect(order.claimable).to.equal(0);
   });
 
   it("Add to order book", async function () {
@@ -438,7 +464,7 @@ describe("SamWitchOrderBook", function () {
         quantity: quantity - 3,
       },
     ]);
-    await orderBook.setTokenIdInfos([tokenId], [{tick: 1, minQuantity: 20}]);
+    await orderBook.setTokenInfos([tokenId], [{tick: 1, minQuantity: 20}]);
     await expect(
       orderBook.limitOrders([
         {
@@ -1437,7 +1463,7 @@ describe("SamWitchOrderBook", function () {
   it("Price must be modulus of tick quantity must be > min quantity, sell", async function () {
     const {orderBook, erc1155, tokenId} = await loadFixture(deployContractsFixture);
 
-    await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+    await orderBook.setTokenInfos([tokenId], [{tick: 10, minQuantity: 20}]);
 
     let price = 101;
     let quantity = 20;
@@ -1484,7 +1510,7 @@ describe("SamWitchOrderBook", function () {
   it("Price must be modulus of tick quantity must be > min quantity, buy", async function () {
     const {orderBook, brush, tokenId} = await loadFixture(deployContractsFixture);
 
-    await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+    await orderBook.setTokenInfos([tokenId], [{tick: 10, minQuantity: 20}]);
 
     let price = 101;
     let quantity = 20;
@@ -1532,19 +1558,16 @@ describe("SamWitchOrderBook", function () {
     const {orderBook, tokenId, alice} = await loadFixture(deployContractsFixture);
 
     await expect(
-      orderBook.connect(alice).setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]),
+      orderBook.connect(alice).setTokenInfos([tokenId], [{tick: 10, minQuantity: 20}]),
     ).to.be.revertedWithCustomError(orderBook, "OwnableUnauthorizedAccount");
 
-    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}])).to.emit(
-      orderBook,
-      "SetTokenIdInfos",
-    );
+    await expect(orderBook.setTokenInfos([tokenId], [{tick: 10, minQuantity: 20}])).to.emit(orderBook, "SetTokenInfos");
   });
 
   it("Set tokenId infos argument length mismatch", async function () {
     const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
-    await expect(orderBook.setTokenIdInfos([tokenId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
+    await expect(orderBook.setTokenInfos([tokenId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
   });
 
   it("Set max orders per price can only be called by the owner", async function () {

@@ -34,7 +34,7 @@ async function main() {
   await tx.wait();
   console.log("erc1155.setApprovalForAll");
 
-  tx = await orderBook.setTokenIdInfos(
+  tx = await orderBook.setTokenInfos(
     [tokenId, tokenId + 1, tokenId + 2],
     [
       {tick, minQuantity: 3},
@@ -43,7 +43,7 @@ async function main() {
     ],
   );
   await tx.wait();
-  console.log("orderBook.setTokenIdInfos");
+  console.log("orderBook.setTokenInfos");
 
   tx = await orderBook.limitOrders([
     {
