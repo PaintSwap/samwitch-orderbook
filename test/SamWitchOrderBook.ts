@@ -1786,6 +1786,124 @@ describe("SamWitchOrderBook", function () {
 
       // Try to claim twice
       await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      // Do another order and check it can be claimed
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity: 20,
+        },
+      ]);
+      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost * 2);
+      await expect(orderBook.claimTokens([orderId]))
+        .to.emit(orderBook, "ClaimedTokens")
+        .withArgs(owner.address, [orderId], cost * 2, fees * 2);
+    });
+
+    it("Claim tokens from multiple orders", async function () {
+      const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
+
+      await erc1155.setRoyaltyFee(1000); // 10%
+      await orderBook.updateRoyaltyFee();
+
+      // Set up order book
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      const numBought = quantity * 4 + 1; // 4 orders and 1 from the 5th
+      const cost = price * numBought;
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity: numBought,
+        },
+      ]);
+
+      // Check fees
+      const royalty = cost / 10;
+      const burnt = (cost * 3) / 1000; // 0.3%
+      const devAmount = (cost * 3) / 1000; // 0.3%
+      const fees = Math.floor(royalty + burnt + devAmount);
+      let singleOrderFees = 0;
+      const singleCost = price * quantity;
+      {
+        const royalty = singleCost / 10;
+        const burnt = (singleCost * 3) / 1000; // 0.3%
+        const devAmount = (singleCost * 3) / 1000; // 0.3%
+        singleOrderFees = Math.floor(royalty + burnt + devAmount);
+      }
+
+      const orderId = 1;
+      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(singleCost); // Just 1 order
+
+      expect(
+        await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], false),
+      ).to.eq(cost);
+      expect(
+        await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], true),
+      ).to.eq(cost - fees);
+      expect(await orderBook.tokensClaimable([orderId + 5], false)).to.eq(0);
+
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      await expect(orderBook.claimTokens([orderId]))
+        .to.emit(orderBook, "ClaimedTokens")
+        .withArgs(owner.address, [orderId], singleCost, singleOrderFees);
+
+      await expect(orderBook.claimTokens([orderId + 1, orderId + 2, orderId + 3, orderId + 4]))
+        .to.emit(orderBook, "ClaimedTokens")
+        .withArgs(
+          owner.address,
+          [orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+          cost - singleCost,
+          fees - singleOrderFees,
+        );
+
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+      expect(await orderBook.tokensClaimable([orderId + 4], false)).to.eq(0);
+
+      // Try to claim twice
+      await expect(orderBook.claimTokens([orderId + 4])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
     });
 
     it("Claim tokens, defensive constraints", async function () {
@@ -1926,6 +2044,103 @@ describe("SamWitchOrderBook", function () {
         orderBook,
         "NothingToClaim",
       );
+    });
+
+    it("Claim NFTs from multiple order", async function () {
+      const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      const nftsSold = quantity * 4 + 2;
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: nftsSold,
+        },
+      ]);
+
+      const orderId = 1;
+      expect(
+        await orderBook.nftsClaimable(
+          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+          [tokenId, tokenId, tokenId, tokenId, tokenId],
+        ),
+      ).to.deep.eq([quantity, quantity, quantity, quantity, 2]);
+
+      await expect(
+        orderBook.claimNFTs(
+          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+          [tokenId, tokenId, tokenId, tokenId, tokenId],
+        ),
+      )
+        .to.emit(orderBook, "ClaimedNFTs")
+        .withArgs(
+          owner.address,
+          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+          [tokenId, tokenId, tokenId, tokenId, tokenId],
+          [quantity, quantity, quantity, quantity, 2],
+        );
+
+      // Try to claim twice
+      await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+        orderBook,
+        "NothingToClaim",
+      );
+
+      await expect(orderBook.claimNFTs([orderId + 3], [tokenId])).to.be.revertedWithCustomError(
+        orderBook,
+        "NothingToClaim",
+      );
+
+      // Claim some more of the final order
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: 3,
+        },
+      ]);
+      expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([3]);
+      await expect(orderBook.claimNFTs([orderId + 4], [tokenId]))
+        .to.emit(orderBook, "ClaimedNFTs")
+        .withArgs(owner.address, [orderId + 4], [tokenId], [3]);
+      expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([0]);
     });
 
     it("Claim NFTs, argument length mismatch", async function () {

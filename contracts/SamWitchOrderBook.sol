@@ -345,7 +345,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ) external view override returns (uint[] memory amounts_) {
     amounts_ = new uint[](_orderIds.length);
     for (uint i = 0; i < _orderIds.length; ++i) {
-      amounts_[i] = amountClaimableForToken[_orderIds[i]][_tokenIds[i]];
+      amounts_[i] = amountClaimableForToken[_tokenIds[i]][_orderIds[i]];
     }
   }
 
