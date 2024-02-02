@@ -33,10 +33,10 @@ describe("SamWitchOrderBook", function () {
     await brush.connect(alice).approve(orderBook, initialBrush);
 
     const initialQuantity = 100;
-    await erc1155.mint(initialQuantity * 2);
+    const tokenId = 11;
+    await erc1155.mintSpecificId(tokenId, initialQuantity * 2);
     await erc1155.setApprovalForAll(orderBook, true);
 
-    const tokenId = 1;
     await erc1155.safeTransferFrom(owner, alice, tokenId, initialQuantity, "0x");
     await erc1155.connect(alice).setApprovalForAll(orderBook, true);
 
