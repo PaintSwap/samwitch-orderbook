@@ -480,7 +480,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] memory _orderIdsPool,
     uint[] memory _quantitiesPool,
     OrderSide _side, // which side are you taking from
-    mapping(uint tokenId => mapping(uint price => bytes32[] segments)) storage values,
+    mapping(uint tokenId => mapping(uint price => bytes32[] segments)) storage segmentsAtPrice,
     mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) storage tree
   ) private returns (uint24 quantityRemaining_, uint cost_) {
     quantityRemaining_ = _quantity;
@@ -502,7 +502,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
       // Loop through all at this order
       uint numSegmentsFullyConsumed = 0;
-      bytes32[] storage segments = values[_tokenId][bestPrice];
+      bytes32[] storage segments = segmentsAtPrice[_tokenId][bestPrice];
       BokkyPooBahsRedBlackTreeLibrary.Node storage node = tree[_tokenId].getNode(bestPrice);
 
       bool eatIntoLastOrder;
