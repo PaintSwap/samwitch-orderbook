@@ -10,7 +10,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     Sell
   }
 
-  struct TokenInfo {
+  struct TokenIdInfo {
     uint128 tick;
     uint128 minQuantity;
   }
@@ -28,9 +28,9 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint72 price;
   }
 
-  struct OrderInfo {
+  struct ClaimableTokenInfo {
     address maker;
-    uint80 claimable;
+    uint80 amount;
   }
 
   struct Order {
@@ -45,8 +45,8 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
   event ClaimedTokens(address user, uint[] orderIds, uint amount, uint fees);
   event ClaimedNFTs(address user, uint[] orderIds, uint[] tokenIds, uint[] amounts);
-  event SetTokenInfos(uint[] tokenIds, TokenInfo[] tokenInfos);
-  event SetMaxOrdersPerPriceLevel(uint maxOrdersPerPrice);
+  event SetTokenInfos(uint[] tokenIds, TokenIdInfo[] tokenInfos);
+  event SetMaxOrdersPerPriceLevel(uint maxOrdesrsPerPrice);
   event SetFees(address devAddr, uint devFee, uint burntFee);
 
   error ZeroAddress();
@@ -71,7 +71,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function limitOrders(LimitOrder[] calldata orders) external;
 
-  function cancelOrders(uint[] calldata orderIds, CancelOrder[] calldata cancelOrderInfos) external;
+  function cancelOrders(uint[] calldata orderIds, CancelOrder[] calldata cancelClaimableTokenInfos) external;
 
   function claimTokens(uint[] calldata _orderIds) external;
 
@@ -98,9 +98,9 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function nodeExists(OrderSide side, uint tokenId, uint72 price) external view returns (bool);
 
-  function getTokenInfo(uint tokenId) external view returns (TokenInfo memory);
+  function getTokenIdInfo(uint tokenId) external view returns (TokenIdInfo memory);
 
-  function getOrderInfo(uint40 _orderId) external view returns (OrderInfo memory);
+  function getClaimableTokenInfo(uint40 _orderId) external view returns (ClaimableTokenInfo memory);
 
   function allOrdersAtPrice(
     OrderSide side,
