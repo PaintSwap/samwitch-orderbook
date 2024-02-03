@@ -571,6 +571,8 @@ describe("SamWitchOrderBook", function () {
         orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
+
       // Check you get the brush back
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
       expect(await brush.balanceOf(orderBook)).to.eq(0);

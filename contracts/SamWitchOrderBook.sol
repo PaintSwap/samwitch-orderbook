@@ -918,14 +918,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert NotMaker();
     }
 
-    if (_offset == 0 && segment >> 64 == bytes32(0)) {
-      // Only 1 order in this segment, so remove the segment by shifting all other segments to the left.
+    if (_offset == 0 && segment >> 64 == 0) {
+      // If only one order is in the segment, remove the segment by shifting all other segments to the left
       for (uint i = _index; i < _segments.length.sub(1); ++i) {
         _segments[i] = _segments[i.inc()];
       }
       _segments.pop();
-      if (_segments.length - _tombstoneOffset == 0) {
-        // Last one at this price level so trash it in the tree
+      if (_segments.length == _tombstoneOffset) {
         _tree.remove(_price);
       }
     } else {
