@@ -34,6 +34,7 @@ Potential improvements:
 
 - Use an `orderId` per price level insted of global, so that they are always sequential
 - Range delete of the red-black tree using split/join
+- When cancelling an order some of the shifting logic can be improved to move some orders in segments in 1 go.
 
 To start copy the `.env.sample` file to `.env` and fill in `PRIVATE_KEY` at a minimum (starts with `0x`).
 
