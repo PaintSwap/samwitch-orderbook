@@ -450,7 +450,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       tokenIdInfo[_tokenIds[i]] = _tokenIdInfos[i];
     }
 
-    emit SetTokenInfos(_tokenIds, _tokenIdInfos);
+    emit SetTokenIdInfos(_tokenIds, _tokenIdInfos);
   }
 
   /// @notice Set the fees for the contract

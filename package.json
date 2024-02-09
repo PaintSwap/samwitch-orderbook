@@ -48,6 +48,7 @@
     "deploy": "npx hardhat run scripts/deploy.ts",
     "deployTestData": "npx hardhat run scripts/deployTestData.ts",
     "deployUpgrade": "npx hardhat run scripts/deployUpgrade.ts",
+    "setTokenIdInfos": "npx hardhat run scripts/setTokenIdInfos.ts",
     "verify": "npx hardhat verify",
     "fork": "npx hardhat node",
     "coverage": "npx hardhat coverage",

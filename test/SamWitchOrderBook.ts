@@ -1565,7 +1565,7 @@ describe("SamWitchOrderBook", function () {
 
     await expect(orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}])).to.emit(
       orderBook,
-      "SetTokenInfos",
+      "SetTokenIdInfos",
     );
   });
 
