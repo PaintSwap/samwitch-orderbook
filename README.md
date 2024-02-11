@@ -25,6 +25,7 @@ Constraints:
 - The order quantity to be added to the book is limited to ~16mil
 - The maximum number of orders in the book that can ever be added is limited to 1 trillion
 - The maximum number of orders that can be added to a specific price level in its lifetime is 16 billion
+- Cannot change tick for a tokenId after it's been set
 
 While this order book was created for `ERC1155` NFTs it could be adapted for `ERC20` tokens.
 
@@ -32,7 +33,7 @@ While this order book was created for `ERC1155` NFTs it could be adapted for `ER
 
 Potential improvements:
 
-- Use an `orderId` per price level insted of global, so that they are always sequential
+- TokenInfo could use uint64 for both members and packed 2 in an array if tokenIds are sequential and limited
 - Range delete of the red-black tree using split/join
 - When cancelling an order some of the shifting logic can be improved to move some orders in segments in 1 go.
 

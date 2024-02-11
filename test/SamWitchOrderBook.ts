@@ -1463,9 +1463,13 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Price must be modulus of tick quantity must be > min quantity, sell", async function () {
-    const {orderBook, erc1155, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, tokenId: originalTokenId, initialQuantity} = await loadFixture(deployContractsFixture);
 
+    const tokenId = originalTokenId + 1;
     await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+
+    await erc1155.mintSpecificId(tokenId, initialQuantity * 2);
+    await erc1155.setApprovalForAll(orderBook, true);
 
     let price = 101;
     let quantity = 20;
@@ -1510,9 +1514,19 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Price must be modulus of tick quantity must be > min quantity, buy", async function () {
-    const {orderBook, brush, tokenId} = await loadFixture(deployContractsFixture);
+    const {
+      orderBook,
+      brush,
+      tokenId: originalTokenId,
+      erc1155,
+      initialQuantity,
+    } = await loadFixture(deployContractsFixture);
 
+    const tokenId = originalTokenId + 1;
     await orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]);
+
+    await erc1155.mintSpecificId(tokenId, initialQuantity * 2);
+    await erc1155.setApprovalForAll(orderBook, true);
 
     let price = 101;
     let quantity = 20;
@@ -1556,23 +1570,74 @@ describe("SamWitchOrderBook", function () {
     expect(await brush.balanceOf(orderBook)).to.eq(quantity * price);
   });
 
-  it("Set tokenId infos can only be called by the owner", async function () {
-    const {orderBook, tokenId, alice} = await loadFixture(deployContractsFixture);
+  it("Change minQuantity, check other orders can still be added/taken", async function () {
+    const {orderBook, brush, tokenId, tick, minQuantity} = await loadFixture(deployContractsFixture);
+
+    let price = 101;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: minQuantity,
+      },
+    ]);
+
+    await orderBook.setTokenIdInfos([tokenId], [{tick, minQuantity: minQuantity + 1}]);
 
     await expect(
-      orderBook.connect(alice).setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}]),
+      orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity: minQuantity,
+        },
+      ]),
+    ).to.emit(orderBook, "FailedToAddToBook");
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity: minQuantity + 1,
+      },
+    ]);
+
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity: 1,
+      },
+    ]);
+  });
+
+  it("Set tokenId infos can only be called by the owner", async function () {
+    const {orderBook, tick, tokenId, alice} = await loadFixture(deployContractsFixture);
+
+    await expect(
+      orderBook.connect(alice).setTokenIdInfos([tokenId], [{tick, minQuantity: 20}]),
     ).to.be.revertedWithCustomError(orderBook, "OwnableUnauthorizedAccount");
 
-    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: 10, minQuantity: 20}])).to.emit(
-      orderBook,
-      "SetTokenIdInfos",
-    );
+    await expect(orderBook.setTokenIdInfos([tokenId], [{tick, minQuantity: 20}])).to.emit(orderBook, "SetTokenIdInfos");
   });
 
   it("Set tokenId infos argument length mismatch", async function () {
     const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
     await expect(orderBook.setTokenIdInfos([tokenId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
+  });
+
+  it("Tick cannot be changed", async function () {
+    const {orderBook, tokenId, alice, tick, minQuantity} = await loadFixture(deployContractsFixture);
+
+    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: tick + 1, minQuantity}])).to.be.revertedWithCustomError(
+      orderBook,
+      "TickCannotBeChanged",
+    );
   });
 
   it("Set max orders per price can only be called by the owner", async function () {
