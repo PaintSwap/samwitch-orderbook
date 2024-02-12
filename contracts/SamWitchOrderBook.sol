@@ -36,6 +36,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   uint private constant MAX_ORDER_ID = 1_099_511_627_776;
 
+  uint private constant MAX_CLAIMABLE_ORDERS = 200;
+
   // slot_0
   IERC1155 private nft;
 
@@ -258,6 +260,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
   function claimTokens(uint[] calldata _orderIds) public override {
+    if (_orderIds.length > MAX_CLAIMABLE_ORDERS) {
+      revert ClaimingTooManyOrders();
+    }
     uint amount;
     for (uint i = 0; i < _orderIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
@@ -275,10 +280,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       amount += claimableAmount;
     }
 
-    (uint royalty, uint dev, uint burn) = _calcFees(amount);
-    uint fees = royalty.add(dev).add(burn);
-    token.safeTransfer(_msgSender(), amount.sub(fees));
-    emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
+    if (amount != 0) {
+      (uint royalty, uint dev, uint burn) = _calcFees(amount);
+      uint fees = royalty.add(dev).add(burn);
+      token.safeTransfer(_msgSender(), amount.sub(fees));
+      emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
+    }
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
@@ -286,6 +293,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _orderIds Array of order IDs from which to claim NFTs
   /// @param _tokenIds Array of token IDs to claim NFTs for
   function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public override {
+    if (_orderIds.length > MAX_CLAIMABLE_ORDERS) {
+      revert ClaimingTooManyOrders();
+    }
+
     if (_orderIds.length != _tokenIds.length) {
       revert LengthMismatch();
     }

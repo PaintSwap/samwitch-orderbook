@@ -65,6 +65,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error TooManyOrdersHit();
   error MaxOrdersNotMultipleOfOrdersInSegment();
   error TickCannotBeChanged();
+  error ClaimingTooManyOrders();
 
   function limitOrders(LimitOrder[] calldata orders) external;
 

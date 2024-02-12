@@ -3,7 +3,7 @@ import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
 import {ISamWitchOrderBook, SamWitchOrderBook} from "../typechain-types";
 
-describe("SamWitchOrderBook", function () {
+describe.only("SamWitchOrderBook", function () {
   enum OrderSide {
     Buy,
     Sell,
@@ -2075,6 +2075,54 @@ describe("SamWitchOrderBook", function () {
         .withArgs(owner.address, [orderId], price * quantity, (price * (quantity * 10)) / 100);
     });
 
+    it("Claim tokens, max limit should revert", async function () {
+      const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
+
+      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+      await erc1155.mintSpecificId(tokenId, 300);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 1;
+      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 2,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price: price + 2,
+          quantity: 201,
+        },
+      ]);
+
+      const orders = Array.from({length: 201}, (_, i) => i + 1);
+      await expect(orderBook.claimTokens(orders)).to.be.revertedWithCustomError(orderBook, "ClaimingTooManyOrders");
+
+      orders.pop();
+      await expect(orderBook.claimTokens(orders)).to.not.be.reverted;
+    });
+
     it("Claim NFTs", async function () {
       const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
@@ -2259,6 +2307,60 @@ describe("SamWitchOrderBook", function () {
 
       expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+    });
+
+    it("Claim NFTs, max limit should revert", async function () {
+      const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
+
+      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+      await erc1155.mintSpecificId(tokenId, 300);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 1;
+      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - 1,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price: price - 2,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price - 2,
+          quantity: 201,
+        },
+      ]);
+
+      const orders = Array.from({length: 201}, (_, i) => i + 1);
+      const tokenIds = orders.map(() => tokenId);
+      await expect(orderBook.claimNFTs(orders, tokenIds)).to.be.revertedWithCustomError(
+        orderBook,
+        "ClaimingTooManyOrders",
+      );
+
+      orders.pop();
+      tokenIds.pop();
+      await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
     });
   });
 
