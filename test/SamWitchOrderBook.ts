@@ -984,6 +984,58 @@ describe.only("SamWitchOrderBook", function () {
       const orderId = 1;
       await expect(orderBook.cancelOrders([orderId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
     });
+
+    it.only("Remove an item, check the order can still be cancelled just not fulfilled", async function () {
+      const {orderBook, tokenId, brush, owner, alice} = await loadFixture(deployContractsFixture);
+
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      // Selling should work
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: 1,
+        },
+      ]);
+
+      // Remove the tokenId
+      await orderBook.setTokenIdInfos([tokenId], [{tick: 0, minQuantity: 20}]);
+      // Cancel should work
+      const orderId = 1;
+      const preBalance = await brush.balanceOf(owner.address);
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      // Selling should no longer work
+      await expect(
+        orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 1,
+          },
+        ]),
+      )
+        .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
+        .withArgs(tokenId);
+      expect(await brush.balanceOf(owner.address)).to.eq(preBalance + BigInt(price * (quantity - 1)));
+    });
   });
 
   it("Consume a segment and whole price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {

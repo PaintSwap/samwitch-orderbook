@@ -459,7 +459,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     for (uint i = 0; i < _tokenIds.length; ++i) {
       // Cannot change tick once set
-      if (tokenIdInfo[_tokenIds[i]].tick != 0 && tokenIdInfo[_tokenIds[i]].tick != _tokenIdInfos[i].tick) {
+      uint existingTick = tokenIdInfo[_tokenIds[i]].tick;
+      uint newTick = _tokenIdInfos[i].tick;
+
+      if (existingTick != 0 && newTick != 0 && existingTick != newTick) {
         revert TickCannotBeChanged();
       }
 
