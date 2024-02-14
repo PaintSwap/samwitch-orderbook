@@ -2214,6 +2214,11 @@ describe("SamWitchOrderBook", function () {
       await expect(orderBook.claimTokens(orders)).to.not.be.reverted;
     });
 
+    it("Claiming no tokens, empty order id array argument", async function () {
+      const {orderBook} = await loadFixture(deployContractsFixture);
+      await expect(orderBook.claimTokens([1])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+    });
+
     it("Claim NFTs", async function () {
       const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
@@ -2452,6 +2457,11 @@ describe("SamWitchOrderBook", function () {
       orders.pop();
       tokenIds.pop();
       await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
+    });
+
+    it("Claiming no nfts, empty order id array argument", async function () {
+      const {orderBook} = await loadFixture(deployContractsFixture);
+      await expect(orderBook.claimNFTs([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
     });
   });
 

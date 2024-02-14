@@ -247,7 +247,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     // Send the NFTs
     if (nftsFromUs != 0) {
-      // reset the size
+      // shrink the size
       assembly ("memory-safe") {
         mstore(nftIdsFromUs, nftsFromUs)
         mstore(nftAmountsFromUs, nftsFromUs)
@@ -280,12 +280,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       amount += claimableAmount;
     }
 
-    if (amount != 0) {
-      (uint royalty, uint dev, uint burn) = _calcFees(amount);
-      uint fees = royalty.add(dev).add(burn);
-      token.safeTransfer(_msgSender(), amount.sub(fees));
-      emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
+    if (amount == 0) {
+      revert NothingToClaim();
     }
+    (uint royalty, uint dev, uint burn) = _calcFees(amount);
+    uint fees = royalty.add(dev).add(burn);
+    token.safeTransfer(_msgSender(), amount.sub(fees));
+    emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
@@ -299,6 +300,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
     if (_orderIds.length != _tokenIds.length) {
       revert LengthMismatch();
+    }
+
+    if (_tokenIds.length == 0) {
+      revert NothingToClaim();
     }
 
     uint[] memory nftAmountsFromUs = new uint[](_tokenIds.length);
