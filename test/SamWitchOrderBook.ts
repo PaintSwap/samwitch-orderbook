@@ -2,13 +2,9 @@ import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
 import {ISamWitchOrderBook, SamWitchOrderBook} from "../typechain-types";
+import {OrderSide} from "../scripts/helpers";
 
 describe("SamWitchOrderBook", function () {
-  enum OrderSide {
-    Buy,
-    Sell,
-  }
-
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
@@ -277,6 +273,49 @@ describe("SamWitchOrderBook", function () {
       },
     ]);
     expect(await orderBook.getHighestBid(tokenId)).to.equal(price + 2);
+  });
+
+  it("Take from buy order book, 1 exact order among a segment", async function () {
+    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+    // Set up order books
+    const price = 100;
+    const quantity = 10;
+    await orderBook.limitOrders([
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      },
+      {
+        side: OrderSide.Sell,
+        tokenId,
+        price: price + 1,
+        quantity,
+      },
+    ]);
+
+    // Sell
+    const orderId = 1;
+    await expect(
+      orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price,
+          quantity,
+        },
+      ]),
+    )
+      .to.emit(orderBook, "OrdersMatched")
+      .withArgs(alice.address, [orderId], [quantity]);
   });
 
   it("Take from buy order book", async function () {

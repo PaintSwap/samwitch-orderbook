@@ -13,3 +13,8 @@ export const verifyContracts = async (addresses: string[], args: any[][] = []) =
 };
 
 export const swobAddress = "0x53811c5afD73e66bDf66630837b0299Da9286D8F";
+
+export enum OrderSide {
+  Buy,
+  Sell,
+}

@@ -1,11 +1,6 @@
 import {ethers} from "hardhat";
 import {IERC20, MockERC1155, SamWitchOrderBook} from "../typechain-types";
-import {swobAddress} from "./helpers";
-
-enum OrderSide {
-  Buy,
-  Sell,
-}
+import {OrderSide, swobAddress} from "./helpers";
 
 async function main() {
   const [owner] = await ethers.getSigners();

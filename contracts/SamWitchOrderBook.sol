@@ -528,12 +528,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       uint numOrdersWithinLastSegmentFullyConsumed;
       bytes32 segment;
       uint lastSegment;
-      for (uint i = node.tombstoneOffset; i < segments.length; ++i) {
+      for (uint i = node.tombstoneOffset; i < segments.length && quantityRemaining_ != 0; ++i) {
         lastSegment = i;
         segment = segments[i];
         uint numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
-        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT && quantityRemaining_ != 0; ++offset) {
           uint remainingSegment = uint(segment >> offset.mul(64));
           uint40 orderId = uint40(remainingSegment);
           if (orderId == 0) {
@@ -592,9 +592,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
           if (eatIntoLastOrder) {
             break;
           }
-        }
-        if (quantityRemaining_ == 0) {
-          break;
         }
       }
 
