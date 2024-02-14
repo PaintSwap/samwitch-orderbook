@@ -3,7 +3,7 @@ import {ethers, upgrades} from "hardhat";
 import {expect} from "chai";
 import {ISamWitchOrderBook, SamWitchOrderBook} from "../typechain-types";
 
-describe.only("SamWitchOrderBook", function () {
+describe("SamWitchOrderBook", function () {
   enum OrderSide {
     Buy,
     Sell,
@@ -985,7 +985,7 @@ describe.only("SamWitchOrderBook", function () {
       await expect(orderBook.cancelOrders([orderId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
     });
 
-    it.only("Remove an item, check the order can still be cancelled just not fulfilled", async function () {
+    it("Remove an item, check the order can still be cancelled just not fulfilled", async function () {
       const {orderBook, tokenId, brush, owner, alice} = await loadFixture(deployContractsFixture);
 
       const price = 100;
