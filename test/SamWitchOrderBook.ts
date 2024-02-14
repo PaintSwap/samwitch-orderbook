@@ -2216,7 +2216,7 @@ describe("SamWitchOrderBook", function () {
 
     it("Claiming no tokens, empty order id array argument", async function () {
       const {orderBook} = await loadFixture(deployContractsFixture);
-      await expect(orderBook.claimTokens([1])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      await expect(orderBook.claimTokens([])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
     });
 
     it("Claim NFTs", async function () {
@@ -2462,6 +2462,42 @@ describe("SamWitchOrderBook", function () {
     it("Claiming no nfts, empty order id array argument", async function () {
       const {orderBook} = await loadFixture(deployContractsFixture);
       await expect(orderBook.claimNFTs([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+    });
+  });
+
+  describe("Edit orders", function () {
+    it("Cancels and makes a new order", async function () {
+      const {orderBook, tokenId, tick, owner} = await loadFixture(deployContractsFixture);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const newOrder = {side: OrderSide.Buy, tokenId, price: price + 1 * tick, quantity: quantity + 2};
+      console.log(newOrder);
+      await orderBook.cancelAndMakeLimitOrders([1], [{side: OrderSide.Buy, tokenId, price}], [newOrder]);
+
+      const nextOrderIdSlot = 2;
+      let packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
+      let nextOrderId = parseInt(packedSlot.slice(2, 12), 16);
+      expect(nextOrderId).to.eq(3);
+
+      expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price)).length).to.eq(0);
+      expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price + 1 * tick)).length).to.eq(1);
+      const orderId = 2;
+      expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price + 1 * tick))[0]).to.deep.eq([
+        owner.address,
+        quantity + 2,
+        orderId,
+      ]);
     });
   });
 

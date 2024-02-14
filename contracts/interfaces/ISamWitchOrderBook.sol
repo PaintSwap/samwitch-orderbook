@@ -71,6 +71,12 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function cancelOrders(uint[] calldata orderIds, CancelOrder[] calldata cancelClaimableTokenInfos) external;
 
+  function cancelAndMakeLimitOrders(
+    uint[] calldata orderIds,
+    CancelOrder[] calldata orders,
+    LimitOrder[] calldata newOrders
+  ) external;
+
   function claimTokens(uint[] calldata _orderIds) external;
 
   function claimNFTs(uint[] calldata orderIds, uint[] calldata tokenIds) external;

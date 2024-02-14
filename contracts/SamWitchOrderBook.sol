@@ -108,7 +108,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
-  function limitOrders(LimitOrder[] calldata _orders) external override {
+  function limitOrders(LimitOrder[] calldata _orders) public override {
     uint royalty;
     uint dev;
     uint burn;
@@ -209,7 +209,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Cancel multiple orders in the order book
   /// @param _orderIds Array of order IDs to be cancelled
   /// @param _orders Information about the orders so that they can be found in the order book
-  function cancelOrders(uint[] calldata _orderIds, CancelOrder[] calldata _orders) external override {
+  function cancelOrders(uint[] calldata _orderIds, CancelOrder[] calldata _orders) public override {
     if (_orderIds.length != _orders.length) {
       revert LengthMismatch();
     }
@@ -254,6 +254,19 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
       _safeBatchTransferNFTsFromUs(sender, nftIdsFromUs, nftAmountsFromUs);
     }
+  }
+
+  /// @notice Cancel multiple orders and place multiple limit orders in the order book. Can be used to replace orders
+  /// @param _orderIds Array of order IDs to be cancelled
+  /// @param _orders Information about the orders so that they can be found in the order book
+  /// @param _newOrders Array of limit orders to be placed
+  function cancelAndMakeLimitOrders(
+    uint[] calldata _orderIds,
+    CancelOrder[] calldata _orders,
+    LimitOrder[] calldata _newOrders
+  ) external override {
+    cancelOrders(_orderIds, _orders);
+    limitOrders(_newOrders);
   }
 
   /// @notice Claim tokens associated with filled or partially filled orders.
