@@ -1897,571 +1897,688 @@ describe("SamWitchOrderBook", function () {
   });
 
   describe("Claiming", function () {
-    it("Claim tokens", async function () {
-      const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
-        await loadFixture(deployContractsFixture);
+    describe("Claiming tokens", function () {
+      it("Claim tokens", async function () {
+        const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
+          await loadFixture(deployContractsFixture);
 
-      await erc1155.setRoyaltyFee(1000); // 10%
-      await orderBook.updateRoyaltyFee();
+        await erc1155.setRoyaltyFee(1000); // 10%
+        await orderBook.updateRoyaltyFee();
 
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        const cost = price * 10;
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: 10,
+          },
+        ]);
+
+        // Check fees
+        const royalty = cost / 10;
+        const burnt = (cost * 3) / 1000; // 0.3%
+        const devAmount = (cost * 3) / 1000; // 0.3%
+        const fees = royalty + burnt + devAmount;
+
+        const orderId = 1;
+        expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost);
+        expect(await orderBook.tokensClaimable([orderId], true)).to.eq(cost - fees);
+        expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        await expect(orderBook.claimTokens([orderId]))
+          .to.emit(orderBook, "ClaimedTokens")
+          .withArgs(owner.address, [orderId], cost, fees);
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+        expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
+
+        // Try to claim twice
+        await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+        // Do another order and check it can be claimed
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: 20,
+          },
+        ]);
+        expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost * 2);
+        await expect(orderBook.claimTokens([orderId]))
+          .to.emit(orderBook, "ClaimedTokens")
+          .withArgs(owner.address, [orderId], cost * 2, fees * 2);
+      });
+
+      it("Claim tokens from multiple orders", async function () {
+        const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
+          await loadFixture(deployContractsFixture);
+
+        await erc1155.setRoyaltyFee(1000); // 10%
+        await orderBook.updateRoyaltyFee();
+
+        // Set up order book
+        const price = 100;
+        const quantity = 10;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        const numBought = quantity * 4 + 1; // 4 orders and 1 from the 5th
+        const cost = price * numBought;
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: numBought,
+          },
+        ]);
+
+        // Check fees
+        const royalty = cost / 10;
+        const burnt = (cost * 3) / 1000; // 0.3%
+        const devAmount = (cost * 3) / 1000; // 0.3%
+        const fees = Math.floor(royalty + burnt + devAmount);
+        let singleOrderFees = 0;
+        const singleCost = price * quantity;
         {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-      const cost = price * 10;
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity: 10,
-        },
-      ]);
+          const royalty = singleCost / 10;
+          const burnt = (singleCost * 3) / 1000; // 0.3%
+          const devAmount = (singleCost * 3) / 1000; // 0.3%
+          singleOrderFees = Math.floor(royalty + burnt + devAmount);
+        }
 
-      // Check fees
-      const royalty = cost / 10;
-      const burnt = (cost * 3) / 1000; // 0.3%
-      const devAmount = (cost * 3) / 1000; // 0.3%
-      const fees = royalty + burnt + devAmount;
+        const orderId = 1;
+        expect(await orderBook.tokensClaimable([orderId], false)).to.eq(singleCost); // Just 1 order
 
-      const orderId = 1;
-      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost);
-      expect(await orderBook.tokensClaimable([orderId], true)).to.eq(cost - fees);
-      expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-      expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
-      expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+        expect(
+          await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], false),
+        ).to.eq(cost);
+        expect(
+          await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], true),
+        ).to.eq(cost - fees);
+        expect(await orderBook.tokensClaimable([orderId + 5], false)).to.eq(0);
 
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      await expect(orderBook.claimTokens([orderId]))
-        .to.emit(orderBook, "ClaimedTokens")
-        .withArgs(owner.address, [orderId], cost, fees);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
-      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        await expect(orderBook.claimTokens([orderId]))
+          .to.emit(orderBook, "ClaimedTokens")
+          .withArgs(owner.address, [orderId], singleCost, singleOrderFees);
 
-      // Try to claim twice
-      await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
-      // Do another order and check it can be claimed
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity: 20,
-        },
-      ]);
-      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost * 2);
-      await expect(orderBook.claimTokens([orderId]))
-        .to.emit(orderBook, "ClaimedTokens")
-        .withArgs(owner.address, [orderId], cost * 2, fees * 2);
-    });
+        await expect(orderBook.claimTokens([orderId + 1, orderId + 2, orderId + 3, orderId + 4]))
+          .to.emit(orderBook, "ClaimedTokens")
+          .withArgs(
+            owner.address,
+            [orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+            cost - singleCost,
+            fees - singleOrderFees,
+          );
 
-    it("Claim tokens from multiple orders", async function () {
-      const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
-        await loadFixture(deployContractsFixture);
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+        expect(await orderBook.tokensClaimable([orderId + 4], false)).to.eq(0);
 
-      await erc1155.setRoyaltyFee(1000); // 10%
-      await orderBook.updateRoyaltyFee();
+        // Try to claim twice
+        await expect(orderBook.claimTokens([orderId + 4])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      });
 
-      // Set up order book
-      const price = 100;
-      const quantity = 10;
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-      const numBought = quantity * 4 + 1; // 4 orders and 1 from the 5th
-      const cost = price * numBought;
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity: numBought,
-        },
-      ]);
+      it("Claim tokens, defensive constraints", async function () {
+        const {orderBook, erc1155, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-      // Check fees
-      const royalty = cost / 10;
-      const burnt = (cost * 3) / 1000; // 0.3%
-      const devAmount = (cost * 3) / 1000; // 0.3%
-      const fees = Math.floor(royalty + burnt + devAmount);
-      let singleOrderFees = 0;
-      const singleCost = price * quantity;
-      {
-        const royalty = singleCost / 10;
-        const burnt = (singleCost * 3) / 1000; // 0.3%
-        const devAmount = (singleCost * 3) / 1000; // 0.3%
-        singleOrderFees = Math.floor(royalty + burnt + devAmount);
-      }
+        await erc1155.setRoyaltyFee(1000); // 10%
+        await orderBook.updateRoyaltyFee();
 
-      const orderId = 1;
-      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(singleCost); // Just 1 order
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
 
-      expect(
-        await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], false),
-      ).to.eq(cost);
-      expect(
-        await orderBook.tokensClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4], true),
-      ).to.eq(cost - fees);
-      expect(await orderBook.tokensClaimable([orderId + 5], false)).to.eq(0);
+        // Nothing to claim
+        const orderId = 1;
+        await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      await expect(orderBook.claimTokens([orderId]))
-        .to.emit(orderBook, "ClaimedTokens")
-        .withArgs(owner.address, [orderId], singleCost, singleOrderFees);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
 
-      await expect(orderBook.claimTokens([orderId + 1, orderId + 2, orderId + 3, orderId + 4]))
-        .to.emit(orderBook, "ClaimedTokens")
-        .withArgs(
-          owner.address,
-          [orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-          cost - singleCost,
-          fees - singleOrderFees,
+        await expect(orderBook.connect(alice).claimTokens([orderId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NotMaker",
         );
+      });
 
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
-      expect(await orderBook.tokensClaimable([orderId + 4], false)).to.eq(0);
+      it("Claim tokens, no fees", async function () {
+        const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
-      // Try to claim twice
-      await expect(orderBook.claimTokens([orderId + 4])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
-    });
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
 
-    it("Claim tokens, defensive constraints", async function () {
-      const {orderBook, erc1155, alice, tokenId} = await loadFixture(deployContractsFixture);
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
 
-      await erc1155.setRoyaltyFee(1000); // 10%
-      await orderBook.updateRoyaltyFee();
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
 
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
-        {
+        const orderId = 1;
+        await expect(orderBook.claimTokens([orderId])).to.be.not.reverted;
+      });
+
+      it("Claim tokens, fees increased after", async function () {
+        const {orderBook, tokenId, owner, dev} = await loadFixture(deployContractsFixture);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+
+        await orderBook.setFees(dev.address, 1000, 0); // 10% dev fee, no royalty or burn
+
+        const orderId = 1;
+        await expect(orderBook.claimTokens([orderId]))
+          .to.emit(orderBook, "ClaimedTokens")
+          .withArgs(owner.address, [orderId], price * quantity, (price * (quantity * 10)) / 100);
+      });
+
+      it("Claim tokens, max limit should revert", async function () {
+        const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
+
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+        await erc1155.mintSpecificId(tokenId, 300);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 1;
+        let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
           side: OrderSide.Sell,
           tokenId,
           price,
           quantity,
-        },
-      ]);
+        });
+        await orderBook.limitOrders(limitOrders);
 
-      // Nothing to claim
-      const orderId = 1;
-      await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
-
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-
-      await expect(orderBook.connect(alice).claimTokens([orderId])).to.be.revertedWithCustomError(
-        orderBook,
-        "NotMaker",
-      );
-    });
-
-    it("Claim tokens, no fees", async function () {
-      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
-
-      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
-
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
-        {
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
           side: OrderSide.Sell,
           tokenId,
-          price,
+          price: price + 1,
           quantity,
-        },
-      ]);
+        });
+        await orderBook.limitOrders(limitOrders);
 
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-
-      const orderId = 1;
-      await expect(orderBook.claimTokens([orderId])).to.be.not.reverted;
-    });
-
-    it("Claim tokens, fees increased after", async function () {
-      const {orderBook, tokenId, owner, dev} = await loadFixture(deployContractsFixture);
-
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
-        {
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
           side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-
-      await orderBook.setFees(dev.address, 1000, 0); // 10% dev fee, no royalty or burn
-
-      const orderId = 1;
-      await expect(orderBook.claimTokens([orderId]))
-        .to.emit(orderBook, "ClaimedTokens")
-        .withArgs(owner.address, [orderId], price * quantity, (price * (quantity * 10)) / 100);
-    });
-
-    it("Claim tokens, max limit should revert", async function () {
-      const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
-
-      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
-      await erc1155.mintSpecificId(tokenId, 300);
-
-      // Set up order book
-      const price = 100;
-      const quantity = 1;
-      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Sell,
-        tokenId,
-        price,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-
-      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Sell,
-        tokenId,
-        price: price + 1,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-
-      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Sell,
-        tokenId,
-        price: price + 2,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
           tokenId,
           price: price + 2,
-          quantity: 201,
-        },
-      ]);
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price: price + 2,
+            quantity: 201,
+          },
+        ]);
 
-      const orders = Array.from({length: 201}, (_, i) => i + 1);
-      await expect(orderBook.claimTokens(orders)).to.be.revertedWithCustomError(orderBook, "ClaimingTooManyOrders");
+        const orders = Array.from({length: 201}, (_, i) => i + 1);
+        await expect(orderBook.claimTokens(orders)).to.be.revertedWithCustomError(orderBook, "ClaimingTooManyOrders");
 
-      orders.pop();
-      await expect(orderBook.claimTokens(orders)).to.not.be.reverted;
+        orders.pop();
+        await expect(orderBook.claimTokens(orders)).to.not.be.reverted;
+      });
+
+      it("Claiming no tokens, empty order id array argument", async function () {
+        const {orderBook} = await loadFixture(deployContractsFixture);
+        await expect(orderBook.claimTokens([])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      });
     });
 
-    it("Claiming no tokens, empty order id array argument", async function () {
-      const {orderBook} = await loadFixture(deployContractsFixture);
-      await expect(orderBook.claimTokens([])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
-    });
+    describe("Claiming NFTs", function () {
+      it("Claim NFTs", async function () {
+        const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-    it("Claim NFTs", async function () {
-      const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 10,
+          },
+        ]);
 
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity: 10,
-        },
-      ]);
+        const orderId = 1;
+        expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
+        expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
+        expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
 
-      const orderId = 1;
-      expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
-      expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-      expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
-      expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+        await expect(orderBook.claimNFTs([orderId], [tokenId]))
+          .to.emit(orderBook, "ClaimedNFTs")
+          .withArgs(owner.address, [orderId], [tokenId], [10]);
+        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
 
-      await expect(orderBook.claimNFTs([orderId], [tokenId]))
-        .to.emit(orderBook, "ClaimedNFTs")
-        .withArgs(owner.address, [orderId], [tokenId], [10]);
-      expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
+        // Try to claim twice
+        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NothingToClaim",
+        );
+      });
 
-      // Try to claim twice
-      await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-        orderBook,
-        "NothingToClaim",
-      );
-    });
+      it("Claim NFTs from multiple order", async function () {
+        const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-    it("Claim NFTs from multiple order", async function () {
-      const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+        // Set up order book
+        const price = 100;
+        const quantity = 10;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        const nftsSold = quantity * 4 + 2;
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: nftsSold,
+          },
+        ]);
 
-      // Set up order book
-      const price = 100;
-      const quantity = 10;
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-        {
-          side: OrderSide.Buy,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-      const nftsSold = quantity * 4 + 2;
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity: nftsSold,
-        },
-      ]);
+        const orderId = 1;
+        expect(
+          await orderBook.nftsClaimable(
+            [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+            [tokenId, tokenId, tokenId, tokenId, tokenId],
+          ),
+        ).to.deep.eq([quantity, quantity, quantity, quantity, 2]);
 
-      const orderId = 1;
-      expect(
-        await orderBook.nftsClaimable(
-          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-          [tokenId, tokenId, tokenId, tokenId, tokenId],
-        ),
-      ).to.deep.eq([quantity, quantity, quantity, quantity, 2]);
+        await expect(
+          orderBook.claimNFTs(
+            [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+            [tokenId, tokenId, tokenId, tokenId, tokenId],
+          ),
+        )
+          .to.emit(orderBook, "ClaimedNFTs")
+          .withArgs(
+            owner.address,
+            [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
+            [tokenId, tokenId, tokenId, tokenId, tokenId],
+            [quantity, quantity, quantity, quantity, 2],
+          );
 
-      await expect(
-        orderBook.claimNFTs(
-          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-          [tokenId, tokenId, tokenId, tokenId, tokenId],
-        ),
-      )
-        .to.emit(orderBook, "ClaimedNFTs")
-        .withArgs(
-          owner.address,
-          [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-          [tokenId, tokenId, tokenId, tokenId, tokenId],
-          [quantity, quantity, quantity, quantity, 2],
+        // Try to claim twice
+        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NothingToClaim",
         );
 
-      // Try to claim twice
-      await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-        orderBook,
-        "NothingToClaim",
-      );
+        await expect(orderBook.claimNFTs([orderId + 3], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NothingToClaim",
+        );
 
-      await expect(orderBook.claimNFTs([orderId + 3], [tokenId])).to.be.revertedWithCustomError(
-        orderBook,
-        "NothingToClaim",
-      );
+        // Claim some more of the final order
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 3,
+          },
+        ]);
+        expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([3]);
+        await expect(orderBook.claimNFTs([orderId + 4], [tokenId]))
+          .to.emit(orderBook, "ClaimedNFTs")
+          .withArgs(owner.address, [orderId + 4], [tokenId], [3]);
+        expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([0]);
+      });
 
-      // Claim some more of the final order
-      await orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity: 3,
-        },
-      ]);
-      expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([3]);
-      await expect(orderBook.claimNFTs([orderId + 4], [tokenId]))
-        .to.emit(orderBook, "ClaimedNFTs")
-        .withArgs(owner.address, [orderId + 4], [tokenId], [3]);
-      expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([0]);
-    });
+      it("Claim NFTs, argument length mismatch", async function () {
+        const {orderBook} = await loadFixture(deployContractsFixture);
 
-    it("Claim NFTs, argument length mismatch", async function () {
-      const {orderBook} = await loadFixture(deployContractsFixture);
+        const orderId = 1;
+        await expect(orderBook.claimNFTs([orderId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
+      });
 
-      const orderId = 1;
-      await expect(orderBook.claimNFTs([orderId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
-    });
+      it("Claim NFTs, max limit should revert", async function () {
+        const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
 
-    it("Claim both tokens and NFTs at once", async function () {
-      const {orderBook, erc1155, brush, owner, tokenId, initialBrush, initialQuantity} =
-        await loadFixture(deployContractsFixture);
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+        await erc1155.mintSpecificId(tokenId, 300);
 
-      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
-
-      // Set up order book
-      const price = 100;
-      const quantity = 100;
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price,
-          quantity,
-        },
-      ]);
-      await orderBook.limitOrders([
-        {
+        // Set up order book
+        const price = 100;
+        const quantity = 1;
+        let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
           side: OrderSide.Buy,
           tokenId,
           price,
-          quantity: quantity + 1,
-        },
-      ]);
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
+
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+          side: OrderSide.Buy,
           tokenId,
-          price,
-          quantity: 20,
-        },
-      ]);
+          price: price - 1,
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
 
-      const orderId = 1;
-      await orderBook.claimAll([orderId], [orderId + 1], [tokenId]);
-
-      expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-    });
-
-    it("Claim NFTs, max limit should revert", async function () {
-      const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
-
-      await orderBook.setFees(ethers.ZeroAddress, 0, 0);
-      await erc1155.mintSpecificId(tokenId, 300);
-
-      // Set up order book
-      const price = 100;
-      const quantity = 1;
-      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Buy,
-        tokenId,
-        price,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-
-      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Buy,
-        tokenId,
-        price: price - 1,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-
-      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-        side: OrderSide.Buy,
-        tokenId,
-        price: price - 2,
-        quantity,
-      });
-      await orderBook.limitOrders(limitOrders);
-
-      await orderBook.limitOrders([
-        {
-          side: OrderSide.Sell,
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+          side: OrderSide.Buy,
           tokenId,
           price: price - 2,
-          quantity: 201,
-        },
-      ]);
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
 
-      const orders = Array.from({length: 201}, (_, i) => i + 1);
-      const tokenIds = orders.map(() => tokenId);
-      await expect(orderBook.claimNFTs(orders, tokenIds)).to.be.revertedWithCustomError(
-        orderBook,
-        "ClaimingTooManyOrders",
-      );
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price: price - 2,
+            quantity: 201,
+          },
+        ]);
 
-      orders.pop();
-      tokenIds.pop();
-      await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
+        const orders = Array.from({length: 201}, (_, i) => i + 1);
+        const tokenIds = orders.map(() => tokenId);
+        await expect(orderBook.claimNFTs(orders, tokenIds)).to.be.revertedWithCustomError(
+          orderBook,
+          "ClaimingTooManyOrders",
+        );
+
+        orders.pop();
+        tokenIds.pop();
+        await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
+      });
+
+      it("Claiming no nfts, empty order id array argument", async function () {
+        const {orderBook} = await loadFixture(deployContractsFixture);
+        await expect(orderBook.claimNFTs([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      });
     });
 
-    it("Claiming no nfts, empty order id array argument", async function () {
-      const {orderBook} = await loadFixture(deployContractsFixture);
-      await expect(orderBook.claimNFTs([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+    describe("Claiming all", function () {
+      it("Claim both tokens and NFTs at once", async function () {
+        const {orderBook, erc1155, brush, owner, tokenId, initialBrush, initialQuantity} =
+          await loadFixture(deployContractsFixture);
+
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: quantity + 1,
+          },
+        ]);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 20,
+          },
+        ]);
+
+        const orderId = 1;
+        await orderBook.claimAll([orderId], [orderId + 1], [tokenId]);
+
+        expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      });
+
+      it("Check that 1 side only is allowed to be claimed", async function () {
+        const {orderBook, erc1155, brush, owner, tokenId, initialBrush, initialQuantity} =
+          await loadFixture(deployContractsFixture);
+
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity: quantity + 1,
+          },
+        ]);
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 20,
+          },
+        ]);
+
+        const orderId = 1;
+        await orderBook.claimAll([orderId], [], []);
+        await orderBook.claimAll([], [orderId + 1], [tokenId]);
+
+        expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
+        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      });
+
+      it("Check that if all arrays are empty the call reverts", async function () {
+        const {orderBook} = await loadFixture(deployContractsFixture);
+        await expect(orderBook.claimAll([], [], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+      });
+
+      it("Claiming too many orders together split between tokens and nfts", async function () {
+        const {orderBook, tokenId, maxOrdersPerPrice, erc1155} = await loadFixture(deployContractsFixture);
+
+        await orderBook.setFees(ethers.ZeroAddress, 0, 0);
+        await erc1155.mintSpecificId(tokenId, 300);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 1;
+        let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
+
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+          side: OrderSide.Buy,
+          tokenId,
+          price: price - 1,
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
+
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price: price - 1,
+            quantity: maxOrdersPerPrice + 1,
+          },
+        ]);
+
+        // Add to the book
+        limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        });
+        await orderBook.limitOrders(limitOrders);
+
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price: price + 1,
+            quantity: maxOrdersPerPrice,
+          },
+        ]);
+
+        const nftOrders = Array.from({length: maxOrdersPerPrice + 1}, (_, i) => i + 1);
+        const tokenIds = nftOrders.map(() => tokenId);
+        const tokenOrders = Array.from({length: maxOrdersPerPrice}, (_, i) => i + maxOrdersPerPrice * 2 + 1);
+        await expect(orderBook.claimAll(tokenOrders, nftOrders, tokenIds)).to.be.revertedWithCustomError(
+          orderBook,
+          "ClaimingTooManyOrders",
+        );
+        nftOrders.pop();
+        tokenIds.pop();
+        await expect(orderBook.claimAll(tokenOrders, nftOrders, tokenIds)).to.not.be.reverted;
+      });
     });
   });
 

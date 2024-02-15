@@ -345,8 +345,21 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint[] calldata _nftOrderIds,
     uint[] calldata _tokenIds
   ) external override {
-    claimTokens(_brushOrderIds);
-    claimNFTs(_nftOrderIds, _tokenIds);
+    if (_brushOrderIds.length == 0 && _nftOrderIds.length == 0 && _tokenIds.length == 0) {
+      revert NothingToClaim();
+    }
+
+    if (_brushOrderIds.length + _nftOrderIds.length > MAX_CLAIMABLE_ORDERS) {
+      revert ClaimingTooManyOrders();
+    }
+
+    if (_brushOrderIds.length != 0) {
+      claimTokens(_brushOrderIds);
+    }
+
+    if (_nftOrderIds.length != 0) {
+      claimNFTs(_nftOrderIds, _tokenIds);
+    }
   }
 
   /// @notice Get the amount of tokens claimable for these orders
