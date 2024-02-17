@@ -49,6 +49,7 @@
     "deployTestData": "npx hardhat run scripts/deployTestData.ts",
     "deployUpgrade": "npx hardhat run scripts/deployUpgrade.ts",
     "setTokenIdInfos": "npx hardhat run scripts/setTokenIdInfos.ts",
+    "setMaxOrdersPerPrice": "npx hardhat run scripts/setMaxOrdersPerPrice.ts",
     "impersonate": "npx hardhat run scripts/impersonate.ts",
     "verify": "npx hardhat verify",
     "fork": "npx hardhat node",
