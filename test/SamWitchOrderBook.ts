@@ -133,7 +133,7 @@ describe("SamWitchOrderBook", function () {
         burntFee,
         maxOrdersPerPrice,
       ),
-    );
+    ).to.be.reverted;
   });
 
   it("Get token id info", async function () {
@@ -216,7 +216,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Take from sell order book", async function () {
-    const {orderBook, erc1155, initialQuantity, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
+    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
 
     // Set up order books
     const price = 100;
