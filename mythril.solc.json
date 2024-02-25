@@ -1,5 +1,3 @@
 {
-  "remappings": [
-    "@openzeppelin/=/tmp/node_modules/@openzeppelin/",
-    "@0xdoublesharp/=/tmp/node_modules/@0xdoublesharp/"]
+  "remappings": ["@=/tmp/node_modules/@"]
 }

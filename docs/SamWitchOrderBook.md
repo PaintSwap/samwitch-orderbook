@@ -1,6 +1,6 @@
 # SamWitchOrderBook
 
-_Sam Witch (PaintSwap &amp; Estfor Kingdom)0xDoubleSharp_
+_Sam Witch (PaintSwap, Estfor Kingdom) &amp; 0xDoubleSharp_
 
 > SamWitchOrderBook (SWOB)
 
@@ -23,7 +23,7 @@ function UPGRADE_INTERFACE_VERSION() external view returns (string)
 ### allOrdersAtPrice
 
 ```solidity
-function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct ISamWitchOrderBook.OrderBookEntryHelper[])
+function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct ISamWitchOrderBook.Order[])
 ```
 
 Get all orders at a specific price level
@@ -38,9 +38,23 @@ Get all orders at a specific price level
 
 #### Returns
 
-| Name | Type                                      | Description |
-| ---- | ----------------------------------------- | ----------- |
-| \_0  | ISamWitchOrderBook.OrderBookEntryHelper[] | undefined   |
+| Name | Type                       | Description |
+| ---- | -------------------------- | ----------- |
+| \_0  | ISamWitchOrderBook.Order[] | undefined   |
+
+### cancelAndMakeLimitOrders
+
+```solidity
+function cancelAndMakeLimitOrders(uint256[] _orderIds, ISamWitchOrderBook.CancelOrder[] _orders, ISamWitchOrderBook.LimitOrder[] _newOrders) external nonpayable
+```
+
+#### Parameters
+
+| Name        | Type                             | Description |
+| ----------- | -------------------------------- | ----------- |
+| \_orderIds  | uint256[]                        | undefined   |
+| \_orders    | ISamWitchOrderBook.CancelOrder[] | undefined   |
+| \_newOrders | ISamWitchOrderBook.LimitOrder[]  | undefined   |
 
 ### cancelOrders
 
@@ -99,6 +113,24 @@ Claim tokens associated with filled or partially filled orders. Must be the make
 | Name       | Type      | Description                                 |
 | ---------- | --------- | ------------------------------------------- |
 | \_orderIds | uint256[] | Array of order IDs from which to claim NFTs |
+
+### getClaimableTokenInfo
+
+```solidity
+function getClaimableTokenInfo(uint40 _orderId) external view returns (struct ISamWitchOrderBook.ClaimableTokenInfo)
+```
+
+#### Parameters
+
+| Name      | Type   | Description |
+| --------- | ------ | ----------- |
+| \_orderId | uint40 | undefined   |
+
+#### Returns
+
+| Name | Type                                  | Description |
+| ---- | ------------------------------------- | ----------- |
+| \_0  | ISamWitchOrderBook.ClaimableTokenInfo | undefined   |
 
 ### getHighestBid
 
@@ -162,28 +194,10 @@ Get the order book entry for a specific order ID
 | ---- | ------------------------------------ | ----------- |
 | \_0  | BokkyPooBahsRedBlackTreeLibrary.Node | undefined   |
 
-### getOrderInfo
+### getTokenIdInfo
 
 ```solidity
-function getOrderInfo(uint40 _orderId) external view returns (struct ISamWitchOrderBook.OrderInfo)
-```
-
-#### Parameters
-
-| Name      | Type   | Description |
-| --------- | ------ | ----------- |
-| \_orderId | uint40 | undefined   |
-
-#### Returns
-
-| Name | Type                         | Description |
-| ---- | ---------------------------- | ----------- |
-| \_0  | ISamWitchOrderBook.OrderInfo | undefined   |
-
-### getTokenInfo
-
-```solidity
-function getTokenInfo(uint256 _tokenId) external view returns (struct ISamWitchOrderBook.TokenInfo)
+function getTokenIdInfo(uint256 _tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
 ```
 
 Get the token ID info for a specific token ID
@@ -196,9 +210,9 @@ Get the token ID info for a specific token ID
 
 #### Returns
 
-| Name | Type                         | Description |
-| ---- | ---------------------------- | ----------- |
-| \_0  | ISamWitchOrderBook.TokenInfo | undefined   |
+| Name | Type                           | Description |
+| ---- | ------------------------------ | ----------- |
+| \_0  | ISamWitchOrderBook.TokenIdInfo | undefined   |
 
 ### initialize
 
@@ -384,18 +398,18 @@ The maximum amount of orders allowed at a specific price level
 | ------------------- | ------ | ------------------------------------------------------------------ |
 | \_maxOrdersPerPrice | uint16 | The new maximum amount of orders allowed at a specific price level |
 
-### setTokenInfos
+### setTokenIdInfos
 
 ```solidity
-function setTokenInfos(uint256[] _tokenIds, ISamWitchOrderBook.TokenInfo[] _tokenInfos) external payable
+function setTokenIdInfos(uint256[] _tokenIds, ISamWitchOrderBook.TokenIdInfo[] _tokenIdInfos) external payable
 ```
 
 #### Parameters
 
-| Name         | Type                           | Description |
-| ------------ | ------------------------------ | ----------- |
-| \_tokenIds   | uint256[]                      | undefined   |
-| \_tokenInfos | ISamWitchOrderBook.TokenInfo[] | undefined   |
+| Name           | Type                             | Description |
+| -------------- | -------------------------------- | ----------- |
+| \_tokenIds     | uint256[]                        | undefined   |
+| \_tokenIdInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
 
 ### supportsInterface
 
@@ -429,7 +443,7 @@ Get the amount of tokens claimable for these orders
 
 | Name           | Type     | Description                                             |
 | -------------- | -------- | ------------------------------------------------------- |
-| \_orderIds     | uint40[] | The order IDs to get the claimable tokens for           |
+| \_orderIds     | uint40[] | The order IDs of which to find the claimable tokens for |
 | \_takeAwayFees | bool     | Whether to take away the fees from the claimable amount |
 
 #### Returns
@@ -611,27 +625,27 @@ event SetFees(address devAddr, uint256 devFee, uint256 burntFee)
 ### SetMaxOrdersPerPriceLevel
 
 ```solidity
-event SetMaxOrdersPerPriceLevel(uint256 maxOrdersPerPrice)
+event SetMaxOrdersPerPriceLevel(uint256 maxOrdesrsPerPrice)
 ```
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| maxOrdersPerPrice | uint256 | undefined   |
+| Name               | Type    | Description |
+| ------------------ | ------- | ----------- |
+| maxOrdesrsPerPrice | uint256 | undefined   |
 
-### SetTokenInfos
+### SetTokenIdInfos
 
 ```solidity
-event SetTokenInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenInfo[] tokenInfos)
+event SetTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenInfos)
 ```
 
 #### Parameters
 
-| Name       | Type                           | Description |
-| ---------- | ------------------------------ | ----------- |
-| tokenIds   | uint256[]                      | undefined   |
-| tokenInfos | ISamWitchOrderBook.TokenInfo[] | undefined   |
+| Name       | Type                             | Description |
+| ---------- | -------------------------------- | ----------- |
+| tokenIds   | uint256[]                        | undefined   |
+| tokenInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
 
 ### Upgraded
 
@@ -677,17 +691,11 @@ _The ETH balance of the account is not enough to perform the operation._
 | ------- | ------- | ----------- |
 | account | address | undefined   |
 
-### DeadlineExpired
+### ClaimingTooManyOrders
 
 ```solidity
-error DeadlineExpired(uint256 deadline)
+error ClaimingTooManyOrders()
 ```
-
-#### Parameters
-
-| Name     | Type    | Description |
-| -------- | ------- | ----------- |
-| deadline | uint256 | undefined   |
 
 ### DevFeeNotSet
 
@@ -739,36 +747,16 @@ error InvalidInitialization()
 
 _The contract is already initialized._
 
-### InvalidNonce
-
-```solidity
-error InvalidNonce(uint256 invalid, uint256 nonce)
-```
-
-#### Parameters
-
-| Name    | Type    | Description |
-| ------- | ------- | ----------- |
-| invalid | uint256 | undefined   |
-| nonce   | uint256 | undefined   |
-
-### InvalidSignature
-
-```solidity
-error InvalidSignature(address sender, address recoveredAddress)
-```
-
-#### Parameters
-
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| sender           | address | undefined   |
-| recoveredAddress | address | undefined   |
-
 ### LengthMismatch
 
 ```solidity
 error LengthMismatch()
+```
+
+### MaxOrdersNotMultipleOfOrdersInSegment
+
+```solidity
+error MaxOrdersNotMultipleOfOrdersInSegment()
 ```
 
 ### NoQuantity
@@ -888,6 +876,12 @@ _An operation with an ERC20 token failed._
 | Name  | Type    | Description |
 | ----- | ------- | ----------- |
 | token | address | undefined   |
+
+### TickCannotBeChanged
+
+```solidity
+error TickCannotBeChanged()
+```
 
 ### TokenDoesntExist
 

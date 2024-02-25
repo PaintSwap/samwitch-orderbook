@@ -16,8 +16,7 @@ import {IBrushToken} from "./interfaces/IBrushToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 
 /// @title SamWitchOrderBook (SWOB)
-/// @author Sam Witch (PaintSwap & Estfor Kingdom)
-/// @author 0xDoubleSharp
+/// @author Sam Witch (PaintSwap, Estfor Kingdom) & 0xDoubleSharp
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.

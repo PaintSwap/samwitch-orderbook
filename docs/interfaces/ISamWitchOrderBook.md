@@ -5,7 +5,7 @@
 ### allOrdersAtPrice
 
 ```solidity
-function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct ISamWitchOrderBook.OrderBookEntryHelper[] orderBookEntries)
+function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct ISamWitchOrderBook.Order[] orderBookEntries)
 ```
 
 #### Parameters
@@ -18,22 +18,36 @@ function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide side, uint256 tokenI
 
 #### Returns
 
-| Name             | Type                                      | Description |
-| ---------------- | ----------------------------------------- | ----------- |
-| orderBookEntries | ISamWitchOrderBook.OrderBookEntryHelper[] | undefined   |
+| Name             | Type                       | Description |
+| ---------------- | -------------------------- | ----------- |
+| orderBookEntries | ISamWitchOrderBook.Order[] | undefined   |
 
-### cancelOrders
+### cancelAndMakeLimitOrders
 
 ```solidity
-function cancelOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] cancelOrderInfos) external nonpayable
+function cancelAndMakeLimitOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] orders, ISamWitchOrderBook.LimitOrder[] newOrders) external nonpayable
 ```
 
 #### Parameters
 
-| Name             | Type                             | Description |
-| ---------------- | -------------------------------- | ----------- |
-| orderIds         | uint256[]                        | undefined   |
-| cancelOrderInfos | ISamWitchOrderBook.CancelOrder[] | undefined   |
+| Name      | Type                             | Description |
+| --------- | -------------------------------- | ----------- |
+| orderIds  | uint256[]                        | undefined   |
+| orders    | ISamWitchOrderBook.CancelOrder[] | undefined   |
+| newOrders | ISamWitchOrderBook.LimitOrder[]  | undefined   |
+
+### cancelOrders
+
+```solidity
+function cancelOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] cancelClaimableTokenInfos) external nonpayable
+```
+
+#### Parameters
+
+| Name                      | Type                             | Description |
+| ------------------------- | -------------------------------- | ----------- |
+| orderIds                  | uint256[]                        | undefined   |
+| cancelClaimableTokenInfos | ISamWitchOrderBook.CancelOrder[] | undefined   |
 
 ### claimAll
 
@@ -73,6 +87,24 @@ function claimTokens(uint256[] _orderIds) external nonpayable
 | Name       | Type      | Description |
 | ---------- | --------- | ----------- |
 | \_orderIds | uint256[] | undefined   |
+
+### getClaimableTokenInfo
+
+```solidity
+function getClaimableTokenInfo(uint40 _orderId) external view returns (struct ISamWitchOrderBook.ClaimableTokenInfo)
+```
+
+#### Parameters
+
+| Name      | Type   | Description |
+| --------- | ------ | ----------- |
+| \_orderId | uint40 | undefined   |
+
+#### Returns
+
+| Name | Type                                  | Description |
+| ---- | ------------------------------------- | ----------- |
+| \_0  | ISamWitchOrderBook.ClaimableTokenInfo | undefined   |
 
 ### getHighestBid
 
@@ -130,28 +162,10 @@ function getNode(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72
 | ---- | ------------------------------------ | ----------- |
 | \_0  | BokkyPooBahsRedBlackTreeLibrary.Node | undefined   |
 
-### getOrderInfo
+### getTokenIdInfo
 
 ```solidity
-function getOrderInfo(uint40 _orderId) external view returns (struct ISamWitchOrderBook.OrderInfo)
-```
-
-#### Parameters
-
-| Name      | Type   | Description |
-| --------- | ------ | ----------- |
-| \_orderId | uint40 | undefined   |
-
-#### Returns
-
-| Name | Type                         | Description |
-| ---- | ---------------------------- | ----------- |
-| \_0  | ISamWitchOrderBook.OrderInfo | undefined   |
-
-### getTokenInfo
-
-```solidity
-function getTokenInfo(uint256 tokenId) external view returns (struct ISamWitchOrderBook.TokenInfo)
+function getTokenIdInfo(uint256 tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
 ```
 
 #### Parameters
@@ -162,9 +176,9 @@ function getTokenInfo(uint256 tokenId) external view returns (struct ISamWitchOr
 
 #### Returns
 
-| Name | Type                         | Description |
-| ---- | ---------------------------- | ----------- |
-| \_0  | ISamWitchOrderBook.TokenInfo | undefined   |
+| Name | Type                           | Description |
+| ---- | ------------------------------ | ----------- |
+| \_0  | ISamWitchOrderBook.TokenIdInfo | undefined   |
 
 ### limitOrders
 
@@ -413,41 +427,35 @@ event SetFees(address devAddr, uint256 devFee, uint256 burntFee)
 ### SetMaxOrdersPerPriceLevel
 
 ```solidity
-event SetMaxOrdersPerPriceLevel(uint256 maxOrdersPerPrice)
+event SetMaxOrdersPerPriceLevel(uint256 maxOrdesrsPerPrice)
 ```
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| maxOrdersPerPrice | uint256 | undefined   |
+| Name               | Type    | Description |
+| ------------------ | ------- | ----------- |
+| maxOrdesrsPerPrice | uint256 | undefined   |
 
-### SetTokenInfos
+### SetTokenIdInfos
 
 ```solidity
-event SetTokenInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenInfo[] tokenInfos)
+event SetTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenInfos)
 ```
 
 #### Parameters
 
-| Name       | Type                           | Description |
-| ---------- | ------------------------------ | ----------- |
-| tokenIds   | uint256[]                      | undefined   |
-| tokenInfos | ISamWitchOrderBook.TokenInfo[] | undefined   |
+| Name       | Type                             | Description |
+| ---------- | -------------------------------- | ----------- |
+| tokenIds   | uint256[]                        | undefined   |
+| tokenInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
 
 ## Errors
 
-### DeadlineExpired
+### ClaimingTooManyOrders
 
 ```solidity
-error DeadlineExpired(uint256 deadline)
+error ClaimingTooManyOrders()
 ```
-
-#### Parameters
-
-| Name     | Type    | Description |
-| -------- | ------- | ----------- |
-| deadline | uint256 | undefined   |
 
 ### DevFeeNotSet
 
@@ -461,36 +469,16 @@ error DevFeeNotSet()
 error DevFeeTooHigh()
 ```
 
-### InvalidNonce
-
-```solidity
-error InvalidNonce(uint256 invalid, uint256 nonce)
-```
-
-#### Parameters
-
-| Name    | Type    | Description |
-| ------- | ------- | ----------- |
-| invalid | uint256 | undefined   |
-| nonce   | uint256 | undefined   |
-
-### InvalidSignature
-
-```solidity
-error InvalidSignature(address sender, address recoveredAddress)
-```
-
-#### Parameters
-
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| sender           | address | undefined   |
-| recoveredAddress | address | undefined   |
-
 ### LengthMismatch
 
 ```solidity
 error LengthMismatch()
+```
+
+### MaxOrdersNotMultipleOfOrdersInSegment
+
+```solidity
+error MaxOrdersNotMultipleOfOrdersInSegment()
 ```
 
 ### NoQuantity
@@ -559,6 +547,12 @@ error PriceNotMultipleOfTick(uint256 tick)
 
 ```solidity
 error PriceZero()
+```
+
+### TickCannotBeChanged
+
+```solidity
+error TickCannotBeChanged()
 ```
 
 ### TokenDoesntExist
