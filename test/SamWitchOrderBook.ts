@@ -2599,7 +2599,6 @@ describe("SamWitchOrderBook", function () {
       ]);
 
       const newOrder = {side: OrderSide.Buy, tokenId, price: price + 1 * tick, quantity: quantity + 2};
-      console.log(newOrder);
       await orderBook.cancelAndMakeLimitOrders([1], [{side: OrderSide.Buy, tokenId, price}], [newOrder]);
 
       const nextOrderIdSlot = 2;
