@@ -4,11 +4,11 @@
 
 ![swob](https://github.com/PaintSwap/samwitch-orderbook/assets/84033732/977c060f-e6e7-418f-9d44-1012599f41c6)
 
-![overall](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/overall.json)
-![statements](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/statements.json)
-![branches](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/branches.json)
-![functions](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/functions.json)
-![lines](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/lines.json)
+![overall](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/samwitch-orderbook-overall.json)
+![statements](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/samwitch-orderbook-statements.json)
+![branches](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/samwitch-orderbook-branches.json)
+![functions](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/samwitch-orderbook-functions.json)
+![lines](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/doublesharp/8264fd8eb852ea096bf7ee56a7ab695a/raw/samwitch-orderbook-lines.json)
 
 This efficient order book utilises the `BokkyPooBahsRedBlackTreeLibrary` library for sorting prices allowing `O(log n)` for tree segment insertion, traversal, and deletion. It supports batch orders and batch cancelling, `ERC2981` royalties, and a dev and burn fee on each trade.
 

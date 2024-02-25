@@ -1,7 +1,6 @@
 {
   "name": "samwitch-erc1155-orderbook",
   "version": "1.0.0",
-  "main": "index.js",
   "author": "0xSamWitch <julian.assange12@outlook.com>",
   "license": "MIT",
   "devDependencies": {

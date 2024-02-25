@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-node@main
         with:
           node-version: ${{ matrix.node }}
-      - run: yarn install
+      - run: yarn
       - run: yarn deploy
       - run: yarn test
   coverage:
@@ -99,7 +99,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 8264fd8eb852ea096bf7ee56a7ab695a
-          filename: overall.json
+          filename: samwitch-orderbook-overall.json
           label: Coverage
           message: ${{ env.COVERAGE_OVERALL }}
           color: ${{ env.COLOR_OVERALL }}
@@ -109,7 +109,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 8264fd8eb852ea096bf7ee56a7ab695a
-          filename: statements.json
+          filename: samwitch-orderbook-statements.json
           label: Covered Statements
           message: ${{ env.COVERAGE_STMTS }}
           color: ${{ env.COLOR_STMTS }}
@@ -119,7 +119,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 8264fd8eb852ea096bf7ee56a7ab695a
-          filename: branches.json
+          filename: samwitch-orderbook-branches.json
           label: Covered Branches
           message: ${{ env.COVERAGE_BRANCH }}
           color: ${{ env.COLOR_BRANCH }}
@@ -129,7 +129,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 8264fd8eb852ea096bf7ee56a7ab695a
-          filename: functions.json
+          filename: samwitch-orderbook-functions.json
           label: Covered Functions
           message: ${{ env.COVERAGE_FUNCS }}
           color: ${{ env.COLOR_FUNCS }}
@@ -139,7 +139,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 8264fd8eb852ea096bf7ee56a7ab695a
-          filename: lines.json
+          filename: samwitch-orderbook-lines.json
           label: Covered Lines
           message: ${{ env.COVERAGE_LINES }}
           color: ${{ env.COLOR_LINES }}
