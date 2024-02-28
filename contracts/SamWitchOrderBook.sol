@@ -964,10 +964,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     if (_offset == 0 && segment >> 64 == 0) {
-      // If only one order is in the segment, remove the segment by shifting all other segments to the left
-      for (uint i = _index; i < _segments.length.sub(1); ++i) {
-        _segments[i] = _segments[i.inc()];
-      }
+      // If there is only one order at the start of the segment then remove the whole segment
       _segments.pop();
       if (_segments.length == _tombstoneOffset) {
         _tree.remove(_price);
@@ -975,41 +972,44 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     } else {
       uint indexToRemove = _index * NUM_ORDERS_PER_SEGMENT + _offset;
 
-      uint nextElementIndex = 0;
-      uint nextOffsetIndex = 0;
+      // Although this is called next, it also acts as the "last" used later
+      uint nextSegmentIndex = indexToRemove / NUM_ORDERS_PER_SEGMENT;
+      uint nextOffsetIndex = indexToRemove % NUM_ORDERS_PER_SEGMENT;
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
-      for (uint i = indexToRemove; i < _segments.length.mul(NUM_ORDERS_PER_SEGMENT).dec(); ++i) {
-        nextElementIndex = (i.inc()) / NUM_ORDERS_PER_SEGMENT;
+      uint totalOrders = _segments.length.mul(NUM_ORDERS_PER_SEGMENT).dec();
+      for (uint i = indexToRemove; i < totalOrders; ++i) {
+        nextSegmentIndex = (i.inc()) / NUM_ORDERS_PER_SEGMENT;
         nextOffsetIndex = (i.inc()) % NUM_ORDERS_PER_SEGMENT;
 
-        bytes32 nextSegment = _segments[nextElementIndex];
+        bytes32 currentOrNextSegment = _segments[nextSegmentIndex];
 
-        uint currentElementIndex = i / NUM_ORDERS_PER_SEGMENT;
+        uint currentSegmentIndex = i / NUM_ORDERS_PER_SEGMENT;
         uint currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
 
-        bytes32 currentElement = _segments[currentElementIndex];
-
-        uint newOrder = uint64(uint(nextSegment >> nextOffsetIndex.mul(64)));
-        if (newOrder == 0) {
-          nextElementIndex = currentElementIndex;
+        bytes32 currentSegment = _segments[currentSegmentIndex];
+        uint nextOrder = uint64(uint(currentOrNextSegment >> nextOffsetIndex.mul(64)));
+        if (nextOrder == 0) {
+          // There are no more orders left, reset back to the currently iterated order as the last
+          nextSegmentIndex = currentSegmentIndex;
           nextOffsetIndex = currentOffsetIndex;
           break;
         }
 
         // Clear the current order and set it with the shifted order
-        currentElement &= _clearOrderMask(currentOffsetIndex);
-        currentElement |= bytes32(newOrder) << currentOffsetIndex.mul(64);
-        _segments[currentElementIndex] = currentElement;
+        currentSegment &= _clearOrderMask(currentOffsetIndex);
+        currentSegment |= bytes32(nextOrder) << currentOffsetIndex.mul(64);
+        _segments[currentSegmentIndex] = currentSegment;
       }
+      // Only pop if the next offset is 0 which means there is 1 order left in that segment
       if (nextOffsetIndex == 0) {
         _segments.pop();
       } else {
         // Clear the last element
-        bytes32 lastElement = _segments[nextElementIndex];
+        bytes32 lastElement = _segments[nextSegmentIndex];
         lastElement &= _clearOrderMask(nextOffsetIndex);
-        _segments[nextElementIndex] = lastElement;
+        _segments[nextSegmentIndex] = lastElement;
       }
     }
   }

@@ -742,6 +742,51 @@ describe("SamWitchOrderBook", function () {
       expect(orders.length).to.eq(0);
     });
 
+    it("Cancel an order at the very end of the same segment which has a tombstoneOffset", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+
+      const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(8).fill({
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      // Consume whole order to add a tombstone offset
+      const sellLimitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(4).fill({
+        side: OrderSide.Sell,
+        tokenId,
+        price,
+        quantity,
+      });
+      await orderBook.limitOrders(sellLimitOrders);
+
+      expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price)).length).to.eq(4);
+
+      // Cancel a buy at the end of the segment
+      const orderId = 8;
+      console.log("Cancel a buy at the end");
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
+      expect(node.tombstoneOffset).to.eq(1);
+
+      // Should be 3 orders remaining
+      let orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
+      expect(orders.length).to.eq(3);
+      expect(orders[0].id).to.eq(orderId - 3);
+      expect(orders[1].id).to.eq(orderId - 2);
+      expect(orders[2].id).to.eq(orderId - 1);
+
+      expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
+      expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
+    });
+
     it("Cancel an order which deletes a segment at the beginning, middle and end", async function () {
       const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
 
