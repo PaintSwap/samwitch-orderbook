@@ -1,6 +1,6 @@
 {
   "name": "@samwitch/erc1155-orderbook",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "author": "0xSamWitch <julian.assange12@outlook.com>",
   "repository": "https://github.com/PaintSwap/samwitch-orderbook.git",
   "description": "EFficient on-chain orderbook for ERC1155 tokens",
