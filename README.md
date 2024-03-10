@@ -29,8 +29,6 @@ Constraints:
 
 While this order book was created for `ERC1155` NFTs it could be adapted for `ERC20` tokens.
 
-> _Note: Not suitable for production until more tests are added with more code coverage._
-
 Potential improvements:
 
 - TokenInfo could use uint64 for both members and packed 2 in an array if tokenIds are sequential and limited
