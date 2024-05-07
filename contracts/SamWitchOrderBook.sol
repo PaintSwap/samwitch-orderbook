@@ -813,7 +813,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint72 _price,
     uint _orderId,
     uint _quantity,
-    int128 _tickIncrement // -1 for buy, +1 for sell
+    int128 _tick // -1 for buy, +1 for sell
   ) private returns (uint72 price_) {
     // Add to the bids section
     price_ = _price;
@@ -833,7 +833,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       ) {
         // Loop until we find a suitable place to put this
         while (true) {
-          price_ = uint72(uint128(int72(price_) + _tickIncrement));
+          price_ = uint72(uint128(int72(price_) + _tick));
           if (!_tree.exists(price_)) {
             _tree.insert(price_);
             break;
@@ -879,7 +879,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _addToBook(
     uint40 _newOrderId,
-    uint128 tick,
+    uint128 _tick,
     OrderSide _side,
     uint _tokenId,
     uint72 _price,
@@ -889,9 +889,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint72 price;
     // Price can update if the price level is at capacity
     if (_side == OrderSide.Buy) {
-      price = _addToBookSide(bidsAtPrice[_tokenId], bids[_tokenId], _price, _newOrderId, _quantity, -int128(tick));
+      price = _addToBookSide(bidsAtPrice[_tokenId], bids[_tokenId], _price, _newOrderId, _quantity, -int128(_tick));
     } else {
-      price = _addToBookSide(asksAtPrice[_tokenId], asks[_tokenId], _price, _newOrderId, _quantity, int128(tick));
+      price = _addToBookSide(asksAtPrice[_tokenId], asks[_tokenId], _price, _newOrderId, _quantity, int128(_tick));
     }
     emit AddedToBook(_msgSender(), _side, _newOrderId, _tokenId, price, _quantity);
   }
