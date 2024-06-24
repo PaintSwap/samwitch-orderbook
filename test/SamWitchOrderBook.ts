@@ -2675,7 +2675,7 @@ describe("SamWitchOrderBook", function () {
           quantity,
         },
       ]),
-    ).to.throw;
+    ).to.be.revertedWithPanic;
 
     await expect(
       orderBook.limitOrders([
@@ -2686,7 +2686,7 @@ describe("SamWitchOrderBook", function () {
           quantity,
         },
       ]),
-    ).to.throw;
+    ).to.not.be.reverted;
   });
 
   it("Try to upgrade the contract with & without using the owner", async function () {
