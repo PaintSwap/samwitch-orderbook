@@ -1070,7 +1070,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Remove an item, check the order can still be cancelled just not fulfilled", async function () {
-      const {orderBook, tokenId, brush, owner, alice} = await loadFixture(deployContractsFixture);
+      const {orderBook, tokenId, brush, owner} = await loadFixture(deployContractsFixture);
 
       const price = 100;
       const quantity = 10;
@@ -1119,6 +1119,36 @@ describe("SamWitchOrderBook", function () {
         .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
         .withArgs(tokenId);
       expect(await brush.balanceOf(owner.address)).to.eq(preBalance + BigInt(price * (quantity - 1)));
+    });
+
+    // Fixes: https://ftmscan.com/tx/0x69dd308e7a096ebd035bd3a3f18c2a9b116faee78ea4e0ccda06c3cfede0950b
+    it.only("Check cancelling when the overall order amount exceed a uint72 (checks for overflow)", async function () {
+      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+        await loadFixture(deployContractsFixture);
+
+      const quantity = 10n;
+      const extraBrush = ethers.parseEther("1700") * quantity;
+      await brush.mint(owner.address, extraBrush);
+      await brush.approve(orderBook, extraBrush);
+
+      // Set up order books
+      const price = ethers.parseEther("1700");
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      // Cancel buy, should not revert and return the brush
+      const orderId = 1;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      expect(await brush.balanceOf(owner)).to.eq(BigInt(initialBrush) + extraBrush);
+      expect(await brush.balanceOf(orderBook)).to.eq(0);
+      expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
     });
   });
 

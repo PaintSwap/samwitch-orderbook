@@ -225,11 +225,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       (OrderSide side, uint tokenId, uint72 price) = (cancelOrder.side, cancelOrder.tokenId, cancelOrder.price);
 
       if (side == OrderSide.Buy) {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, bidsAtPrice[tokenId][price], bids[tokenId]);
+        uint256 quantity = _cancelOrdersSide(_orderIds[i], price, bidsAtPrice[tokenId][price], bids[tokenId]);
         // Send the remaining token back to them
         brushFromUs += quantity * price;
       } else {
-        uint24 quantity = _cancelOrdersSide(_orderIds[i], price, asksAtPrice[tokenId][price], asks[tokenId]);
+        uint256 quantity = _cancelOrdersSide(_orderIds[i], price, asksAtPrice[tokenId][price], asks[tokenId]);
         // Send the remaining NFTs back to them
         nftIdsFromUs[nftsFromUs] = tokenId;
         nftAmountsFromUs[nftsFromUs] = quantity;
