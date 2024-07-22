@@ -1122,7 +1122,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     // Fixes: https://ftmscan.com/tx/0x69dd308e7a096ebd035bd3a3f18c2a9b116faee78ea4e0ccda06c3cfede0950b
-    it.only("Check cancelling when the overall order amount exceed a uint72 (checks for overflow)", async function () {
+    it("Check cancelling when the overall order amount exceed a uint72 (checks for overflow)", async function () {
       const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
         await loadFixture(deployContractsFixture);
 
