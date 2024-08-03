@@ -22,6 +22,13 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint24 quantity;
   }
 
+  struct MarketOrder {
+    OrderSide side;
+    uint tokenId;
+    uint24 quantity;
+    uint totalCost;
+  }
+
   struct CancelOrder {
     OrderSide side;
     uint tokenId;
@@ -66,6 +73,10 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error MaxOrdersNotMultipleOfOrdersInSegment();
   error TickCannotBeChanged();
   error ClaimingTooManyOrders();
+  error FailedToTakeFromBook(address taker, OrderSide side, uint tokenId, uint quantityRemaining);
+  error TotalCostConditionNotMet();
+
+  function marketOrder(MarketOrder calldata order) external;
 
   function limitOrders(LimitOrder[] calldata orders) external;
 

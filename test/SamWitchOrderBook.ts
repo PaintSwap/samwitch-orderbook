@@ -215,220 +215,514 @@ describe("SamWitchOrderBook", function () {
     expect(await orderBook.getLowestAsk(tokenId)).to.equal(price + 1);
   });
 
-  it("Take from sell order book", async function () {
-    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+  describe("Market orders", function () {
+    it("Check total cost, buying", async function () {
+      const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
 
-    // Set up order books
-    const price = 100;
-    const quantity = 10;
-    await orderBook.limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price,
-        quantity,
-      },
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price: price + 1,
-        quantity,
-      },
-    ]);
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      // Take from it
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost: price * 10 - 1, // total cost is too low
+          quantity: 10,
+        }),
+      ).to.be.revertedWithCustomError(orderBook, "TotalCostConditionNotMet");
 
-    // Buy
-    const numToBuy = 3;
-    const orderId = 2;
-    await expect(
-      orderBook.connect(alice).limitOrders([
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost: price * 10, // total cost is exact
+          quantity: 10,
+        }),
+      ).to.not.be.reverted;
+
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost: price * 11, // total cost is higher
+          quantity: 10,
+        }),
+      ).to.not.be.reverted;
+    });
+
+    it("Check total cost, selling", async function () {
+      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
+
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
         {
           side: OrderSide.Buy,
           tokenId,
-          price: price + 1,
-          quantity: numToBuy,
-        },
-      ]),
-    )
-      .to.emit(orderBook, "OrdersMatched")
-      .withArgs(alice.address, [orderId], [numToBuy]);
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
-
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price: price + 2,
-        quantity: quantity - numToBuy,
-      },
-    ]); // Buy the rest
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
-
-    // There's nothing left on the sell side, this adds to the buy order side
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price: price + 2,
-        quantity: 1,
-      },
-    ]);
-    expect(await orderBook.getHighestBid(tokenId)).to.equal(price + 2);
-  });
-
-  it("Take from buy order book, 1 exact order among a segment", async function () {
-    const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
-
-    // Set up order books
-    const price = 100;
-    const quantity = 10;
-    await orderBook.limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price,
-        quantity,
-      },
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price,
-        quantity,
-      },
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price: price + 1,
-        quantity,
-      },
-    ]);
-
-    // Sell
-    const orderId = 1;
-    await expect(
-      orderBook.connect(alice).limitOrders([
-        {
-          side: OrderSide.Sell,
-          tokenId,
-          price: price,
+          price,
           quantity,
         },
-      ]),
-    )
-      .to.emit(orderBook, "OrdersMatched")
-      .withArgs(alice.address, [orderId], [quantity]);
-  });
+      ]);
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: price * 10 + 1, // total cost is too high
+          quantity: 10,
+        }),
+      ).to.be.revertedWithCustomError(orderBook, "TotalCostConditionNotMet");
 
-  it("Take from buy order book", async function () {
-    const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: price * 10, // total cost is exact
+          quantity: 10,
+        }),
+      ).to.not.be.reverted;
 
-    // Set up order books
-    const price = 100;
-    const quantity = 10;
-    await orderBook.limitOrders([
-      {
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: 0, // total cost is too high
+          quantity: 10,
+        }),
+      ).to.not.be.reverted;
+    });
+
+    it("Take from sell order book", async function () {
+      const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      // Buy
+      const numToBuy = 3;
+      const orderId = 2;
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost: (price + 1) * numToBuy,
+          quantity: numToBuy,
+        }),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [numToBuy]);
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
+
+      await orderBook.connect(alice).marketOrder({
+        side: OrderSide.Buy,
+        tokenId,
+        totalCost: (price + 1) * (quantity - numToBuy),
+        quantity: quantity - numToBuy,
+      }); // Buy the rest
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
+
+      // There's nothing left on the sell side, this adds to the buy order side
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost: price + 2,
+          quantity: 1,
+        }),
+      ).to.be.revertedWithCustomError(orderBook, "FailedToTakeFromBook");
+    });
+
+    it("Take from buy order book, 1 exact order among a segment", async function () {
+      const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      // Sell
+      const orderId = 1;
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: price * quantity,
+          quantity,
+        }),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [quantity]);
+    });
+
+    it("Take from buy order book", async function () {
+      const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      // Sell
+      const numToSell = 3;
+      const orderId = 1;
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: price * numToSell,
+          quantity: numToSell,
+        }),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [numToSell]);
+
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+
+      await orderBook.connect(alice).marketOrder({
+        side: OrderSide.Sell,
+        tokenId,
+        totalCost: price * (quantity - numToSell),
+        quantity: quantity - numToSell,
+      }); // Buy the rest
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
+
+      // There's nothing left on the sell side
+      await expect(
+        orderBook.connect(alice).marketOrder({
+          side: OrderSide.Sell,
+          tokenId,
+          totalCost: price,
+          quantity: 1,
+        }),
+      ).to.be.revertedWithCustomError(orderBook, "FailedToTakeFromBook");
+    });
+
+    it("Take from buy order book, max orders hit should revert", async function () {
+      this.timeout(0);
+
+      const {orderBook, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 1;
+      let limitOrder = {
         side: OrderSide.Buy,
         tokenId,
         price,
         quantity,
-      },
-      {
+      };
+
+      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 1,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 2,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 3,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 4,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 5,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      const marketOrder = {
         side: OrderSide.Sell,
         tokenId,
-        price: price + 1,
-        quantity,
-      },
-    ]);
+        totalCost: price * maxOrdersPerPrice * 5,
+        quantity: maxOrdersPerPrice * 5,
+      };
+      await expect(orderBook.marketOrder(marketOrder)).to.be.revertedWithCustomError(orderBook, "TooManyOrdersHit");
+    });
+  });
 
-    // Sell
-    const numToSell = 3;
-    const orderId = 1;
-    await expect(
-      orderBook.connect(alice).limitOrders([
+  describe("Limit orders", function () {
+    it("Take from sell order book", async function () {
+      const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
         {
           side: OrderSide.Sell,
           tokenId,
-          price: price,
-          quantity: numToSell,
+          price: price + 1,
+          quantity,
         },
-      ]),
-    )
-      .to.emit(orderBook, "OrdersMatched")
-      .withArgs(alice.address, [orderId], [numToSell]);
+      ]);
 
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+      // Buy
+      const numToBuy = 3;
+      const orderId = 2;
+      await expect(
+        orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price: price + 1,
+            quantity: numToBuy,
+          },
+        ]),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [numToBuy]);
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
 
-    await orderBook.connect(alice).limitOrders([
-      {
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price: price + 2,
+          quantity: quantity - numToBuy,
+        },
+      ]); // Buy the rest
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
+
+      // There's nothing left on the sell side, this adds to the buy order side
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price: price + 2,
+          quantity: 1,
+        },
+      ]);
+      expect(await orderBook.getHighestBid(tokenId)).to.equal(price + 2);
+    });
+
+    it("Take from buy order book, 1 exact order among a segment", async function () {
+      const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      // Sell
+      const orderId = 1;
+      await expect(
+        orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price: price,
+            quantity,
+          },
+        ]),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [quantity]);
+    });
+
+    it("Take from buy order book", async function () {
+      const {orderBook, erc1155, initialQuantity, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price + 1,
+          quantity,
+        },
+      ]);
+
+      // Sell
+      const numToSell = 3;
+      const orderId = 1;
+      await expect(
+        orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price: price,
+            quantity: numToSell,
+          },
+        ]),
+      )
+        .to.emit(orderBook, "OrdersMatched")
+        .withArgs(alice.address, [orderId], [numToSell]);
+
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price - 1,
+          quantity: quantity - numToSell,
+        },
+      ]); // Buy the rest
+      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
+
+      // There's nothing left on the sell side, this adds to the buy order side
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price: price - 1,
+          quantity: 1,
+        },
+      ]);
+      expect(await orderBook.getLowestAsk(tokenId)).to.equal(price - 1);
+    });
+
+    it("Take from buy order book, max orders hit should revert", async function () {
+      this.timeout(0);
+
+      const {orderBook, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 1;
+      let limitOrder = {
+        side: OrderSide.Buy,
+        tokenId,
+        price,
+        quantity,
+      };
+
+      let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 1,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 2,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 3,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 4,
+      });
+      await orderBook.limitOrders(limitOrders);
+      limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
+        ...limitOrder,
+        price: limitOrder.price + 5,
+      });
+      await orderBook.limitOrders(limitOrders);
+
+      limitOrder = {
         side: OrderSide.Sell,
         tokenId,
-        price: price - 1,
-        quantity: quantity - numToSell,
-      },
-    ]); // Buy the rest
-    expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
-
-    // There's nothing left on the sell side, this adds to the buy order side
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price: price - 1,
-        quantity: 1,
-      },
-    ]);
-    expect(await orderBook.getLowestAsk(tokenId)).to.equal(price - 1);
-  });
-
-  it("Take from buy order book, max orders hit should revert", async function () {
-    this.timeout(0);
-
-    const {orderBook, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
-
-    // Set up order books
-    const price = 100;
-    const quantity = 1;
-    let limitOrder = {
-      side: OrderSide.Buy,
-      tokenId,
-      price,
-      quantity,
-    };
-
-    let limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
-    await orderBook.limitOrders(limitOrders);
-    limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-      ...limitOrder,
-      price: limitOrder.price + 1,
+        price,
+        quantity: maxOrdersPerPrice * 5,
+      };
+      await expect(orderBook.limitOrders([limitOrder])).to.be.revertedWithCustomError(orderBook, "TooManyOrdersHit");
     });
-    await orderBook.limitOrders(limitOrders);
-    limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-      ...limitOrder,
-      price: limitOrder.price + 2,
-    });
-    await orderBook.limitOrders(limitOrders);
-    limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-      ...limitOrder,
-      price: limitOrder.price + 3,
-    });
-    await orderBook.limitOrders(limitOrders);
-    limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-      ...limitOrder,
-      price: limitOrder.price + 4,
-    });
-    await orderBook.limitOrders(limitOrders);
-    limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill({
-      ...limitOrder,
-      price: limitOrder.price + 5,
-    });
-    await orderBook.limitOrders(limitOrders);
-
-    limitOrder = {
-      side: OrderSide.Sell,
-      tokenId,
-      price,
-      quantity: maxOrdersPerPrice * 5,
-    };
-    await expect(orderBook.limitOrders([limitOrder])).to.be.revertedWithCustomError(orderBook, "TooManyOrdersHit");
   });
 
   it("Failed orders", async function () {
@@ -516,6 +810,35 @@ describe("SamWitchOrderBook", function () {
     )
       .to.emit(orderBook, "FailedToAddToBook")
       .withArgs(owner.address, OrderSide.Sell, tokenId, price - tick, 7);
+  });
+
+  describe("Make market orders", function () {
+    it("Invalid market orders", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const totalCost = 0;
+      const quantity = 10;
+      await expect(
+        orderBook.marketOrder({
+          side: OrderSide.Buy,
+          tokenId,
+          totalCost,
+          quantity: 0,
+        }),
+      ).to.be.revertedWithCustomError(orderBook, "NoQuantity");
+
+      await expect(
+        orderBook.marketOrder({
+          side: OrderSide.Buy,
+          tokenId: tokenId + 1,
+          totalCost,
+          quantity,
+        }),
+      )
+        .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
+        .withArgs(tokenId + 1);
+    });
   });
 
   describe("Make limit order", function () {
@@ -770,7 +1093,6 @@ describe("SamWitchOrderBook", function () {
 
       // Cancel a buy at the end of the segment
       const orderId = 8;
-      console.log("Cancel a buy at the end");
       await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
       const node = await orderBook.getNode(OrderSide.Buy, tokenId, price);
@@ -1876,88 +2198,173 @@ describe("SamWitchOrderBook", function () {
     await expect(orderBook.updateRoyaltyFee()).to.not.be.reverted;
   });
 
-  it("Check all fees (buying into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
-      await loadFixture(deployContractsFixture);
+  describe("Market orders", function () {
+    it("Check all fees (buying into order book)", async function () {
+      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
 
-    await erc1155.setRoyaltyFee(1000); // 10%
-    await orderBook.updateRoyaltyFee();
+      await erc1155.setRoyaltyFee(1000); // 10%
+      await orderBook.updateRoyaltyFee();
 
-    // Set up order book
-    const price = 100;
-    const quantity = 100;
-    await orderBook.limitOrders([
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price,
-        quantity,
-      },
-    ]);
-    const cost = price * 10;
-    await orderBook.connect(alice).limitOrders([
-      {
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      // Take from it
+      const cost = price * 10;
+      await orderBook.connect(alice).marketOrder({
         side: OrderSide.Buy,
         tokenId,
-        price,
+        totalCost: cost,
         quantity: 10,
-      },
-    ]);
+      });
 
-    // Check fees
-    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
-    const royalty = cost / 10;
-    const burnt = (cost * 3) / 1000; // 0.3%
-    const devAmount = (cost * 3) / 1000; // 0.3%
-    const fees = royalty + burnt + devAmount;
-    expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
-    expect(await brush.balanceOf(dev)).to.eq(devAmount);
-    expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-    expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-    expect(await brush.amountBurnt()).to.eq(burnt);
+      // Check fees
+      expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
+      const royalty = cost / 10;
+      const burnt = (cost * 3) / 1000; // 0.3%
+      const devAmount = (cost * 3) / 1000; // 0.3%
+      const fees = royalty + burnt + devAmount;
+      expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
+      expect(await brush.balanceOf(dev)).to.eq(devAmount);
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await brush.amountBurnt()).to.eq(burnt);
+    });
+
+    it("Check all fees (selling into order book)", async function () {
+      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
+
+      await erc1155.setRoyaltyFee(1000); // 10%
+      await orderBook.updateRoyaltyFee();
+
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      const buyingCost = price * quantity;
+      const cost = price * 10;
+      await orderBook.connect(alice).marketOrder({
+        side: OrderSide.Sell,
+        tokenId,
+        totalCost: 0,
+        quantity: 10,
+      });
+
+      // Check fees
+      const royalty = cost / 10;
+      const burnt = (cost * 3) / 1000; // 0.3%
+      const devAmount = (cost * 3) / 1000; // 0.3%
+      const fees = royalty + burnt + devAmount;
+
+      expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
+      expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
+      expect(await brush.balanceOf(dev)).to.eq(devAmount);
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
+      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await brush.amountBurnt()).to.eq(burnt);
+    });
   });
 
-  it("Check all fees (selling into order book)", async function () {
-    const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
-      await loadFixture(deployContractsFixture);
+  describe("Limit orders", function () {
+    it("Check all fees (buying into order book)", async function () {
+      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
 
-    await erc1155.setRoyaltyFee(1000); // 10%
-    await orderBook.updateRoyaltyFee();
+      await erc1155.setRoyaltyFee(1000); // 10%
+      await orderBook.updateRoyaltyFee();
 
-    // Set up order book
-    const price = 100;
-    const quantity = 100;
-    await orderBook.limitOrders([
-      {
-        side: OrderSide.Buy,
-        tokenId,
-        price,
-        quantity,
-      },
-    ]);
-    const buyingCost = price * quantity;
-    const cost = price * 10;
-    await orderBook.connect(alice).limitOrders([
-      {
-        side: OrderSide.Sell,
-        tokenId,
-        price,
-        quantity: 10,
-      },
-    ]);
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      const cost = price * 10;
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity: 10,
+        },
+      ]);
 
-    // Check fees
-    const royalty = cost / 10;
-    const burnt = (cost * 3) / 1000; // 0.3%
-    const devAmount = (cost * 3) / 1000; // 0.3%
-    const fees = royalty + burnt + devAmount;
+      // Check fees
+      expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
+      const royalty = cost / 10;
+      const burnt = (cost * 3) / 1000; // 0.3%
+      const devAmount = (cost * 3) / 1000; // 0.3%
+      const fees = royalty + burnt + devAmount;
+      expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
+      expect(await brush.balanceOf(dev)).to.eq(devAmount);
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await brush.amountBurnt()).to.eq(burnt);
+    });
 
-    expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
-    expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
-    expect(await brush.balanceOf(dev)).to.eq(devAmount);
-    expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
-    expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-    expect(await brush.amountBurnt()).to.eq(burnt);
+    it("Check all fees (selling into order book)", async function () {
+      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+        await loadFixture(deployContractsFixture);
+
+      await erc1155.setRoyaltyFee(1000); // 10%
+      await orderBook.updateRoyaltyFee();
+
+      // Set up order book
+      const price = 100;
+      const quantity = 100;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+      const buyingCost = price * quantity;
+      const cost = price * 10;
+      await orderBook.connect(alice).limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: 10,
+        },
+      ]);
+
+      // Check fees
+      const royalty = cost / 10;
+      const burnt = (cost * 3) / 1000; // 0.3%
+      const devAmount = (cost * 3) / 1000; // 0.3%
+      const fees = royalty + burnt + devAmount;
+
+      expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
+      expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
+      expect(await brush.balanceOf(dev)).to.eq(devAmount);
+      expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
+      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await brush.amountBurnt()).to.eq(burnt);
+    });
   });
 
   it("Set fees can only be called by the owner", async function () {

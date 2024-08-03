@@ -105,6 +105,60 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     nextOrderId = 1;
   }
 
+  /// @notice Place market order
+  /// @param _marketOrder market order to be placed
+  function marketOrder(MarketOrder calldata _marketOrder) external override {
+    // Must fufill the order and be below the total cost (or above depending on the side)
+    uint royalty;
+    uint dev;
+    uint burn;
+    uint brushToUs;
+    uint brushFromUs;
+    address sender = _msgSender();
+
+    uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
+    uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
+
+    uint cost = _makeMarketOrder(_marketOrder, orderIdsPool, quantitiesPool);
+    bool isBuy = _marketOrder.side == OrderSide.Buy;
+    if (isBuy) {
+      if (cost > _marketOrder.totalCost) {
+        revert TotalCostConditionNotMet();
+      }
+
+      brushToUs = cost;
+      (royalty, dev, burn) = _calcFees(cost);
+    } else {
+      if (cost < _marketOrder.totalCost) {
+        revert TotalCostConditionNotMet();
+      }
+
+      // Transfer tokens to the seller if any have sold
+      (royalty, dev, burn) = _calcFees(cost);
+
+      uint fees = royalty.add(dev).add(burn);
+      brushFromUs = cost.sub(fees);
+    }
+
+    if (brushToUs != 0) {
+      token.safeTransferFrom(sender, address(this), brushToUs);
+    }
+
+    if (brushFromUs != 0) {
+      token.safeTransfer(sender, brushFromUs);
+    }
+
+    if (!isBuy) {
+      // Selling, transfer all NFTs to us
+      _safeTransferNFTsToUs(sender, _marketOrder.tokenId, _marketOrder.quantity);
+    } else {
+      // Buying transfer the NFTs to the taker
+      _safeTransferNFTsFromUs(sender, _marketOrder.tokenId, _marketOrder.quantity);
+    }
+
+    _sendFees(royalty, dev, burn);
+  }
+
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) public override {
@@ -763,6 +817,37 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     _cancelOrder(_segments, _price, index, offset, tombstoneOffset, _tree);
   }
 
+  function _makeMarketOrder(
+    MarketOrder calldata _marketOrder,
+    uint[] memory _orderIdsPool,
+    uint[] memory _quantitiesPool
+  ) private returns (uint cost_) {
+    if (_marketOrder.quantity == 0) {
+      revert NoQuantity();
+    }
+
+    uint128 tick = tokenIdInfo[_marketOrder.tokenId].tick;
+
+    if (tick == 0) {
+      revert TokenDoesntExist(_marketOrder.tokenId);
+    }
+
+    uint24 quantityRemaining;
+    uint72 price = _marketOrder.side == OrderSide.Buy ? type(uint72).max : 0;
+    (quantityRemaining, cost_) = _takeFromOrderBook(
+      _marketOrder.side,
+      _marketOrder.tokenId,
+      price,
+      _marketOrder.quantity,
+      _orderIdsPool,
+      _quantitiesPool
+    );
+
+    if (quantityRemaining != 0) {
+      revert FailedToTakeFromBook(_msgSender(), _marketOrder.side, _marketOrder.tokenId, quantityRemaining);
+    }
+  }
+
   function _makeLimitOrder(
     uint40 _newOrderId,
     LimitOrder calldata _limitOrder,
@@ -1024,6 +1109,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _safeBatchTransferNFTsFromUs(address _to, uint[] memory _tokenIds, uint[] memory _amounts) private {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
+  }
+
+  function _safeTransferNFTsToUs(address _from, uint _tokenId, uint _amount) private {
+    nft.safeTransferFrom(_from, address(this), _tokenId, _amount, "");
+  }
+
+  function _safeTransferNFTsFromUs(address _to, uint _tokenId, uint _amount) private {
+    nft.safeTransferFrom(address(this), _to, _tokenId, _amount, "");
   }
 
   // solhint-disable-next-line no-empty-blocks
