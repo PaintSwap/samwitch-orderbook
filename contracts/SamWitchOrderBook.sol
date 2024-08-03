@@ -544,7 +544,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint numberOfOrders;
     while (quantityRemaining_ != 0) {
       uint72 bestPrice = isTakingFromBuy ? getHighestBid(_tokenId) : getLowestAsk(_tokenId);
-      if (bestPrice == 0 || isTakingFromBuy ? bestPrice < _price : bestPrice > _price) {
+      if (bestPrice == 0 || (isTakingFromBuy ? bestPrice < _price : bestPrice > _price)) {
         // No more orders left
         break;
       }
