@@ -2568,7 +2568,6 @@ describe("SamWitchOrderBook", function () {
           },
         ]);
 
-        // Nothing to claim
         const orderId = 1;
         await expect(orderBook.claimTokens([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
@@ -2732,12 +2731,6 @@ describe("SamWitchOrderBook", function () {
         expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
         expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
         expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
-
-        // try to claim as a different user (not maker)
-        await expect(orderBook.connect(alice).claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-          orderBook,
-          "NotMaker",
-        );
 
         // claim as the maker
         await expect(orderBook.claimNFTs([orderId], [tokenId]))
@@ -2908,6 +2901,42 @@ describe("SamWitchOrderBook", function () {
         orders.pop();
         tokenIds.pop();
         await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
+      });
+
+      it("Claim NFTs, defensive constraints", async function () {
+        const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
+
+        // Set up order book
+        const price = 100;
+        const quantity = 100;
+        await orderBook.limitOrders([
+          {
+            side: OrderSide.Buy,
+            tokenId,
+            price,
+            quantity,
+          },
+        ]);
+
+        const orderId = 1;
+        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NothingToClaim",
+        );
+
+        await orderBook.connect(alice).limitOrders([
+          {
+            side: OrderSide.Sell,
+            tokenId,
+            price,
+            quantity: 10,
+          },
+        ]);
+
+        await expect(orderBook.connect(alice).claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NotMaker",
+        );
       });
 
       it("Claiming no nfts, empty order id array argument", async function () {
