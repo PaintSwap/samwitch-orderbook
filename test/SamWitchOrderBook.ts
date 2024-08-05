@@ -2733,6 +2733,13 @@ describe("SamWitchOrderBook", function () {
         expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
         expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
 
+        // try to claim as a different user (not maker)
+        await expect(orderBook.connect(alice).claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+          orderBook,
+          "NotMaker",
+        );
+
+        // claim as the maker
         await expect(orderBook.claimNFTs([orderId], [tokenId]))
           .to.emit(orderBook, "ClaimedNFTs")
           .withArgs(owner.address, [orderId], [tokenId], [10]);

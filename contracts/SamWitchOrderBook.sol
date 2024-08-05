@@ -380,6 +380,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (amount == 0) {
         revert NothingToClaim();
       }
+
+      if (tokenClaimable[orderId].maker != _msgSender()) {
+        revert NotMaker();
+      }
+
       nftAmountsFromUs[i] = amount;
       amountClaimableForTokenId[tokenId][orderId] = 0;
     }
