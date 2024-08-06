@@ -93,9 +93,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
     setFees(devAddr, devFee, burntFee);
     // nft must be an ERC1155 via ERC165
-    if (!nft.supportsInterface(type(IERC1155).interfaceId)) {
-      revert NotERC1155();
-    }
+    require(nft.supportsInterface(type(IERC1155).interfaceId), NotERC1155());
 
     _nft = nft;
     _token = IBrushToken(token);
@@ -123,16 +121,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256 cost = _makeMarketOrder(order, orderIdsPool, quantitiesPool);
     bool isBuy = order.side == OrderSide.Buy;
     if (isBuy) {
-      if (cost > order.totalCost) {
-        revert TotalCostConditionNotMet();
-      }
+      require(cost <= order.totalCost, TotalCostConditionNotMet());
 
       brushToUs = cost;
       (royalty, dev, burn) = _calcFees(cost);
     } else {
-      if (cost < order.totalCost) {
-        revert TotalCostConditionNotMet();
-      }
+      require(cost >= order.totalCost, TotalCostConditionNotMet());
 
       // Transfer tokens to the seller if any have sold
       (royalty, dev, burn) = _calcFees(cost);
@@ -264,9 +258,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @param orderIds Array of order IDs to be cancelled
   /// @param orders Information about the orders so that they can be found in the order book
   function cancelOrders(uint256[] calldata orderIds, CancelOrder[] calldata orders) public override {
-    if (orderIds.length != orders.length) {
-      revert LengthMismatch();
-    }
+    require(orderIds.length == orders.length, LengthMismatch());
 
     address sender = _msgSender();
 
@@ -327,29 +319,20 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   ///         Must be the maker of these orders.
   /// @param orderIds Array of order IDs from which to claim NFTs
   function claimTokens(uint256[] calldata orderIds) public override {
-    if (orderIds.length > MAX_CLAIMABLE_ORDERS) {
-      revert ClaimingTooManyOrders();
-    }
+    require(orderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
     uint256 amount;
     for (uint256 i = 0; i < orderIds.length; ++i) {
       uint40 orderId = uint40(orderIds[i]);
       ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderId];
       uint80 claimableAmount = claimableTokenInfo.amount;
-      if (claimableAmount == 0) {
-        revert NothingToClaim();
-      }
-
-      if (claimableTokenInfo.maker != _msgSender()) {
-        revert NotMaker();
-      }
+      require(claimableAmount != 0, NothingToClaim());
+      require(claimableTokenInfo.maker == _msgSender(), NotMaker());
 
       claimableTokenInfo.amount = 0;
       amount = amount.add(claimableAmount);
     }
 
-    if (amount == 0) {
-      revert NothingToClaim();
-    }
+    require(amount != 0, NothingToClaim());
     (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
     uint256 fees = royalty.add(dev).add(burn);
     _token.safeTransfer(_msgSender(), amount.sub(fees));
@@ -361,30 +344,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @param orderIds Array of order IDs from which to claim NFTs
   /// @param tokenIds Array of token IDs to claim NFTs for
   function claimNFTs(uint256[] calldata orderIds, uint256[] calldata tokenIds) public override {
-    if (orderIds.length > MAX_CLAIMABLE_ORDERS) {
-      revert ClaimingTooManyOrders();
-    }
-
-    if (orderIds.length != tokenIds.length) {
-      revert LengthMismatch();
-    }
-
-    if (tokenIds.length == 0) {
-      revert NothingToClaim();
-    }
+    require(orderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
+    require(orderIds.length == tokenIds.length, LengthMismatch());
+    require(tokenIds.length != 0, NothingToClaim());
 
     uint256[] memory nftAmountsFromUs = new uint256[](tokenIds.length);
     for (uint256 i = 0; i < tokenIds.length; ++i) {
       uint40 orderId = uint40(orderIds[i]);
       uint256 tokenId = tokenIds[i];
       uint256 amount = _amountClaimableForTokenId[tokenId][orderId];
-      if (amount == 0) {
-        revert NothingToClaim();
-      }
-
-      if (_tokenClaimable[orderId].maker != _msgSender()) {
-        revert NotMaker();
-      }
+      require(amount != 0, NothingToClaim());
+      require(_tokenClaimable[orderId].maker == _msgSender(), NotMaker());
 
       nftAmountsFromUs[i] = amount;
       _amountClaimableForTokenId[tokenId][orderId] = 0;
@@ -404,13 +374,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256[] calldata nftOrderIds,
     uint256[] calldata tokenIds
   ) external override {
-    if (brushOrderIds.length == 0 && nftOrderIds.length == 0 && tokenIds.length == 0) {
-      revert NothingToClaim();
-    }
-
-    if (brushOrderIds.length + nftOrderIds.length > MAX_CLAIMABLE_ORDERS) {
-      revert ClaimingTooManyOrders();
-    }
+    require(!(brushOrderIds.length == 0 && nftOrderIds.length == 0 && tokenIds.length == 0), NothingToClaim());
+    require(brushOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
 
     if (brushOrderIds.length != 0) {
       claimTokens(brushOrderIds);
@@ -528,12 +493,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     }
   }
 
-  /// @notice The maximum amount of orders allowed at a specific price level
+  /// @notice Set the maximum amount of orders allowed at a specific price level
   /// @param maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
   function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) public payable onlyOwner {
-    if (maxOrdersPerPrice % NUM_ORDER_PER_SEGMENT != 0) {
-      revert MaxOrdersNotMultipleOfOrdersInSegment();
-    }
+    require(maxOrdersPerPrice % NUM_ORDER_PER_SEGMENT == 0, MaxOrdersNotMultipleOfOrdersInSegment());
     _maxOrdersPerPrice = maxOrdersPerPrice;
     emit SetMaxOrdersPerPriceLevel(maxOrdersPerPrice);
   }
@@ -546,18 +509,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256[] calldata tokenIds,
     TokenIdInfo[] calldata tokenIdInfos
   ) external payable onlyOwner {
-    if (tokenIds.length != tokenIdInfos.length) {
-      revert LengthMismatch();
-    }
+    require(tokenIds.length == tokenIdInfos.length, LengthMismatch());
 
     for (uint256 i = 0; i < tokenIds.length; ++i) {
       // Cannot change tick once set
       uint256 existingTick = _tokenIdInfo[tokenIds[i]].tick;
       uint256 newTick = tokenIdInfos[i].tick;
 
-      if (existingTick != 0 && newTick != 0 && existingTick != newTick) {
-        revert TickCannotBeChanged();
-      }
+      require(existingTick == 0 || newTick == 0 || existingTick == newTick, TickCannotBeChanged());
 
       _tokenIdInfo[tokenIds[i]] = tokenIdInfos[i];
     }
@@ -571,13 +530,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @param burntFee The fee to burn (max 2%)
   function setFees(address devAddr, uint16 devFee, uint8 burntFee) public onlyOwner {
     if (devFee != 0) {
-      if (devAddr == address(0)) {
-        revert ZeroAddress();
-      } else if (devFee > 1000) {
-        revert DevFeeTooHigh();
-      }
-    } else if (devAddr != address(0)) {
-      revert DevFeeNotSet();
+      require(devAddr != address(0), ZeroAddress());
+      require(devFee <= 1000, DevFeeTooHigh());
+    } else {
+      require(devAddr == address(0), DevFeeNotSet());
     }
     _devFee = devFee; // 30 = 0.3% fee
     _devAddr = devAddr;
@@ -672,9 +628,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
           quantitiesPool[numberOfOrders] = quantityNFTClaimable;
           numberOfOrders = numberOfOrders.inc();
 
-          if (numberOfOrders >= MAX_ORDERS_HIT) {
-            revert TooManyOrdersHit();
-          }
+          require(numberOfOrders < MAX_ORDERS_HIT, TooManyOrdersHit());
         }
 
         if (wholeSegmentConsumed) {
@@ -833,15 +787,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256[] memory orderIdsPool,
     uint256[] memory quantitiesPool
   ) private returns (uint256 cost) {
-    if (order.quantity == 0) {
-      revert NoQuantity();
-    }
+    require(order.quantity != 0, NoQuantity());
 
     uint128 tick = _tokenIdInfo[order.tokenId].tick;
 
-    if (tick == 0) {
-      revert TokenDoesntExist(order.tokenId);
-    }
+    require(tick != 0, TokenDoesntExist(order.tokenId));
 
     uint24 quantityRemaining;
     uint72 price = order.side == OrderSide.Buy ? type(uint72).max : 0;
@@ -854,9 +804,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       quantitiesPool
     );
 
-    if (quantityRemaining != 0) {
-      revert FailedToTakeFromBook(_msgSender(), order.side, order.tokenId, quantityRemaining);
-    }
+    require(quantityRemaining == 0, FailedToTakeFromBook(_msgSender(), order.side, order.tokenId, quantityRemaining));
   }
 
   function _makeLimitOrder(
@@ -865,23 +813,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256[] memory orderIdsPool,
     uint256[] memory quantitiesPool
   ) private returns (uint24 quantityAddedToBook, uint24 failedQuantity, uint256 cost) {
-    if (limitOrder.quantity == 0) {
-      revert NoQuantity();
-    }
-
-    if (limitOrder.price == 0) {
-      revert PriceZero();
-    }
+    require(limitOrder.quantity != 0, NoQuantity());
+    require(limitOrder.price != 0, PriceZero());
 
     uint128 tick = _tokenIdInfo[limitOrder.tokenId].tick;
 
-    if (tick == 0) {
-      revert TokenDoesntExist(limitOrder.tokenId);
-    }
-
-    if (limitOrder.price % tick != 0) {
-      revert PriceNotMultipleOfTick(tick);
-    }
+    require(tick != 0, TokenDoesntExist(limitOrder.tokenId));
+    require(limitOrder.price % tick == 0, PriceNotMultipleOfTick(tick));
 
     uint24 quantityRemaining;
     (quantityRemaining, cost) = _takeFromOrderBook(
@@ -1055,9 +993,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     bytes32 segment = segments[index];
     uint40 orderId = uint40(uint(segment) >> offset.mul(64));
 
-    if (_tokenClaimable[orderId].maker != _msgSender()) {
-      revert NotMaker();
-    }
+    require(_tokenClaimable[orderId].maker == _msgSender(), NotMaker());
 
     if (offset == 0 && segment >> 64 == 0) {
       // If there is only one order at the start of the segment then remove the whole segment

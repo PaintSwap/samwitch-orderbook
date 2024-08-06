@@ -2058,7 +2058,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Change minQuantity, check other orders can still be added/taken", async function () {
-    const {orderBook, brush, tokenId, tick, minQuantity} = await loadFixture(deployContractsFixture);
+    const {orderBook, tokenId, tick, minQuantity} = await loadFixture(deployContractsFixture);
 
     let price = 101;
     await orderBook.limitOrders([
