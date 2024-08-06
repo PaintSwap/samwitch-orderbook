@@ -10,7 +10,7 @@ import {SolcUserConfig} from "hardhat/types";
 import "dotenv/config";
 
 const defaultConfig: SolcUserConfig = {
-  version: "0.8.24",
+  version: "0.8.26",
   settings: {
     evmVersion: "paris",
     optimizer: {
@@ -29,17 +29,6 @@ const defaultConfig: SolcUserConfig = {
   },
 };
 
-const highRunsConfig: SolcUserConfig = {
-  ...defaultConfig,
-  settings: {
-    ...defaultConfig.settings,
-    optimizer: {
-      ...defaultConfig.settings.optimizer,
-      runs: 20000,
-    },
-  },
-};
-
 const mediumRunsConfig: SolcUserConfig = {
   ...defaultConfig,
   settings: {
@@ -51,20 +40,9 @@ const mediumRunsConfig: SolcUserConfig = {
   },
 };
 
-const lowRunsConfig: SolcUserConfig = {
-  ...defaultConfig,
-  settings: {
-    ...defaultConfig.settings,
-    optimizer: {
-      ...defaultConfig.settings.optimizer,
-      runs: 999,
-    },
-  },
-};
-
 const config: HardhatUserConfig = {
   solidity: {
-    compilers: [defaultConfig, lowRunsConfig, mediumRunsConfig, highRunsConfig],
+    compilers: [defaultConfig, mediumRunsConfig],
     overrides: {
       "contracts/SamWitchOrderBook.sol": mediumRunsConfig,
     },

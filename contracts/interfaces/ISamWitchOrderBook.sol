@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity ^0.8.26;
 
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {BokkyPooBahsRedBlackTreeLibrary} from "../BokkyPooBahsRedBlackTreeLibrary.sol";
@@ -17,21 +17,21 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   struct LimitOrder {
     OrderSide side;
-    uint tokenId;
+    uint256 tokenId;
     uint72 price;
     uint24 quantity;
   }
 
   struct MarketOrder {
     OrderSide side;
-    uint tokenId;
+    uint256 tokenId;
     uint24 quantity;
-    uint totalCost;
+    uint256 totalCost;
   }
 
   struct CancelOrder {
     OrderSide side;
-    uint tokenId;
+    uint256 tokenId;
     uint72 price;
   }
 
@@ -47,25 +47,25 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint40 id;
   }
 
-  event AddedToBook(address maker, OrderSide side, uint orderId, uint tokenId, uint price, uint quantity);
-  event OrdersMatched(address taker, uint[] orderIds, uint[] quantities);
-  event OrdersCancelled(address maker, uint[] orderIds);
-  event FailedToAddToBook(address maker, OrderSide side, uint tokenId, uint price, uint quantity);
-  event ClaimedTokens(address user, uint[] orderIds, uint amount, uint fees);
-  event ClaimedNFTs(address user, uint[] orderIds, uint[] tokenIds, uint[] amounts);
-  event SetTokenIdInfos(uint[] tokenIds, TokenIdInfo[] tokenInfos);
-  event SetMaxOrdersPerPriceLevel(uint maxOrdesrsPerPrice);
-  event SetFees(address devAddr, uint devFee, uint burntFee);
+  event AddedToBook(address maker, OrderSide side, uint256 orderId, uint256 tokenId, uint256 price, uint256 quantity);
+  event OrdersMatched(address taker, uint256[] orderIds, uint256[] quantities);
+  event OrdersCancelled(address maker, uint256[] orderIds);
+  event FailedToAddToBook(address maker, OrderSide side, uint256 tokenId, uint256 price, uint256 quantity);
+  event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fees);
+  event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[] amounts);
+  event SetTokenIdInfos(uint256[] tokenIds, TokenIdInfo[] tokenInfos);
+  event SetMaxOrdersPerPriceLevel(uint256 maxOrdesrsPerPrice);
+  event SetFees(address devAddr, uint256 devFee, uint256 burntFee);
 
   error ZeroAddress();
   error DevFeeNotSet();
   error DevFeeTooHigh();
   error NotERC1155();
   error NoQuantity();
-  error OrderNotFound(uint orderId, uint price);
-  error OrderNotFoundInTree(uint orderId, uint price);
-  error PriceNotMultipleOfTick(uint tick);
-  error TokenDoesntExist(uint tokenId);
+  error OrderNotFound(uint256 orderId, uint256 price);
+  error OrderNotFoundInTree(uint256 orderId, uint256 price);
+  error PriceNotMultipleOfTick(uint256 tick);
+  error TokenDoesntExist(uint256 tokenId);
   error PriceZero();
   error LengthMismatch();
   error NotMaker();
@@ -74,53 +74,57 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   error MaxOrdersNotMultipleOfOrdersInSegment();
   error TickCannotBeChanged();
   error ClaimingTooManyOrders();
-  error FailedToTakeFromBook(address taker, OrderSide side, uint tokenId, uint quantityRemaining);
+  error FailedToTakeFromBook(address taker, OrderSide side, uint256 tokenId, uint256 quantityRemaining);
   error TotalCostConditionNotMet();
 
   function marketOrder(MarketOrder calldata order) external;
 
   function limitOrders(LimitOrder[] calldata orders) external;
 
-  function cancelOrders(uint[] calldata orderIds, CancelOrder[] calldata cancelClaimableTokenInfos) external;
+  function cancelOrders(uint256[] calldata orderIds, CancelOrder[] calldata cancelClaimableTokenInfos) external;
 
   function cancelAndMakeLimitOrders(
-    uint[] calldata orderIds,
+    uint256[] calldata orderIds,
     CancelOrder[] calldata orders,
     LimitOrder[] calldata newOrders
   ) external;
 
-  function claimTokens(uint[] calldata _orderIds) external;
+  function claimTokens(uint256[] calldata _orderIds) external;
 
-  function claimNFTs(uint[] calldata orderIds, uint[] calldata tokenIds) external;
+  function claimNFTs(uint256[] calldata orderIds, uint256[] calldata tokenIds) external;
 
-  function claimAll(uint[] calldata brushOrderIds, uint[] calldata nftOrderIds, uint[] calldata tokenIds) external;
+  function claimAll(
+    uint256[] calldata brushOrderIds,
+    uint256[] calldata nftOrderIds,
+    uint256[] calldata tokenIds
+  ) external;
 
-  function tokensClaimable(uint40[] calldata orderIds, bool takeAwayFees) external view returns (uint amount);
+  function tokensClaimable(uint40[] calldata orderIds, bool takeAwayFees) external view returns (uint256 amount);
 
   function nftsClaimable(
     uint40[] calldata orderIds,
-    uint[] calldata tokenIds
-  ) external view returns (uint[] memory amounts);
+    uint256[] calldata tokenIds
+  ) external view returns (uint256[] memory amounts);
 
-  function getHighestBid(uint tokenId) external view returns (uint72);
+  function getHighestBid(uint256 tokenId) external view returns (uint72);
 
-  function getLowestAsk(uint tokenId) external view returns (uint72);
+  function getLowestAsk(uint256 tokenId) external view returns (uint72);
 
   function getNode(
     OrderSide side,
-    uint tokenId,
+    uint256 tokenId,
     uint72 price
   ) external view returns (BokkyPooBahsRedBlackTreeLibrary.Node memory);
 
-  function nodeExists(OrderSide side, uint tokenId, uint72 price) external view returns (bool);
+  function nodeExists(OrderSide side, uint256 tokenId, uint72 price) external view returns (bool);
 
-  function getTokenIdInfo(uint tokenId) external view returns (TokenIdInfo memory);
+  function getTokenIdInfo(uint256 tokenId) external view returns (TokenIdInfo memory);
 
   function getClaimableTokenInfo(uint40 _orderId) external view returns (ClaimableTokenInfo memory);
 
   function allOrdersAtPrice(
     OrderSide side,
-    uint tokenId,
+    uint256 tokenId,
     uint72 price
   ) external view returns (Order[] memory orderBookEntries);
 }

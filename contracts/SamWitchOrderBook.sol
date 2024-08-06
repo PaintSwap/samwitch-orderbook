@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity ^0.8.26;
 
 import {UnsafeMath} from "@0xdoublesharp/unsafe-math/contracts/UnsafeMath.sol";
 
@@ -33,9 +33,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   uint16 private constant MAX_ORDERS_HIT = 500;
   uint8 private constant NUM_ORDERS_PER_SEGMENT = 4;
 
-  uint private constant MAX_ORDER_ID = 1_099_511_627_776;
+  uint256 private constant MAX_ORDER_ID = 1_099_511_627_776;
 
-  uint private constant MAX_CLAIMABLE_ORDERS = 200;
+  uint256 private constant MAX_CLAIMABLE_ORDERS = 200;
 
   // slot_0
   IERC1155 private nft;
@@ -55,15 +55,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   address private royaltyRecipient;
 
   // mappings
-  mapping(uint tokenId => TokenIdInfo tokenIdInfo) private tokenIdInfo;
-  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
-  mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
+  mapping(uint256 tokenId => TokenIdInfo tokenIdInfo) private tokenIdInfo;
+  mapping(uint256 tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private asks;
+  mapping(uint256 tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) private bids;
   // token id => price => ask(quantity (uint24), id (uint40)) x 4
-  mapping(uint tokenId => mapping(uint price => bytes32[] segments)) private asksAtPrice;
+  mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private asksAtPrice;
   // token id => price => bid(quantity (uint24), id (uint40)) x 4
-  mapping(uint tokenId => mapping(uint price => bytes32[] segments)) private bidsAtPrice;
+  mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private bidsAtPrice;
   // token id => order id => amount claimable, 3 per slot
-  mapping(uint tokenId => uint80[MAX_ORDER_ID]) private amountClaimableForTokenId;
+  mapping(uint256 tokenId => uint80[MAX_ORDER_ID]) private amountClaimableForTokenId;
   // order id => (maker, amount claimable)
   ClaimableTokenInfo[MAX_ORDER_ID] private tokenClaimable;
 
@@ -109,17 +109,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _marketOrder market order to be placed
   function marketOrder(MarketOrder calldata _marketOrder) external override {
     // Must fufill the order and be below the total cost (or above depending on the side)
-    uint royalty;
-    uint dev;
-    uint burn;
-    uint brushToUs;
-    uint brushFromUs;
+    uint256 royalty;
+    uint256 dev;
+    uint256 burn;
+    uint256 brushToUs;
+    uint256 brushFromUs;
     address sender = _msgSender();
 
-    uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
-    uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
+    uint256[] memory orderIdsPool = new uint256[](MAX_ORDERS_HIT);
+    uint256[] memory quantitiesPool = new uint256[](MAX_ORDERS_HIT);
 
-    uint cost = _makeMarketOrder(_marketOrder, orderIdsPool, quantitiesPool);
+    uint256 cost = _makeMarketOrder(_marketOrder, orderIdsPool, quantitiesPool);
     bool isBuy = _marketOrder.side == OrderSide.Buy;
     if (isBuy) {
       if (cost > _marketOrder.totalCost) {
@@ -136,7 +136,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       // Transfer tokens to the seller if any have sold
       (royalty, dev, burn) = _calcFees(cost);
 
-      uint fees = royalty.add(dev).add(burn);
+      uint256 fees = royalty.add(dev).add(burn);
       brushFromUs = cost.sub(fees);
     }
 
@@ -162,28 +162,28 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Place multiple limit orders in the order book
   /// @param _orders Array of limit orders to be placed
   function limitOrders(LimitOrder[] calldata _orders) public override {
-    uint royalty;
-    uint dev;
-    uint burn;
-    uint brushToUs;
-    uint brushFromUs;
-    uint nftsToUs;
-    uint[] memory nftIdsToUs = new uint[](_orders.length);
-    uint[] memory nftAmountsToUs = new uint[](_orders.length);
-    uint lengthFromUs;
-    uint[] memory nftIdsFromUs = new uint[](_orders.length);
-    uint[] memory nftAmountsFromUs = new uint[](_orders.length);
+    uint256 royalty;
+    uint256 dev;
+    uint256 burn;
+    uint256 brushToUs;
+    uint256 brushFromUs;
+    uint256 nftsToUs;
+    uint256[] memory nftIdsToUs = new uint256[](_orders.length);
+    uint256[] memory nftAmountsToUs = new uint256[](_orders.length);
+    uint256 lengthFromUs;
+    uint256[] memory nftIdsFromUs = new uint256[](_orders.length);
+    uint256[] memory nftAmountsFromUs = new uint256[](_orders.length);
     address sender = _msgSender();
 
     // This is done here so that it can be used in many limit orders without wasting too much space
-    uint[] memory orderIdsPool = new uint[](MAX_ORDERS_HIT);
-    uint[] memory quantitiesPool = new uint[](MAX_ORDERS_HIT);
+    uint256[] memory orderIdsPool = new uint256[](MAX_ORDERS_HIT);
+    uint256[] memory quantitiesPool = new uint256[](MAX_ORDERS_HIT);
 
     // read the next order ID so we can increment in memory
     uint40 currentOrderId = nextOrderId;
-    for (uint i = 0; i < _orders.length; ++i) {
+    for (uint256 i = 0; i < _orders.length; ++i) {
       LimitOrder calldata limitOrder = _orders[i];
-      (uint24 quantityAddedToBook, uint24 failedQuantity, uint cost) = _makeLimitOrder(
+      (uint24 quantityAddedToBook, uint24 failedQuantity, uint256 cost) = _makeLimitOrder(
         currentOrderId,
         limitOrder,
         orderIdsPool,
@@ -196,7 +196,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (limitOrder.side == OrderSide.Buy) {
         brushToUs += cost + uint(limitOrder.price) * quantityAddedToBook;
         if (cost != 0) {
-          (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
+          (uint256 _royalty, uint256 _dev, uint256 _burn) = _calcFees(cost);
           royalty = royalty.add(_royalty);
           dev = dev.add(_dev);
           burn = burn.add(_burn);
@@ -208,7 +208,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         }
       } else {
         // Selling, transfer all NFTs to us
-        uint amount = limitOrder.quantity.sub(failedQuantity);
+        uint256 amount = limitOrder.quantity.sub(failedQuantity);
         if (amount != 0) {
           nftIdsToUs[nftsToUs] = limitOrder.tokenId;
           nftAmountsToUs[nftsToUs] = amount;
@@ -217,12 +217,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
         // Transfer tokens to the seller if any have sold
         if (cost != 0) {
-          (uint _royalty, uint _dev, uint _burn) = _calcFees(cost);
+          (uint256 _royalty, uint256 _dev, uint256 _burn) = _calcFees(cost);
           royalty = royalty.add(_royalty);
           dev = dev.add(_dev);
           burn = burn.add(_burn);
 
-          uint fees = _royalty.add(_dev).add(_burn);
+          uint256 fees = _royalty.add(_dev).add(_burn);
           brushFromUs = brushFromUs.add(cost).sub(fees);
         }
       }
@@ -262,21 +262,21 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Cancel multiple orders in the order book
   /// @param _orderIds Array of order IDs to be cancelled
   /// @param _orders Information about the orders so that they can be found in the order book
-  function cancelOrders(uint[] calldata _orderIds, CancelOrder[] calldata _orders) public override {
+  function cancelOrders(uint256[] calldata _orderIds, CancelOrder[] calldata _orders) public override {
     if (_orderIds.length != _orders.length) {
       revert LengthMismatch();
     }
 
     address sender = _msgSender();
 
-    uint brushFromUs = 0;
-    uint nftsFromUs = 0;
-    uint numberOfOrders = _orderIds.length;
-    uint[] memory nftIdsFromUs = new uint[](numberOfOrders);
-    uint[] memory nftAmountsFromUs = new uint[](numberOfOrders);
-    for (uint i = 0; i < numberOfOrders; ++i) {
+    uint256 brushFromUs = 0;
+    uint256 nftsFromUs = 0;
+    uint256 numberOfOrders = _orderIds.length;
+    uint256[] memory nftIdsFromUs = new uint256[](numberOfOrders);
+    uint256[] memory nftAmountsFromUs = new uint256[](numberOfOrders);
+    for (uint256 i = 0; i < numberOfOrders; ++i) {
       CancelOrder calldata cancelOrder = _orders[i];
-      (OrderSide side, uint tokenId, uint72 price) = (cancelOrder.side, cancelOrder.tokenId, cancelOrder.price);
+      (OrderSide side, uint256 tokenId, uint72 price) = (cancelOrder.side, cancelOrder.tokenId, cancelOrder.price);
 
       if (side == OrderSide.Buy) {
         uint256 quantity = _cancelOrdersSide(_orderIds[i], price, bidsAtPrice[tokenId][price], bids[tokenId]);
@@ -314,7 +314,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _orders Information about the orders so that they can be found in the order book
   /// @param _newOrders Array of limit orders to be placed
   function cancelAndMakeLimitOrders(
-    uint[] calldata _orderIds,
+    uint256[] calldata _orderIds,
     CancelOrder[] calldata _orders,
     LimitOrder[] calldata _newOrders
   ) external override {
@@ -325,12 +325,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice Claim tokens associated with filled or partially filled orders.
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
-  function claimTokens(uint[] calldata _orderIds) public override {
+  function claimTokens(uint256[] calldata _orderIds) public override {
     if (_orderIds.length > MAX_CLAIMABLE_ORDERS) {
       revert ClaimingTooManyOrders();
     }
-    uint amount;
-    for (uint i = 0; i < _orderIds.length; ++i) {
+    uint256 amount;
+    for (uint256 i = 0; i < _orderIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
       ClaimableTokenInfo storage claimableTokenInfo = tokenClaimable[orderId];
       uint80 claimableAmount = claimableTokenInfo.amount;
@@ -349,8 +349,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (amount == 0) {
       revert NothingToClaim();
     }
-    (uint royalty, uint dev, uint burn) = _calcFees(amount);
-    uint fees = royalty.add(dev).add(burn);
+    (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
+    uint256 fees = royalty.add(dev).add(burn);
     token.safeTransfer(_msgSender(), amount.sub(fees));
     emit ClaimedTokens(_msgSender(), _orderIds, amount, fees);
   }
@@ -359,7 +359,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ///         Must be the maker of these orders.
   /// @param _orderIds Array of order IDs from which to claim NFTs
   /// @param _tokenIds Array of token IDs to claim NFTs for
-  function claimNFTs(uint[] calldata _orderIds, uint[] calldata _tokenIds) public override {
+  function claimNFTs(uint256[] calldata _orderIds, uint256[] calldata _tokenIds) public override {
     if (_orderIds.length > MAX_CLAIMABLE_ORDERS) {
       revert ClaimingTooManyOrders();
     }
@@ -372,11 +372,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       revert NothingToClaim();
     }
 
-    uint[] memory nftAmountsFromUs = new uint[](_tokenIds.length);
-    for (uint i = 0; i < _tokenIds.length; ++i) {
+    uint256[] memory nftAmountsFromUs = new uint256[](_tokenIds.length);
+    for (uint256 i = 0; i < _tokenIds.length; ++i) {
       uint40 orderId = uint40(_orderIds[i]);
-      uint tokenId = _tokenIds[i];
-      uint amount = amountClaimableForTokenId[tokenId][orderId];
+      uint256 tokenId = _tokenIds[i];
+      uint256 amount = amountClaimableForTokenId[tokenId][orderId];
       if (amount == 0) {
         revert NothingToClaim();
       }
@@ -399,9 +399,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _nftOrderIds Array of order IDs from which to claim NFTs
   /// @param _tokenIds Array of token IDs to claim NFTs for
   function claimAll(
-    uint[] calldata _brushOrderIds,
-    uint[] calldata _nftOrderIds,
-    uint[] calldata _tokenIds
+    uint256[] calldata _brushOrderIds,
+    uint256[] calldata _nftOrderIds,
+    uint256[] calldata _tokenIds
   ) external override {
     if (_brushOrderIds.length == 0 && _nftOrderIds.length == 0 && _tokenIds.length == 0) {
       revert NothingToClaim();
@@ -426,12 +426,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   function tokensClaimable(
     uint40[] calldata _orderIds,
     bool _takeAwayFees
-  ) external view override returns (uint amount_) {
-    for (uint i = 0; i < _orderIds.length; ++i) {
+  ) external view override returns (uint256 amount_) {
+    for (uint256 i = 0; i < _orderIds.length; ++i) {
       amount_ += tokenClaimable[_orderIds[i]].amount;
     }
     if (_takeAwayFees) {
-      (uint royalty, uint dev, uint burn) = _calcFees(amount_);
+      (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount_);
       amount_ = amount_.sub(royalty).sub(dev).sub(burn);
     }
   }
@@ -441,17 +441,17 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _tokenIds The token IDs to get the claimable NFTs for
   function nftsClaimable(
     uint40[] calldata _orderIds,
-    uint[] calldata _tokenIds
-  ) external view override returns (uint[] memory amounts_) {
-    amounts_ = new uint[](_orderIds.length);
-    for (uint i = 0; i < _orderIds.length; ++i) {
+    uint256[] calldata _tokenIds
+  ) external view override returns (uint256[] memory amounts_) {
+    amounts_ = new uint256[](_orderIds.length);
+    for (uint256 i = 0; i < _orderIds.length; ++i) {
       amounts_[i] = amountClaimableForTokenId[_tokenIds[i]][_orderIds[i]];
     }
   }
 
   /// @notice Get the token ID info for a specific token ID
   /// @param _tokenId The token ID to get the info for
-  function getTokenIdInfo(uint _tokenId) external view override returns (TokenIdInfo memory) {
+  function getTokenIdInfo(uint256 _tokenId) external view override returns (TokenIdInfo memory) {
     return tokenIdInfo[_tokenId];
   }
 
@@ -461,13 +461,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   /// @notice Get the highest bid for a specific token ID
   /// @param _tokenId The token ID to get the highest bid for
-  function getHighestBid(uint _tokenId) public view override returns (uint72) {
+  function getHighestBid(uint256 _tokenId) public view override returns (uint72) {
     return bids[_tokenId].last();
   }
 
   /// @notice Get the lowest ask for a specific token ID
   /// @param _tokenId The token ID to get the lowest ask for
-  function getLowestAsk(uint _tokenId) public view override returns (uint72) {
+  function getLowestAsk(uint256 _tokenId) public view override returns (uint72) {
     return asks[_tokenId].first();
   }
 
@@ -477,7 +477,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _price The price level to get the order for
   function getNode(
     OrderSide _side,
-    uint _tokenId,
+    uint256 _tokenId,
     uint72 _price
   ) external view override returns (BokkyPooBahsRedBlackTreeLibrary.Node memory) {
     if (_side == OrderSide.Buy) {
@@ -491,7 +491,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _side The side of the order book to get the order from
   /// @param _tokenId The token ID to get the order for
   /// @param _price The price level to get the order for
-  function nodeExists(OrderSide _side, uint _tokenId, uint72 _price) external view override returns (bool) {
+  function nodeExists(OrderSide _side, uint256 _tokenId, uint72 _price) external view override returns (bool) {
     if (_side == OrderSide.Buy) {
       return bids[_tokenId].exists(_price);
     } else {
@@ -505,7 +505,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @param _price The price level to get orders for
   function allOrdersAtPrice(
     OrderSide _side,
-    uint _tokenId,
+    uint256 _tokenId,
     uint72 _price
   ) external view override returns (Order[] memory) {
     if (_side == OrderSide.Buy) {
@@ -518,7 +518,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   /// @notice When the nft royalty changes this updates the fee and recipient. Assumes all token ids have the same royalty
   function updateRoyaltyFee() public {
     if (nft.supportsInterface(type(IERC2981).interfaceId)) {
-      (address _royaltyRecipient, uint _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
+      (address _royaltyRecipient, uint256 _royaltyFee) = IERC2981(address(nft)).royaltyInfo(1, 10000);
       royaltyRecipient = _royaltyRecipient;
       royaltyFee = uint16(_royaltyFee);
     } else {
@@ -541,15 +541,18 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   ///         placed and the minimum of specific tokenIds in this nft collection.
   /// @param _tokenIds Array of token IDs for which to set TokenInfo
   /// @param _tokenIdInfos Array of TokenInfo to be set
-  function setTokenIdInfos(uint[] calldata _tokenIds, TokenIdInfo[] calldata _tokenIdInfos) external payable onlyOwner {
+  function setTokenIdInfos(
+    uint256[] calldata _tokenIds,
+    TokenIdInfo[] calldata _tokenIdInfos
+  ) external payable onlyOwner {
     if (_tokenIds.length != _tokenIdInfos.length) {
       revert LengthMismatch();
     }
 
-    for (uint i = 0; i < _tokenIds.length; ++i) {
+    for (uint256 i = 0; i < _tokenIds.length; ++i) {
       // Cannot change tick once set
-      uint existingTick = tokenIdInfo[_tokenIds[i]].tick;
-      uint newTick = _tokenIdInfos[i].tick;
+      uint256 existingTick = tokenIdInfo[_tokenIds[i]].tick;
+      uint256 newTick = _tokenIdInfos[i].tick;
 
       if (existingTick != 0 && newTick != 0 && existingTick != newTick) {
         revert TickCannotBeChanged();
@@ -582,15 +585,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _takeFromOrderBookSide(
-    uint _tokenId,
+    uint256 _tokenId,
     uint72 _price,
     uint24 _quantity,
-    uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool,
+    uint256[] memory _orderIdsPool,
+    uint256[] memory _quantitiesPool,
     OrderSide _side, // which side are you taking from
-    mapping(uint tokenId => mapping(uint price => bytes32[] segments)) storage segmentsAtPrice,
-    mapping(uint tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) storage tree
-  ) private returns (uint24 quantityRemaining_, uint cost_) {
+    mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) storage segmentsAtPrice,
+    mapping(uint256 tokenId => BokkyPooBahsRedBlackTreeLibrary.Tree) storage tree
+  ) private returns (uint24 quantityRemaining_, uint256 cost_) {
     quantityRemaining_ = _quantity;
 
     // reset the size
@@ -600,7 +603,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     bool isTakingFromBuy = _side == OrderSide.Buy;
-    uint numberOfOrders;
+    uint256 numberOfOrders;
     while (quantityRemaining_ != 0) {
       uint72 bestPrice = isTakingFromBuy ? getHighestBid(_tokenId) : getLowestAsk(_tokenId);
       if (bestPrice == 0 || (isTakingFromBuy ? bestPrice < _price : bestPrice > _price)) {
@@ -609,21 +612,21 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
 
       // Loop through all at this order
-      uint numSegmentsFullyConsumed = 0;
+      uint256 numSegmentsFullyConsumed = 0;
       bytes32[] storage segments = segmentsAtPrice[_tokenId][bestPrice];
       BokkyPooBahsRedBlackTreeLibrary.Node storage node = tree[_tokenId].getNode(bestPrice);
 
       bool eatIntoLastOrder;
-      uint numOrdersWithinLastSegmentFullyConsumed;
+      uint256 numOrdersWithinLastSegmentFullyConsumed;
       bytes32 segment;
-      uint lastSegment;
-      for (uint i = node.tombstoneOffset; i < segments.length && quantityRemaining_ != 0; ++i) {
+      uint256 lastSegment;
+      for (uint256 i = node.tombstoneOffset; i < segments.length && quantityRemaining_ != 0; ++i) {
         lastSegment = i;
         segment = segments[i];
-        uint numOrdersWithinSegmentConsumed;
+        uint256 numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
-        for (uint offset; offset < NUM_ORDERS_PER_SEGMENT && quantityRemaining_ != 0; ++offset) {
-          uint remainingSegment = uint(segment >> offset.mul(64));
+        for (uint256 offset; offset < NUM_ORDERS_PER_SEGMENT && quantityRemaining_ != 0; ++offset) {
+          uint256 remainingSegment = uint(segment >> offset.mul(64));
           uint40 orderId = uint40(remainingSegment);
           if (orderId == 0) {
             // Check if there are any order left in this segment
@@ -636,7 +639,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
             }
           }
           uint24 quantityL3 = uint24(uint(segment >> offset.mul(64).add(40)));
-          uint quantityNFTClaimable = 0;
+          uint256 quantityNFTClaimable = 0;
           if (quantityRemaining_ >= quantityL3) {
             // Consume this whole order
             quantityRemaining_ -= quantityL3;
@@ -685,7 +688,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       }
 
       if (numSegmentsFullyConsumed != 0) {
-        uint tombstoneOffset = node.tombstoneOffset;
+        uint256 tombstoneOffset = node.tombstoneOffset;
         tree[_tokenId].edit(bestPrice, uint32(numSegmentsFullyConsumed));
 
         // Consumed all orders at this price level, so remove it from the tree
@@ -697,7 +700,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       if (eatIntoLastOrder || numOrdersWithinLastSegmentFullyConsumed != 0) {
         // This segment wasn't completely filled before
         if (numOrdersWithinLastSegmentFullyConsumed != 0) {
-          for (uint i; i < numOrdersWithinLastSegmentFullyConsumed; ++i) {
+          for (uint256 i; i < numOrdersWithinLastSegmentFullyConsumed; ++i) {
             segment &= _clearOrderMask(i);
           }
         }
@@ -725,12 +728,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _takeFromOrderBook(
     OrderSide _side,
-    uint _tokenId,
+    uint256 _tokenId,
     uint72 _price,
     uint24 _quantity,
-    uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool
-  ) private returns (uint24 quantityRemaining, uint cost) {
+    uint256[] memory _orderIdsPool,
+    uint256[] memory _quantitiesPool
+  ) private returns (uint24 quantityRemaining, uint256 cost) {
     // Take as much as possible from the order book
     if (_side == OrderSide.Buy) {
       (quantityRemaining, cost) = _takeFromOrderBookSide(
@@ -766,13 +769,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
       return orders_;
     }
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
-    uint tombstoneOffset = node.tombstoneOffset;
+    uint256 tombstoneOffset = node.tombstoneOffset;
 
-    uint numInSegmentDeleted;
+    uint256 numInSegmentDeleted;
     {
-      uint segment = uint(_segments[tombstoneOffset]);
-      for (uint offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-        uint remainingSegment = uint64(segment >> offset.mul(64));
+      uint256 segment = uint(_segments[tombstoneOffset]);
+      for (uint256 offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+        uint256 remainingSegment = uint64(segment >> offset.mul(64));
         uint64 order = uint64(remainingSegment);
         if (order == 0) {
           numInSegmentDeleted = numInSegmentDeleted.inc();
@@ -783,10 +786,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     orders_ = new Order[]((_segments.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted);
-    uint numberOfEntries;
-    for (uint i = numInSegmentDeleted; i < orders_.length.add(numInSegmentDeleted); ++i) {
-      uint segment = uint(_segments[i.div(NUM_ORDERS_PER_SEGMENT).add(tombstoneOffset)]);
-      uint offset = i.mod(NUM_ORDERS_PER_SEGMENT);
+    uint256 numberOfEntries;
+    for (uint256 i = numInSegmentDeleted; i < orders_.length.add(numInSegmentDeleted); ++i) {
+      uint256 segment = uint(_segments[i.div(NUM_ORDERS_PER_SEGMENT).add(tombstoneOffset)]);
+      uint256 offset = i.mod(NUM_ORDERS_PER_SEGMENT);
       uint40 id = uint40(segment >> offset.mul(64));
       if (id != 0) {
         uint24 quantity = uint24(segment >> offset.mul(64).add(40));
@@ -801,7 +804,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _cancelOrdersSide(
-    uint _orderId,
+    uint256 _orderId,
     uint72 _price,
     bytes32[] storage _segments,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
@@ -812,9 +815,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
 
     BokkyPooBahsRedBlackTreeLibrary.Node storage node = _tree.getNode(_price);
-    uint tombstoneOffset = node.tombstoneOffset;
+    uint256 tombstoneOffset = node.tombstoneOffset;
 
-    (uint index, uint offset) = _find(_segments, tombstoneOffset, _segments.length, _orderId);
+    (uint256 index, uint256 offset) = _find(_segments, tombstoneOffset, _segments.length, _orderId);
     if (index == type(uint).max) {
       revert OrderNotFound(_orderId, _price);
     }
@@ -824,9 +827,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _makeMarketOrder(
     MarketOrder calldata _marketOrder,
-    uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool
-  ) private returns (uint cost_) {
+    uint256[] memory _orderIdsPool,
+    uint256[] memory _quantitiesPool
+  ) private returns (uint256 cost_) {
     if (_marketOrder.quantity == 0) {
       revert NoQuantity();
     }
@@ -856,9 +859,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   function _makeLimitOrder(
     uint40 _newOrderId,
     LimitOrder calldata _limitOrder,
-    uint[] memory _orderIdsPool,
-    uint[] memory _quantitiesPool
-  ) private returns (uint24 quantityAddedToBook_, uint24 failedQuantity_, uint cost_) {
+    uint256[] memory _orderIdsPool,
+    uint256[] memory _quantitiesPool
+  ) private returns (uint24 quantityAddedToBook_, uint24 failedQuantity_, uint256 cost_) {
     if (_limitOrder.quantity == 0) {
       revert NoQuantity();
     }
@@ -898,11 +901,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   }
 
   function _addToBookSide(
-    mapping(uint price => bytes32[]) storage _segmentsPriceMap,
+    mapping(uint256 price => bytes32[]) storage _segmentsPriceMap,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree,
     uint72 _price,
-    uint _orderId,
-    uint _quantity,
+    uint256 _orderId,
+    uint256 _quantity,
     int128 _tick // -1 for buy, +1 for sell
   ) private returns (uint72 price_) {
     // Add to the bids section
@@ -910,7 +913,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (!_tree.exists(price_)) {
       _tree.insert(price_);
     } else {
-      uint tombstoneOffset = _tree.getNode(price_).tombstoneOffset;
+      uint256 tombstoneOffset = _tree.getNode(price_).tombstoneOffset;
       // Check if this would go over the max number of orders allowed at this price level
       bool lastSegmentFilled = uint(
         _segmentsPriceMap[price_][_segmentsPriceMap[price_].length.dec()] >> NUM_ORDERS_PER_SEGMENT.dec().mul(64)
@@ -947,8 +950,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     if (segments.length != 0) {
       bytes32 lastSegment = segments[segments.length.dec()];
       // Are there are free entries in this segment
-      for (uint offset = 0; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
-        uint remainingSegment = uint(lastSegment >> (offset.mul(64)));
+      for (uint256 offset = 0; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
+        uint256 remainingSegment = uint(lastSegment >> (offset.mul(64)));
         if (remainingSegment == 0) {
           // Found free entry one, so add to an existing segment
           bytes32 newSegment = lastSegment |
@@ -971,7 +974,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     uint40 _newOrderId,
     uint128 _tick,
     OrderSide _side,
-    uint _tokenId,
+    uint256 _tokenId,
     uint72 _price,
     uint24 _quantity
   ) private {
@@ -986,13 +989,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     emit AddedToBook(_msgSender(), _side, _newOrderId, _tokenId, price, _quantity);
   }
 
-  function _calcFees(uint _cost) private view returns (uint royalty_, uint dev_, uint burn_) {
+  function _calcFees(uint256 _cost) private view returns (uint256 royalty_, uint256 dev_, uint256 burn_) {
     royalty_ = (_cost.mul(royaltyFee)).div(10000);
     dev_ = (_cost.mul(devFee)).div(10000);
     burn_ = (_cost.mul(burntFee)).div(10000);
   }
 
-  function _sendFees(uint _royalty, uint _dev, uint _burn) private {
+  function _sendFees(uint256 _royalty, uint256 _dev, uint256 _burn) private {
     if (_royalty != 0) {
       token.safeTransfer(royaltyRecipient, _royalty);
     }
@@ -1008,16 +1011,16 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
 
   function _find(
     bytes32[] storage segments,
-    uint begin,
-    uint end,
-    uint value
-  ) private view returns (uint mid_, uint offset_) {
+    uint256 begin,
+    uint256 end,
+    uint256 value
+  ) private view returns (uint256 mid_, uint256 offset_) {
     while (begin < end) {
       mid_ = begin.add(end.sub(begin).div(2));
-      uint segment = uint(segments[mid_]);
+      uint256 segment = uint(segments[mid_]);
       offset_ = 0;
 
-      for (uint i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
+      for (uint256 i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
         uint40 id = uint40(segment >> (offset_.mul(8)));
         if (id == value) {
           return (mid_, i); // Return the index where the ID is found
@@ -1041,9 +1044,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
   function _cancelOrder(
     bytes32[] storage _segments,
     uint72 _price,
-    uint _index,
-    uint _offset,
-    uint _tombstoneOffset,
+    uint256 _index,
+    uint256 _offset,
+    uint256 _tombstoneOffset,
     BokkyPooBahsRedBlackTreeLibrary.Tree storage _tree
   ) private {
     bytes32 segment = _segments[_index];
@@ -1060,26 +1063,26 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
         _tree.remove(_price);
       }
     } else {
-      uint indexToRemove = _index * NUM_ORDERS_PER_SEGMENT + _offset;
+      uint256 indexToRemove = _index * NUM_ORDERS_PER_SEGMENT + _offset;
 
       // Although this is called next, it also acts as the "last" used later
-      uint nextSegmentIndex = indexToRemove / NUM_ORDERS_PER_SEGMENT;
-      uint nextOffsetIndex = indexToRemove % NUM_ORDERS_PER_SEGMENT;
+      uint256 nextSegmentIndex = indexToRemove / NUM_ORDERS_PER_SEGMENT;
+      uint256 nextOffsetIndex = indexToRemove % NUM_ORDERS_PER_SEGMENT;
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
-      uint totalOrders = _segments.length.mul(NUM_ORDERS_PER_SEGMENT).dec();
-      for (uint i = indexToRemove; i < totalOrders; ++i) {
+      uint256 totalOrders = _segments.length.mul(NUM_ORDERS_PER_SEGMENT).dec();
+      for (uint256 i = indexToRemove; i < totalOrders; ++i) {
         nextSegmentIndex = (i.inc()) / NUM_ORDERS_PER_SEGMENT;
         nextOffsetIndex = (i.inc()) % NUM_ORDERS_PER_SEGMENT;
 
         bytes32 currentOrNextSegment = _segments[nextSegmentIndex];
 
-        uint currentSegmentIndex = i / NUM_ORDERS_PER_SEGMENT;
-        uint currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
+        uint256 currentSegmentIndex = i / NUM_ORDERS_PER_SEGMENT;
+        uint256 currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
 
         bytes32 currentSegment = _segments[currentSegmentIndex];
-        uint nextOrder = uint64(uint(currentOrNextSegment >> nextOffsetIndex.mul(64)));
+        uint256 nextOrder = uint64(uint(currentOrNextSegment >> nextOffsetIndex.mul(64)));
         if (nextOrder == 0) {
           // There are no more orders left, reset back to the currently iterated order as the last
           nextSegmentIndex = currentSegmentIndex;
@@ -1104,23 +1107,23 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, UUPSUpgradeable
     }
   }
 
-  function _clearOrderMask(uint _offsetIndex) private pure returns (bytes32) {
+  function _clearOrderMask(uint256 _offsetIndex) private pure returns (bytes32) {
     return ~(bytes32(uint(0xffffffffffffffff)) << _offsetIndex.mul(64));
   }
 
-  function _safeBatchTransferNFTsToUs(address _from, uint[] memory _tokenIds, uint[] memory _amounts) private {
+  function _safeBatchTransferNFTsToUs(address _from, uint256[] memory _tokenIds, uint256[] memory _amounts) private {
     nft.safeBatchTransferFrom(_from, address(this), _tokenIds, _amounts, "");
   }
 
-  function _safeBatchTransferNFTsFromUs(address _to, uint[] memory _tokenIds, uint[] memory _amounts) private {
+  function _safeBatchTransferNFTsFromUs(address _to, uint256[] memory _tokenIds, uint256[] memory _amounts) private {
     nft.safeBatchTransferFrom(address(this), _to, _tokenIds, _amounts, "");
   }
 
-  function _safeTransferNFTsToUs(address _from, uint _tokenId, uint _amount) private {
+  function _safeTransferNFTsToUs(address _from, uint256 _tokenId, uint256 _amount) private {
     nft.safeTransferFrom(_from, address(this), _tokenId, _amount, "");
   }
 
-  function _safeTransferNFTsFromUs(address _to, uint _tokenId, uint _amount) private {
+  function _safeTransferNFTsFromUs(address _to, uint256 _tokenId, uint256 _amount) private {
     nft.safeTransferFrom(address(this), _to, _tokenId, _amount, "");
   }
 
