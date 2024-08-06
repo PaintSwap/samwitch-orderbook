@@ -10,39 +10,39 @@ contract MockERC1155 is ERC1155, IERC2981 {
   uint64 public nextId = 1;
   uint64 public royaltyFee; // Base 10000
 
-  constructor(address _royaltyRecipient) ERC1155("") {
-    royaltyRecipient = _royaltyRecipient;
+  constructor(address recipient) ERC1155("") {
+    royaltyRecipient = recipient;
   }
 
-  function mint(uint256 _quantity) external {
-    _mint(_msgSender(), nextId++, _quantity, "");
+  function mint(uint256 quantity) external {
+    _mint(_msgSender(), nextId++, quantity, "");
   }
 
-  function mintSpecificId(uint256 _id, uint256 _quantity) external {
-    _mint(_msgSender(), _id, _quantity, "");
+  function mintSpecificId(uint256 id, uint256 quantity) external {
+    _mint(_msgSender(), id, quantity, "");
   }
 
-  function mintBatch(uint256[] memory _amounts) external {
-    uint256[] memory ids = new uint256[](_amounts.length);
-    for (uint256 i = 0; i < _amounts.length; ++i) {
+  function mintBatch(uint256[] memory amounts) external {
+    uint256[] memory ids = new uint256[](amounts.length);
+    for (uint256 i = 0; i < amounts.length; ++i) {
       ids[i] = nextId++;
     }
-    _mintBatch(_msgSender(), ids, _amounts, "");
+    _mintBatch(_msgSender(), ids, amounts, "");
   }
 
   function royaltyInfo(
     uint256 /*_tokenId*/,
-    uint256 _salePrice
+    uint256 salePrice
   ) external view override returns (address receiver, uint256 royaltyAmount) {
-    uint256 amount = (_salePrice * royaltyFee) / 10000;
+    uint256 amount = (salePrice * royaltyFee) / 10000;
     return (royaltyRecipient, amount);
   }
 
-  function setRoyaltyFee(uint64 _fee) external {
-    royaltyFee = _fee;
+  function setRoyaltyFee(uint64 fee) external {
+    royaltyFee = fee;
   }
 
-  function supportsInterface(bytes4 _interfaceId) public view override(ERC1155, IERC165) returns (bool) {
-    return _interfaceId == type(IERC2981).interfaceId || super.supportsInterface(_interfaceId);
+  function supportsInterface(bytes4 interfaceId) public view override(ERC1155, IERC165) returns (bool) {
+    return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
   }
 }

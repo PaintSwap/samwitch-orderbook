@@ -9,19 +9,19 @@ contract MockERC1155NoRoyalty is ERC1155 {
 
   constructor() ERC1155("") {}
 
-  function mint(uint256 _quantity) external {
-    _mint(_msgSender(), nextId++, _quantity, "");
+  function mint(uint256 quantity) external {
+    _mint(_msgSender(), nextId++, quantity, "");
   }
 
-  function mintSpecificId(uint256 _id, uint256 _quantity) external {
-    _mint(_msgSender(), _id, _quantity, "");
+  function mintSpecificId(uint256 id, uint256 quantity) external {
+    _mint(_msgSender(), id, quantity, "");
   }
 
-  function mintBatch(uint256[] memory _amounts) external {
-    uint256[] memory ids = new uint256[](_amounts.length);
-    for (uint256 i = 0; i < _amounts.length; ++i) {
+  function mintBatch(uint256[] memory amounts) external {
+    uint256[] memory ids = new uint256[](amounts.length);
+    for (uint256 i = 0; i < amounts.length; ++i) {
       ids[i] = nextId++;
     }
-    _mintBatch(_msgSender(), ids, _amounts, "");
+    _mintBatch(_msgSender(), ids, amounts, "");
   }
 }

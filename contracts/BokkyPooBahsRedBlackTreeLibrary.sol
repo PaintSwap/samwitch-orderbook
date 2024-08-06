@@ -29,20 +29,20 @@ library BokkyPooBahsRedBlackTreeLibrary {
 
   uint72 private constant EMPTY = 0;
 
-  function first(Tree storage self) internal view returns (uint72 _key) {
-    _key = self.root;
-    if (_key != EMPTY) {
-      while (self.nodes[_key].left != EMPTY) {
-        _key = self.nodes[_key].left;
+  function first(Tree storage self) internal view returns (uint72 key) {
+    key = self.root;
+    if (key != EMPTY) {
+      while (self.nodes[key].left != EMPTY) {
+        key = self.nodes[key].left;
       }
     }
   }
 
-  function last(Tree storage self) internal view returns (uint72 _key) {
-    _key = self.root;
-    if (_key != EMPTY) {
-      while (self.nodes[_key].right != EMPTY) {
-        _key = self.nodes[_key].right;
+  function last(Tree storage self) internal view returns (uint72 key) {
+    key = self.root;
+    if (key != EMPTY) {
+      while (self.nodes[key].right != EMPTY) {
+        key = self.nodes[key].right;
       }
     }
   }
