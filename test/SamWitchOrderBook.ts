@@ -22,10 +22,10 @@ describe("SamWitchOrderBook", function () {
     )) as unknown as SamWitchOrderBook;
 
     const initialBrush = 1000000;
-    await brush.mint(owner.address, initialBrush);
+    await brush.mint(owner, initialBrush);
     await brush.approve(orderBook, initialBrush);
 
-    await brush.connect(alice).mint(alice.address, initialBrush);
+    await brush.connect(alice).mint(alice, initialBrush);
     await brush.connect(alice).approve(orderBook, initialBrush);
 
     const initialQuantity = 100;
@@ -260,8 +260,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Check total cost, selling", async function () {
-      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
-        await loadFixture(deployContractsFixture);
+      const {orderBook, alice, tokenId} = await loadFixture(deployContractsFixture);
 
       // Set up order book
       const price = 100;
@@ -336,7 +335,7 @@ describe("SamWitchOrderBook", function () {
       )
         .to.emit(orderBook, "OrdersMatched")
         .withArgs(alice.address, [orderId], [numToBuy]);
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity + numToBuy);
 
       await orderBook.connect(alice).marketOrder({
         side: OrderSide.Buy,
@@ -344,7 +343,7 @@ describe("SamWitchOrderBook", function () {
         totalCost: (price + 1) * (quantity - numToBuy),
         quantity: quantity - numToBuy,
       }); // Buy the rest
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity + quantity);
 
       // There's nothing left on the sell side, this adds to the buy order side
       await expect(
@@ -433,7 +432,7 @@ describe("SamWitchOrderBook", function () {
         .to.emit(orderBook, "OrdersMatched")
         .withArgs(alice.address, [orderId], [numToSell]);
 
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity - numToSell);
 
       await orderBook.connect(alice).marketOrder({
         side: OrderSide.Sell,
@@ -441,7 +440,7 @@ describe("SamWitchOrderBook", function () {
         totalCost: price * (quantity - numToSell),
         quantity: quantity - numToSell,
       }); // Buy the rest
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity - quantity);
 
       // There's nothing left on the sell side
       await expect(
@@ -544,7 +543,7 @@ describe("SamWitchOrderBook", function () {
       )
         .to.emit(orderBook, "OrdersMatched")
         .withArgs(alice.address, [orderId], [numToBuy]);
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + numToBuy);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity + numToBuy);
 
       await orderBook.connect(alice).limitOrders([
         {
@@ -554,7 +553,7 @@ describe("SamWitchOrderBook", function () {
           quantity: quantity - numToBuy,
         },
       ]); // Buy the rest
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity + quantity);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity + quantity);
 
       // There's nothing left on the sell side, this adds to the buy order side
       await orderBook.connect(alice).limitOrders([
@@ -648,7 +647,7 @@ describe("SamWitchOrderBook", function () {
         .to.emit(orderBook, "OrdersMatched")
         .withArgs(alice.address, [orderId], [numToSell]);
 
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - numToSell);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity - numToSell);
 
       await orderBook.connect(alice).limitOrders([
         {
@@ -658,7 +657,7 @@ describe("SamWitchOrderBook", function () {
           quantity: quantity - numToSell,
         },
       ]); // Buy the rest
-      expect(await erc1155.balanceOf(alice.address, tokenId)).to.equal(initialQuantity - quantity);
+      expect(await erc1155.balanceOf(alice, tokenId)).to.equal(initialQuantity - quantity);
 
       // There's nothing left on the sell side, this adds to the buy order side
       await orderBook.connect(alice).limitOrders([
@@ -938,7 +937,7 @@ describe("SamWitchOrderBook", function () {
       // Check you get the brush back
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
       expect(await brush.balanceOf(orderBook)).to.eq(0);
-      expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
+      expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
@@ -1199,7 +1198,7 @@ describe("SamWitchOrderBook", function () {
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
       expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
+      expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
@@ -1424,7 +1423,7 @@ describe("SamWitchOrderBook", function () {
       await orderBook.setTokenIdInfos([tokenId], [{tick: 0, minQuantity: 20}]);
       // Cancel should work
       const orderId = 1;
-      const preBalance = await brush.balanceOf(owner.address);
+      const preBalance = await brush.balanceOf(owner);
       await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
       // Selling should no longer work
@@ -1440,7 +1439,7 @@ describe("SamWitchOrderBook", function () {
       )
         .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
         .withArgs(tokenId);
-      expect(await brush.balanceOf(owner.address)).to.eq(preBalance + BigInt(price * (quantity - 1)));
+      expect(await brush.balanceOf(owner)).to.eq(preBalance + BigInt(price * (quantity - 1)));
     });
 
     // Fixes: https://ftmscan.com/tx/0x69dd308e7a096ebd035bd3a3f18c2a9b116faee78ea4e0ccda06c3cfede0950b
@@ -1470,7 +1469,7 @@ describe("SamWitchOrderBook", function () {
 
       expect(await brush.balanceOf(owner)).to.eq(BigInt(initialBrush) + extraBrush);
       expect(await brush.balanceOf(orderBook)).to.eq(0);
-      expect(await erc1155.balanceOf(owner.address, tokenId)).to.eq(initialQuantity);
+      expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
     });
   });
 

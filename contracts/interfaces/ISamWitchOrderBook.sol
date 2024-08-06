@@ -40,6 +40,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
     uint80 amount;
   }
 
+  // A helper type for a view function to return orders
   struct Order {
     address maker;
     uint24 quantity;
