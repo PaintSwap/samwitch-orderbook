@@ -40,7 +40,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   // slot_2
   address private _devAddr;
-  uint16 private _devFee; // Base 10000
+  uint16 private _devFee;
   uint8 private _burntFee;
   uint16 private _royaltyFee;
   uint16 private _maxOrdersPerPrice;
@@ -57,7 +57,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private _asksAtPrice;
   // token id => price => bid(quantity (uint24), id (uint40)) x 4
   mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private _bidsAtPrice;
-  // order id => (maker, amount claimable)
   ClaimableTokenInfo[MAX_ORDER_ID] private _tokenClaimable;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
