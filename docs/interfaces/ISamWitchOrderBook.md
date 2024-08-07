@@ -52,21 +52,20 @@ function cancelOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] cance
 ### claimAll
 
 ```solidity
-function claimAll(uint256[] brushOrderIds, uint256[] nftOrderIds, uint256[] tokenIds) external nonpayable
+function claimAll(uint256[] coinOrderIds, uint256[] nftOrderIds) external nonpayable
 ```
 
 #### Parameters
 
-| Name          | Type      | Description |
-| ------------- | --------- | ----------- |
-| brushOrderIds | uint256[] | undefined   |
-| nftOrderIds   | uint256[] | undefined   |
-| tokenIds      | uint256[] | undefined   |
+| Name         | Type      | Description |
+| ------------ | --------- | ----------- |
+| coinOrderIds | uint256[] | undefined   |
+| nftOrderIds  | uint256[] | undefined   |
 
 ### claimNFTs
 
 ```solidity
-function claimNFTs(uint256[] orderIds, uint256[] tokenIds) external nonpayable
+function claimNFTs(uint256[] orderIds) external nonpayable
 ```
 
 #### Parameters
@@ -74,7 +73,6 @@ function claimNFTs(uint256[] orderIds, uint256[] tokenIds) external nonpayable
 | Name     | Type      | Description |
 | -------- | --------- | ----------- |
 | orderIds | uint256[] | undefined   |
-| tokenIds | uint256[] | undefined   |
 
 ### claimTokens
 
@@ -192,18 +190,29 @@ function limitOrders(ISamWitchOrderBook.LimitOrder[] orders) external nonpayable
 | ------ | ------------------------------- | ----------- |
 | orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
 
-### nftsClaimable
+### marketOrder
 
 ```solidity
-function nftsClaimable(uint40[] orderIds, uint256[] tokenIds) external view returns (uint256[] amounts)
+function marketOrder(ISamWitchOrderBook.MarketOrder order) external nonpayable
 ```
 
 #### Parameters
 
-| Name     | Type      | Description |
-| -------- | --------- | ----------- |
-| orderIds | uint40[]  | undefined   |
-| tokenIds | uint256[] | undefined   |
+| Name  | Type                           | Description |
+| ----- | ------------------------------ | ----------- |
+| order | ISamWitchOrderBook.MarketOrder | undefined   |
+
+### nftsClaimable
+
+```solidity
+function nftsClaimable(uint40[] orderIds) external view returns (uint256[] amounts)
+```
+
+#### Parameters
+
+| Name     | Type     | Description |
+| -------- | -------- | ----------- |
+| orderIds | uint40[] | undefined   |
 
 #### Returns
 
@@ -469,6 +478,21 @@ error DevFeeNotSet()
 error DevFeeTooHigh()
 ```
 
+### FailedToTakeFromBook
+
+```solidity
+error FailedToTakeFromBook(address taker, enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint256 quantityRemaining)
+```
+
+#### Parameters
+
+| Name              | Type                              | Description |
+| ----------------- | --------------------------------- | ----------- |
+| taker             | address                           | undefined   |
+| side              | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId           | uint256                           | undefined   |
+| quantityRemaining | uint256                           | undefined   |
+
 ### LengthMismatch
 
 ```solidity
@@ -571,6 +595,12 @@ error TokenDoesntExist(uint256 tokenId)
 
 ```solidity
 error TooManyOrdersHit()
+```
+
+### TotalCostConditionNotMet
+
+```solidity
+error TotalCostConditionNotMet()
 ```
 
 ### ZeroAddress

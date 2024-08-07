@@ -359,14 +359,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
   ///         Must be the maker of these orders.
-  /// @param coinsOrderIds Array of order IDs from which to claim tokens
+  /// @param coinOrderIds Array of order IDs from which to claim tokens
   /// @param nftOrderIds Array of order IDs from which to claim NFTs
-  function claimAll(uint256[] calldata coinsOrderIds, uint256[] calldata nftOrderIds) external override {
-    require(coinsOrderIds.length != 0 || nftOrderIds.length != 0, NothingToClaim());
-    require(coinsOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
+  function claimAll(uint256[] calldata coinOrderIds, uint256[] calldata nftOrderIds) external override {
+    require(coinOrderIds.length != 0 || nftOrderIds.length != 0, NothingToClaim());
+    require(coinOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
 
-    if (coinsOrderIds.length != 0) {
-      claimTokens(coinsOrderIds);
+    if (coinOrderIds.length != 0) {
+      claimTokens(coinOrderIds);
     }
 
     if (nftOrderIds.length != 0) {

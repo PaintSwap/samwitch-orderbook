@@ -1,4 +1,4 @@
-# IBrushToken
+# IBurnableToken
 
 ## Methods
 
@@ -67,14 +67,14 @@ _Returns the value of tokens owned by `account`._
 ### burn
 
 ```solidity
-function burn(uint256 _amount) external nonpayable
+function burn(uint256 amount) external nonpayable
 ```
 
 #### Parameters
 
-| Name     | Type    | Description |
-| -------- | ------- | ----------- |
-| \_amount | uint256 | undefined   |
+| Name   | Type    | Description |
+| ------ | ------- | ----------- |
+| amount | uint256 | undefined   |
 
 ### totalSupply
 

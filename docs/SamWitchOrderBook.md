@@ -23,18 +23,18 @@ function UPGRADE_INTERFACE_VERSION() external view returns (string)
 ### allOrdersAtPrice
 
 ```solidity
-function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct ISamWitchOrderBook.Order[])
+function allOrdersAtPrice(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct ISamWitchOrderBook.Order[])
 ```
 
 Get all orders at a specific price level
 
 #### Parameters
 
-| Name      | Type                              | Description                                   |
-| --------- | --------------------------------- | --------------------------------------------- |
-| \_side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get orders from |
-| \_tokenId | uint256                           | The token ID to get orders for                |
-| \_price   | uint72                            | The price level to get orders for             |
+| Name    | Type                              | Description                                   |
+| ------- | --------------------------------- | --------------------------------------------- |
+| side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get orders from |
+| tokenId | uint256                           | The token ID to get orders for                |
+| price   | uint72                            | The price level to get orders for             |
 
 #### Returns
 
@@ -45,86 +45,84 @@ Get all orders at a specific price level
 ### cancelAndMakeLimitOrders
 
 ```solidity
-function cancelAndMakeLimitOrders(uint256[] _orderIds, ISamWitchOrderBook.CancelOrder[] _orders, ISamWitchOrderBook.LimitOrder[] _newOrders) external nonpayable
+function cancelAndMakeLimitOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] orders, ISamWitchOrderBook.LimitOrder[] newOrders) external nonpayable
 ```
 
 #### Parameters
 
-| Name        | Type                             | Description |
-| ----------- | -------------------------------- | ----------- |
-| \_orderIds  | uint256[]                        | undefined   |
-| \_orders    | ISamWitchOrderBook.CancelOrder[] | undefined   |
-| \_newOrders | ISamWitchOrderBook.LimitOrder[]  | undefined   |
+| Name      | Type                             | Description |
+| --------- | -------------------------------- | ----------- |
+| orderIds  | uint256[]                        | undefined   |
+| orders    | ISamWitchOrderBook.CancelOrder[] | undefined   |
+| newOrders | ISamWitchOrderBook.LimitOrder[]  | undefined   |
 
 ### cancelOrders
 
 ```solidity
-function cancelOrders(uint256[] _orderIds, ISamWitchOrderBook.CancelOrder[] _orders) external nonpayable
+function cancelOrders(uint256[] orderIds, ISamWitchOrderBook.CancelOrder[] orders) external nonpayable
 ```
 
 #### Parameters
 
-| Name       | Type                             | Description |
-| ---------- | -------------------------------- | ----------- |
-| \_orderIds | uint256[]                        | undefined   |
-| \_orders   | ISamWitchOrderBook.CancelOrder[] | undefined   |
+| Name     | Type                             | Description |
+| -------- | -------------------------------- | ----------- |
+| orderIds | uint256[]                        | undefined   |
+| orders   | ISamWitchOrderBook.CancelOrder[] | undefined   |
 
 ### claimAll
 
 ```solidity
-function claimAll(uint256[] _brushOrderIds, uint256[] _nftOrderIds, uint256[] _tokenIds) external nonpayable
+function claimAll(uint256[] coinOrderIds, uint256[] nftOrderIds) external nonpayable
 ```
 
 Convience function to claim both tokens and nfts in filled or partially filled orders. Must be the maker of these orders.
 
 #### Parameters
 
-| Name            | Type      | Description                                   |
-| --------------- | --------- | --------------------------------------------- |
-| \_brushOrderIds | uint256[] | Array of order IDs from which to claim tokens |
-| \_nftOrderIds   | uint256[] | Array of order IDs from which to claim NFTs   |
-| \_tokenIds      | uint256[] | Array of token IDs to claim NFTs for          |
+| Name         | Type      | Description                                   |
+| ------------ | --------- | --------------------------------------------- |
+| coinOrderIds | uint256[] | Array of order IDs from which to claim tokens |
+| nftOrderIds  | uint256[] | Array of order IDs from which to claim NFTs   |
 
 ### claimNFTs
 
 ```solidity
-function claimNFTs(uint256[] _orderIds, uint256[] _tokenIds) external nonpayable
+function claimNFTs(uint256[] orderIds) external nonpayable
 ```
 
 Claim NFTs associated with filled or partially filled orders Must be the maker of these orders.
 
 #### Parameters
 
-| Name       | Type      | Description                                 |
-| ---------- | --------- | ------------------------------------------- |
-| \_orderIds | uint256[] | Array of order IDs from which to claim NFTs |
-| \_tokenIds | uint256[] | Array of token IDs to claim NFTs for        |
+| Name     | Type      | Description                                 |
+| -------- | --------- | ------------------------------------------- |
+| orderIds | uint256[] | Array of order IDs from which to claim NFTs |
 
 ### claimTokens
 
 ```solidity
-function claimTokens(uint256[] _orderIds) external nonpayable
+function claimTokens(uint256[] orderIds) external nonpayable
 ```
 
 Claim tokens associated with filled or partially filled orders. Must be the maker of these orders.
 
 #### Parameters
 
-| Name       | Type      | Description                                 |
-| ---------- | --------- | ------------------------------------------- |
-| \_orderIds | uint256[] | Array of order IDs from which to claim NFTs |
+| Name     | Type      | Description                                 |
+| -------- | --------- | ------------------------------------------- |
+| orderIds | uint256[] | Array of order IDs from which to claim NFTs |
 
 ### getClaimableTokenInfo
 
 ```solidity
-function getClaimableTokenInfo(uint40 _orderId) external view returns (struct ISamWitchOrderBook.ClaimableTokenInfo)
+function getClaimableTokenInfo(uint40 orderId) external view returns (struct ISamWitchOrderBook.ClaimableTokenInfo)
 ```
 
 #### Parameters
 
-| Name      | Type   | Description |
-| --------- | ------ | ----------- |
-| \_orderId | uint40 | undefined   |
+| Name    | Type   | Description |
+| ------- | ------ | ----------- |
+| orderId | uint40 | undefined   |
 
 #### Returns
 
@@ -135,16 +133,16 @@ function getClaimableTokenInfo(uint40 _orderId) external view returns (struct IS
 ### getHighestBid
 
 ```solidity
-function getHighestBid(uint256 _tokenId) external view returns (uint72)
+function getHighestBid(uint256 tokenId) external view returns (uint72)
 ```
 
 Get the highest bid for a specific token ID
 
 #### Parameters
 
-| Name      | Type    | Description                             |
-| --------- | ------- | --------------------------------------- |
-| \_tokenId | uint256 | The token ID to get the highest bid for |
+| Name    | Type    | Description                             |
+| ------- | ------- | --------------------------------------- |
+| tokenId | uint256 | The token ID to get the highest bid for |
 
 #### Returns
 
@@ -155,16 +153,16 @@ Get the highest bid for a specific token ID
 ### getLowestAsk
 
 ```solidity
-function getLowestAsk(uint256 _tokenId) external view returns (uint72)
+function getLowestAsk(uint256 tokenId) external view returns (uint72)
 ```
 
 Get the lowest ask for a specific token ID
 
 #### Parameters
 
-| Name      | Type    | Description                            |
-| --------- | ------- | -------------------------------------- |
-| \_tokenId | uint256 | The token ID to get the lowest ask for |
+| Name    | Type    | Description                            |
+| ------- | ------- | -------------------------------------- |
+| tokenId | uint256 | The token ID to get the lowest ask for |
 
 #### Returns
 
@@ -175,18 +173,18 @@ Get the lowest ask for a specific token ID
 ### getNode
 
 ```solidity
-function getNode(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (struct BokkyPooBahsRedBlackTreeLibrary.Node)
+function getNode(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (struct BokkyPooBahsRedBlackTreeLibrary.Node)
 ```
 
 Get the order book entry for a specific order ID
 
 #### Parameters
 
-| Name      | Type                              | Description                                      |
-| --------- | --------------------------------- | ------------------------------------------------ |
-| \_side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get the order from |
-| \_tokenId | uint256                           | The token ID to get the order for                |
-| \_price   | uint72                            | The price level to get the order for             |
+| Name    | Type                              | Description                                      |
+| ------- | --------------------------------- | ------------------------------------------------ |
+| side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get the order from |
+| tokenId | uint256                           | The token ID to get the order for                |
+| price   | uint72                            | The price level to get the order for             |
 
 #### Returns
 
@@ -197,16 +195,16 @@ Get the order book entry for a specific order ID
 ### getTokenIdInfo
 
 ```solidity
-function getTokenIdInfo(uint256 _tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
+function getTokenIdInfo(uint256 tokenId) external view returns (struct ISamWitchOrderBook.TokenIdInfo)
 ```
 
 Get the token ID info for a specific token ID
 
 #### Parameters
 
-| Name      | Type    | Description                      |
-| --------- | ------- | -------------------------------- |
-| \_tokenId | uint256 | The token ID to get the info for |
+| Name    | Type    | Description                      |
+| ------- | ------- | -------------------------------- |
+| tokenId | uint256 | The token ID to get the info for |
 
 #### Returns
 
@@ -217,70 +215,81 @@ Get the token ID info for a specific token ID
 ### initialize
 
 ```solidity
-function initialize(contract IERC1155 _nft, address _token, address _devAddr, uint16 _devFee, uint8 _burntFee, uint16 _maxOrdersPerPrice) external payable
+function initialize(contract IERC1155 nft, address token, address devAddr, uint16 devFee, uint8 burntFee, uint16 maxOrdersPerPrice) external payable
 ```
 
 Initialize the contract as part of the proxy contract deployment
 
 #### Parameters
 
-| Name                | Type              | Description                                              |
-| ------------------- | ----------------- | -------------------------------------------------------- |
-| \_nft               | contract IERC1155 | Address of the nft                                       |
-| \_token             | address           | The quote token                                          |
-| \_devAddr           | address           | The address to receive trade fees                        |
-| \_devFee            | uint16            | The fee to send to the dev address (max 10%)             |
-| \_burntFee          | uint8             | The fee to burn (max 2.55%)                              |
-| \_maxOrdersPerPrice | uint16            | The maximum number of orders allowed at each price level |
+| Name              | Type              | Description                                              |
+| ----------------- | ----------------- | -------------------------------------------------------- |
+| nft               | contract IERC1155 | Address of the nft                                       |
+| token             | address           | The quote token                                          |
+| devAddr           | address           | The address to receive trade fees                        |
+| devFee            | uint16            | The fee to send to the dev address (max 10%)             |
+| burntFee          | uint8             | The fee to burn (max 2.55%)                              |
+| maxOrdersPerPrice | uint16            | The maximum number of orders allowed at each price level |
 
 ### limitOrders
 
 ```solidity
-function limitOrders(ISamWitchOrderBook.LimitOrder[] _orders) external nonpayable
+function limitOrders(ISamWitchOrderBook.LimitOrder[] orders) external nonpayable
 ```
 
 #### Parameters
 
-| Name     | Type                            | Description |
-| -------- | ------------------------------- | ----------- |
-| \_orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
+| Name   | Type                            | Description |
+| ------ | ------------------------------- | ----------- |
+| orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
+
+### marketOrder
+
+```solidity
+function marketOrder(ISamWitchOrderBook.MarketOrder order) external nonpayable
+```
+
+#### Parameters
+
+| Name  | Type                           | Description |
+| ----- | ------------------------------ | ----------- |
+| order | ISamWitchOrderBook.MarketOrder | undefined   |
 
 ### nftsClaimable
 
 ```solidity
-function nftsClaimable(uint40[] _orderIds, uint256[] _tokenIds) external view returns (uint256[] amounts_)
+function nftsClaimable(uint40[] orderIds) external view returns (uint256[] amounts)
 ```
 
 Get the amount of NFTs claimable for these orders
 
 #### Parameters
 
-| Name       | Type      | Description                                 |
-| ---------- | --------- | ------------------------------------------- |
-| \_orderIds | uint40[]  | The order IDs to get the claimable NFTs for |
-| \_tokenIds | uint256[] | The token IDs to get the claimable NFTs for |
+| Name     | Type     | Description                                 |
+| -------- | -------- | ------------------------------------------- |
+| orderIds | uint40[] | The order IDs to get the claimable NFTs for |
 
 #### Returns
 
-| Name      | Type      | Description |
-| --------- | --------- | ----------- |
-| amounts\_ | uint256[] | undefined   |
+| Name    | Type      | Description |
+| ------- | --------- | ----------- |
+| amounts | uint256[] | undefined   |
 
 ### nodeExists
 
 ```solidity
-function nodeExists(enum ISamWitchOrderBook.OrderSide _side, uint256 _tokenId, uint72 _price) external view returns (bool)
+function nodeExists(enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint72 price) external view returns (bool)
 ```
 
 Check if the node exists
 
 #### Parameters
 
-| Name      | Type                              | Description                                      |
-| --------- | --------------------------------- | ------------------------------------------------ |
-| \_side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get the order from |
-| \_tokenId | uint256                           | The token ID to get the order for                |
-| \_price   | uint72                            | The price level to get the order for             |
+| Name    | Type                              | Description                                      |
+| ------- | --------------------------------- | ------------------------------------------------ |
+| side    | enum ISamWitchOrderBook.OrderSide | The side of the order book to get the order from |
+| tokenId | uint256                           | The token ID to get the order for                |
+| price   | uint72                            | The price level to get the order for             |
 
 #### Returns
 
@@ -371,45 +380,45 @@ _Leaves the contract without owner. It will not be possible to call `onlyOwner` 
 ### setFees
 
 ```solidity
-function setFees(address _devAddr, uint16 _devFee, uint8 _burntFee) external nonpayable
+function setFees(address devAddr, uint16 devFee, uint8 burntFee) external nonpayable
 ```
 
 Set the fees for the contract
 
 #### Parameters
 
-| Name       | Type    | Description                                  |
-| ---------- | ------- | -------------------------------------------- |
-| \_devAddr  | address | The address to receive trade fees            |
-| \_devFee   | uint16  | The fee to send to the dev address (max 10%) |
-| \_burntFee | uint8   | The fee to burn (max 2%)                     |
+| Name     | Type    | Description                                  |
+| -------- | ------- | -------------------------------------------- |
+| devAddr  | address | The address to receive trade fees            |
+| devFee   | uint16  | The fee to send to the dev address (max 10%) |
+| burntFee | uint8   | The fee to burn (max 2%)                     |
 
 ### setMaxOrdersPerPrice
 
 ```solidity
-function setMaxOrdersPerPrice(uint16 _maxOrdersPerPrice) external payable
+function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) external payable
 ```
 
-The maximum amount of orders allowed at a specific price level
+Set the maximum amount of orders allowed at a specific price level
 
 #### Parameters
 
-| Name                | Type   | Description                                                        |
-| ------------------- | ------ | ------------------------------------------------------------------ |
-| \_maxOrdersPerPrice | uint16 | The new maximum amount of orders allowed at a specific price level |
+| Name              | Type   | Description                                                        |
+| ----------------- | ------ | ------------------------------------------------------------------ |
+| maxOrdersPerPrice | uint16 | The new maximum amount of orders allowed at a specific price level |
 
 ### setTokenIdInfos
 
 ```solidity
-function setTokenIdInfos(uint256[] _tokenIds, ISamWitchOrderBook.TokenIdInfo[] _tokenIdInfos) external payable
+function setTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenIdInfos) external payable
 ```
 
 #### Parameters
 
-| Name           | Type                             | Description |
-| -------------- | -------------------------------- | ----------- |
-| \_tokenIds     | uint256[]                        | undefined   |
-| \_tokenIdInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
+| Name         | Type                             | Description |
+| ------------ | -------------------------------- | ----------- |
+| tokenIds     | uint256[]                        | undefined   |
+| tokenIdInfos | ISamWitchOrderBook.TokenIdInfo[] | undefined   |
 
 ### supportsInterface
 
@@ -434,23 +443,23 @@ _See {IERC165-supportsInterface}._
 ### tokensClaimable
 
 ```solidity
-function tokensClaimable(uint40[] _orderIds, bool _takeAwayFees) external view returns (uint256 amount_)
+function tokensClaimable(uint40[] orderIds, bool takeAwayFees) external view returns (uint256 amount)
 ```
 
 Get the amount of tokens claimable for these orders
 
 #### Parameters
 
-| Name           | Type     | Description                                             |
-| -------------- | -------- | ------------------------------------------------------- |
-| \_orderIds     | uint40[] | The order IDs of which to find the claimable tokens for |
-| \_takeAwayFees | bool     | Whether to take away the fees from the claimable amount |
+| Name         | Type     | Description                                             |
+| ------------ | -------- | ------------------------------------------------------- |
+| orderIds     | uint40[] | The order IDs of which to find the claimable tokens for |
+| takeAwayFees | bool     | Whether to take away the fees from the claimable amount |
 
 #### Returns
 
-| Name     | Type    | Description |
-| -------- | ------- | ----------- |
-| amount\_ | uint256 | undefined   |
+| Name   | Type    | Description |
+| ------ | ------- | ----------- |
+| amount | uint256 | undefined   |
 
 ### transferOwnership
 
@@ -472,7 +481,7 @@ _Transfers ownership of the contract to a new account (`newOwner`). Can only be 
 function updateRoyaltyFee() external nonpayable
 ```
 
-When the nft royalty changes this updates the fee and recipient. Assumes all token ids have the same royalty
+When the \_nft royalty changes this updates the fee and recipient. Assumes all token ids have the same royalty
 
 ### upgradeToAndCall
 
@@ -739,6 +748,21 @@ error FailedInnerCall()
 
 _A call to an address target failed. The target may have reverted._
 
+### FailedToTakeFromBook
+
+```solidity
+error FailedToTakeFromBook(address taker, enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint256 quantityRemaining)
+```
+
+#### Parameters
+
+| Name              | Type                              | Description |
+| ----------------- | --------------------------------- | ----------- |
+| taker             | address                           | undefined   |
+| side              | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId           | uint256                           | undefined   |
+| quantityRemaining | uint256                           | undefined   |
+
 ### InvalidInitialization
 
 ```solidity
@@ -746,6 +770,18 @@ error InvalidInitialization()
 ```
 
 _The contract is already initialized._
+
+### KeyCannotBeZero
+
+```solidity
+error KeyCannotBeZero()
+```
+
+### KeyDoesntExist
+
+```solidity
+error KeyDoesntExist()
+```
 
 ### LengthMismatch
 
@@ -863,6 +899,21 @@ error PriceNotMultipleOfTick(uint256 tick)
 error PriceZero()
 ```
 
+### SafeCastOverflowedUintDowncast
+
+```solidity
+error SafeCastOverflowedUintDowncast(uint8 bits, uint256 value)
+```
+
+_Value doesn&#39;t fit in an uint of `bits` size._
+
+#### Parameters
+
+| Name  | Type    | Description |
+| ----- | ------- | ----------- |
+| bits  | uint8   | undefined   |
+| value | uint256 | undefined   |
+
 ### SafeERC20FailedOperation
 
 ```solidity
@@ -899,6 +950,12 @@ error TokenDoesntExist(uint256 tokenId)
 
 ```solidity
 error TooManyOrdersHit()
+```
+
+### TotalCostConditionNotMet
+
+```solidity
+error TotalCostConditionNotMet()
 ```
 
 ### UUPSUnauthorizedCallContext
