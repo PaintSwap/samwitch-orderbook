@@ -100,9 +100,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @param order market order to be placed
   function marketOrder(MarketOrder calldata order) external override {
     // Must fufill the order and be below the total cost (or above depending on the side)
-    uint256 royalty;
-    uint256 dev;
-    uint256 burn;
     uint256 coinsToUs;
     uint256 coinsFromUs;
     address sender = _msgSender();
@@ -112,17 +109,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
     uint256 cost = _makeMarketOrder(order, orderIdsPool, quantitiesPool);
     bool isBuy = order.side == OrderSide.Buy;
+    (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(cost);
     if (isBuy) {
       require(cost <= order.totalCost, TotalCostConditionNotMet());
 
       coinsToUs = cost;
-      (royalty, dev, burn) = _calcFees(cost);
     } else {
       require(cost >= order.totalCost, TotalCostConditionNotMet());
 
       // Transfer tokens to the seller if any have sold
-      (royalty, dev, burn) = _calcFees(cost);
-
       uint256 fees = royalty + dev + burn;
       coinsFromUs = cost - fees;
     }
@@ -180,14 +175,19 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         ++currentOrderId;
       }
 
+      uint256 royaltyOrder;
+      uint256 devOrder;
+      uint256 burnOrder;
+      if (cost != 0) {
+        (royaltyOrder, devOrder, burnOrder) = _calcFees(cost);
+        royalty += royaltyOrder;
+        dev += devOrder;
+        burn += burnOrder;
+      }
+
       if (limitOrder.side == OrderSide.Buy) {
         coinsToUs += cost + uint256(limitOrder.price) * quantityAddedToBook;
         if (cost != 0) {
-          (uint256 _royalty, uint256 _dev, uint256 _burn) = _calcFees(cost);
-          royalty += _royalty;
-          dev += _dev;
-          burn += _burn;
-
           // Transfer the NFTs taken from the order book straight to the taker
           nftIdsFromUs[lengthFromUs] = limitOrder.tokenId;
           nftAmountsFromUs[lengthFromUs] = uint256(limitOrder.quantity) - quantityAddedToBook;
@@ -203,17 +203,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         }
 
         // Transfer tokens to the seller if any have sold
-        if (cost != 0) {
-          (uint256 royalty_, uint256 dev_, uint256 burn_) = _calcFees(cost);
-          royalty += royalty_;
-          dev += dev_;
-          burn += burn_;
-
-          uint256 fees = royalty + dev_ + burn_;
-          coinsFromUs += cost - fees;
-        }
+        uint256 fees = royaltyOrder + devOrder + burnOrder;
+        coinsFromUs += cost - fees;
       }
     }
+
     // update the state if any orders were added to the book
     if (currentOrderId != _nextOrderId) {
       _nextOrderId = currentOrderId;
@@ -325,10 +319,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     }
 
     require(amount != 0, NothingToClaim());
-    (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
-    uint256 fees = royalty + dev + burn;
-    _coin.safeTransfer(_msgSender(), amount - fees);
-    emit ClaimedTokens(_msgSender(), orderIds, amount, fees);
+    _coin.safeTransfer(_msgSender(), amount);
+    emit ClaimedTokens(_msgSender(), orderIds, amount);
   }
 
   /// @notice Claim NFTs associated with filled or partially filled orders
@@ -376,20 +368,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   /// @notice Get the amount of tokens claimable for these orders
   /// @param orderIds The order IDs of which to find the claimable tokens for
-  /// @param takeAwayFees Whether to take away the fees from the claimable amount
-  function tokensClaimable(
-    uint40[] calldata orderIds,
-    bool takeAwayFees
-  ) external view override returns (uint256 amount) {
+  function tokensClaimable(uint40[] calldata orderIds) external view override returns (uint256 amount) {
     for (uint256 i = 0; i < orderIds.length; ++i) {
       ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderIds[i]];
       if (claimableTokenInfo.tokenId == 0) {
         amount += claimableTokenInfo.amount;
       }
-    }
-    if (takeAwayFees) {
-      (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
-      amount -= (royalty + dev + burn);
     }
   }
 
@@ -604,14 +588,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
             quantityRemaining = 0;
             eatIntoLastOrder = true;
           }
-          cost += quantityNFTClaimable * bestPrice;
+          uint256 tradeCost = quantityNFTClaimable * bestPrice;
+          cost += tradeCost;
 
+          ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderId];
           if (isTakingFromBuy) {
-            _tokenClaimable[orderId].amount += uint80(quantityNFTClaimable);
+            claimableTokenInfo.amount += uint80(quantityNFTClaimable);
           } else {
-            _tokenClaimable[orderId].amount = uint80(
-              _tokenClaimable[orderId].amount + quantityNFTClaimable * bestPrice
-            );
+            uint256 fees = _calcFee(tradeCost);
+            claimableTokenInfo.amount += uint80(tradeCost - fees);
           }
 
           orderIdsPool[numberOfOrders] = orderId;
@@ -921,6 +906,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       price = _addToBookSide(_asksAtPrice[tokenId], _asks[tokenId], price, newOrderId, quantity, int128(tick));
     }
     emit AddedToBook(_msgSender(), side, newOrderId, tokenId, price, quantity);
+  }
+
+  function _calcFee(uint256 cost) private view returns (uint256 fees) {
+    (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(cost);
+    fees = royalty + dev + burn;
   }
 
   function _calcFees(uint256 cost) private view returns (uint256 royalty, uint256 dev, uint256 burn) {

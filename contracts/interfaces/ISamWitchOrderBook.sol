@@ -52,7 +52,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   event OrdersMatched(address taker, uint256[] orderIds, uint256[] quantities);
   event OrdersCancelled(address maker, uint256[] orderIds);
   event FailedToAddToBook(address maker, OrderSide side, uint256 tokenId, uint256 price, uint256 quantity);
-  event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fees);
+  event ClaimedTokens(address user, uint256[] orderIds, uint256 amount);
   event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[] amounts);
   event SetTokenIdInfos(uint256[] tokenIds, TokenIdInfo[] tokenInfos);
   event SetMaxOrdersPerPriceLevel(uint256 maxOrdesrsPerPrice);
@@ -96,7 +96,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function claimAll(uint256[] calldata coinOrderIds, uint256[] calldata nftOrderIds) external;
 
-  function tokensClaimable(uint40[] calldata orderIds, bool takeAwayFees) external view returns (uint256 amount);
+  function tokensClaimable(uint40[] calldata orderIds) external view returns (uint256 amount);
 
   function nftsClaimable(uint40[] calldata orderIds) external view returns (uint256[] memory amounts);
 

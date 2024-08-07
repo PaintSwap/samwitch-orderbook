@@ -443,17 +443,16 @@ _See {IERC165-supportsInterface}._
 ### tokensClaimable
 
 ```solidity
-function tokensClaimable(uint40[] orderIds, bool takeAwayFees) external view returns (uint256 amount)
+function tokensClaimable(uint40[] orderIds) external view returns (uint256 amount)
 ```
 
 Get the amount of tokens claimable for these orders
 
 #### Parameters
 
-| Name         | Type     | Description                                             |
-| ------------ | -------- | ------------------------------------------------------- |
-| orderIds     | uint40[] | The order IDs of which to find the claimable tokens for |
-| takeAwayFees | bool     | Whether to take away the fees from the claimable amount |
+| Name     | Type     | Description                                             |
+| -------- | -------- | ------------------------------------------------------- |
+| orderIds | uint40[] | The order IDs of which to find the claimable tokens for |
 
 #### Returns
 
@@ -535,7 +534,7 @@ event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[
 ### ClaimedTokens
 
 ```solidity
-event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fees)
+event ClaimedTokens(address user, uint256[] orderIds, uint256 amount)
 ```
 
 #### Parameters
@@ -545,7 +544,6 @@ event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fe
 | user     | address   | undefined   |
 | orderIds | uint256[] | undefined   |
 | amount   | uint256   | undefined   |
-| fees     | uint256   | undefined   |
 
 ### FailedToAddToBook
 

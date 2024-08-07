@@ -311,15 +311,14 @@ _Returns true if this contract implements the interface defined by `interfaceId`
 ### tokensClaimable
 
 ```solidity
-function tokensClaimable(uint40[] orderIds, bool takeAwayFees) external view returns (uint256 amount)
+function tokensClaimable(uint40[] orderIds) external view returns (uint256 amount)
 ```
 
 #### Parameters
 
-| Name         | Type     | Description |
-| ------------ | -------- | ----------- |
-| orderIds     | uint40[] | undefined   |
-| takeAwayFees | bool     | undefined   |
+| Name     | Type     | Description |
+| -------- | -------- | ----------- |
+| orderIds | uint40[] | undefined   |
 
 #### Returns
 
@@ -364,7 +363,7 @@ event ClaimedNFTs(address user, uint256[] orderIds, uint256[] tokenIds, uint256[
 ### ClaimedTokens
 
 ```solidity
-event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fees)
+event ClaimedTokens(address user, uint256[] orderIds, uint256 amount)
 ```
 
 #### Parameters
@@ -374,7 +373,6 @@ event ClaimedTokens(address user, uint256[] orderIds, uint256 amount, uint256 fe
 | user     | address   | undefined   |
 | orderIds | uint256[] | undefined   |
 | amount   | uint256   | undefined   |
-| fees     | uint256   | undefined   |
 
 ### FailedToAddToBook
 
