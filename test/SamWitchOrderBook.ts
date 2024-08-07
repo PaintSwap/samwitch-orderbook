@@ -1807,6 +1807,59 @@ describe("SamWitchOrderBook", function () {
     expect(orders.length).to.eq(1);
   });
 
+  it("Max number of orders for a price should increment it by the tick, sell orders, check just exceeding the extreme reverts", async function () {
+    const {orderBook, alice, tokenId, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = 4722366482869645213695n; // Max price for uint72
+    const quantity = 1;
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId: tokenId,
+      price,
+      quantity,
+    };
+
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    // Try to add one more and it will be reverted
+    await expect(orderBook.connect(alice).limitOrders([limitOrder]))
+      .to.be.revertedWithCustomError(orderBook, "SafeCastOverflowedUintDowncast")
+      .withArgs(72, 4722366482869645213696n);
+  });
+
+  // Similiar to other test, but makes it exceed more
+  it("Max number of orders for a price should increment it by the tick, sell orders, check extreme reverts", async function () {
+    const {orderBook, alice, tokenId, erc1155, maxOrdersPerPrice} = await loadFixture(deployContractsFixture);
+
+    const tick = ethers.parseEther("1");
+    const minQuantity = 1;
+    await orderBook.setTokenIdInfos([tokenId + 1], [{tick, minQuantity}]);
+
+    // Set up order book
+    const price = ethers.parseEther("4722"); // At the extreme end of uint72
+    const quantity = 1;
+    await erc1155.mintSpecificId(tokenId + 1, 100000);
+    await erc1155.connect(alice).mintSpecificId(tokenId + 1, 1);
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Sell,
+      tokenId: tokenId + 1,
+      price,
+      quantity,
+    };
+
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    // Try to add one more and it will be reverted
+    await expect(orderBook.connect(alice).limitOrders([limitOrder]))
+      .to.be.revertedWithCustomError(orderBook, "SafeCastOverflowedUintDowncast")
+      .withArgs(72, price + tick);
+  });
+
   it("Max number of orders for a price should increment it by the tick, buy orders", async function () {
     const {orderBook, alice, tokenId, maxOrdersPerPrice, tick} = await loadFixture(deployContractsFixture);
 
@@ -1832,6 +1885,30 @@ describe("SamWitchOrderBook", function () {
 
     orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price - tick);
     expect(orders.length).to.eq(1);
+  });
+
+  it("Max number of orders for a price should increment it by the tick, buy orders, check extreme reverts", async function () {
+    const {orderBook, alice, tokenId, maxOrdersPerPrice, tick} = await loadFixture(deployContractsFixture);
+
+    // Set up order book
+    const price = tick; // Minimum price
+    const quantity = 1;
+
+    const limitOrder: ISamWitchOrderBook.LimitOrderStruct = {
+      side: OrderSide.Buy,
+      tokenId,
+      price,
+      quantity,
+    };
+
+    const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(maxOrdersPerPrice).fill(limitOrder);
+    await orderBook.limitOrders(limitOrders);
+
+    // Try to add one more and it will be reverted
+    await expect(orderBook.connect(alice).limitOrders([limitOrder])).to.be.revertedWithCustomError(
+      orderBook,
+      "KeyCannotBeZero",
+    );
   });
 
   it("Max number of orders for a price should increment it by the tick, where the price level exists already and has spare segments", async function () {

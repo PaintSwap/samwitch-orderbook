@@ -6,6 +6,7 @@ import {UnsafeMath} from "@0xdoublesharp/unsafe-math/contracts/UnsafeMath.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
@@ -866,7 +867,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       ) {
         // Loop until we find a suitable place to put this
         while (true) {
-          price = uint72(uint128(int72(price) + tick));
+          price = SafeCast.toUint72(uint128(int128(uint128(price)) + tick));
           if (!tree.exists(price)) {
             tree.insert(price);
             break;
