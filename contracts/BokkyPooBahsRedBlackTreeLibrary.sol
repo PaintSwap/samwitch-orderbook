@@ -14,6 +14,10 @@ pragma solidity ^0.8.26;
 // Enjoy. (c) BokkyPooBah / Bok Consulting Pty Ltd 2020. The MIT Licence.
 // ----------------------------------------------------------------------------
 library BokkyPooBahsRedBlackTreeLibrary {
+
+  error KeyCannotBeZero();
+  error KeyDoesntExist();
+
   struct Node {
     uint72 parent;
     uint72 left;
@@ -48,7 +52,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
   }
 
   function next(Tree storage self, uint72 target) internal view returns (uint72 cursor) {
-    require(target != EMPTY);
+    require(target != EMPTY, KeyCannotBeZero());
     if (self.nodes[target].right != EMPTY) {
       cursor = treeMinimum(self, self.nodes[target].right);
     } else {
@@ -61,7 +65,7 @@ library BokkyPooBahsRedBlackTreeLibrary {
   }
 
   function prev(Tree storage self, uint72 target) internal view returns (uint72 cursor) {
-    require(target != EMPTY);
+    require(target != EMPTY, KeyCannotBeZero());
     if (self.nodes[target].left != EMPTY) {
       cursor = treeMaximum(self, self.nodes[target].left);
     } else {
@@ -86,18 +90,17 @@ library BokkyPooBahsRedBlackTreeLibrary {
   }
 
   function getNode(Tree storage self, uint72 key) internal view returns (Node storage node) {
-    require(exists(self, key));
+    require(exists(self, key), KeyDoesntExist());
     return self.nodes[key];
   }
 
   function edit(Tree storage self, uint72 key, uint32 extraTombstoneOffset) internal {
-    require(exists(self, key));
+    require(exists(self, key), KeyDoesntExist());
     self.nodes[key].tombstoneOffset += extraTombstoneOffset;
   }
 
   function insert(Tree storage self, uint72 key) internal {
-    require(key != EMPTY);
-    require(!exists(self, key));
+    require(key != EMPTY, KeyCannotBeZero());
     uint72 cursor = EMPTY;
     uint72 probe = self.root;
     while (probe != EMPTY) {
@@ -126,8 +129,8 @@ library BokkyPooBahsRedBlackTreeLibrary {
   }
 
   function remove(Tree storage self, uint72 key) internal {
-    require(key != EMPTY);
-    require(exists(self, key));
+    require(key != EMPTY, KeyCannotBeZero());
+    require(exists(self, key), KeyDoesntExist());
     uint72 probe;
     uint72 cursor;
     if (self.nodes[key].left == EMPTY || self.nodes[key].right == EMPTY) {
