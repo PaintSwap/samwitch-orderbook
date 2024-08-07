@@ -35,7 +35,7 @@ const mediumRunsConfig: SolcUserConfig = {
     ...defaultConfig.settings,
     optimizer: {
       ...defaultConfig.settings.optimizer,
-      runs: 1000,
+      runs: 800,
     },
   },
 };
