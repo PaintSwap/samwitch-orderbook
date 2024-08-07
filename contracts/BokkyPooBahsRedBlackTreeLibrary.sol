@@ -14,6 +14,9 @@ pragma solidity >=0.8.20;
 // Enjoy. (c) BokkyPooBah / Bok Consulting Pty Ltd 2020. The MIT Licence.
 // ----------------------------------------------------------------------------
 library BokkyPooBahsRedBlackTreeLibrary {
+
+  error KeyCannotBeZero();
+
   struct Node {
     uint72 parent;
     uint72 left;
@@ -96,7 +99,9 @@ library BokkyPooBahsRedBlackTreeLibrary {
   }
 
   function insert(Tree storage self, uint72 key) internal {
-    require(key != EMPTY);
+    if (key == EMPTY) {
+      revert KeyCannotBeZero();
+    }
     require(!exists(self, key));
     uint72 cursor = EMPTY;
     uint72 probe = self.root;
