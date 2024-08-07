@@ -8,25 +8,25 @@ describe("SamWitchOrderBook", function () {
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
-    const brush = await ethers.deployContract("MockBrushToken");
+    const coins = await ethers.deployContract("MockBurnableToken");
     const erc1155 = await ethers.deployContract("MockERC1155", [royaltyRecipient.address]);
 
     const maxOrdersPerPrice = 100;
     const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
     const orderBook = (await upgrades.deployProxy(
       OrderBook,
-      [await erc1155.getAddress(), await brush.getAddress(), dev.address, 30, 30, maxOrdersPerPrice],
+      [await erc1155.getAddress(), await coins.getAddress(), dev.address, 30, 30, maxOrdersPerPrice],
       {
         kind: "uups",
       },
     )) as unknown as SamWitchOrderBook;
 
-    const initialBrush = 1000000;
-    await brush.mint(owner, initialBrush);
-    await brush.approve(orderBook, initialBrush);
+    const initialCoin = 1000000;
+    await coins.mint(owner, initialCoin);
+    await coins.approve(orderBook, initialCoin);
 
-    await brush.connect(alice).mint(alice, initialBrush);
-    await brush.connect(alice).approve(orderBook, initialBrush);
+    await coins.connect(alice).mint(alice, initialCoin);
+    await coins.connect(alice).approve(orderBook, initialCoin);
 
     const initialQuantity = 100;
     const tokenId = 11;
@@ -43,7 +43,7 @@ describe("SamWitchOrderBook", function () {
     return {
       orderBook,
       erc1155,
-      brush,
+      coins,
       owner,
       alice,
       bob,
@@ -52,7 +52,7 @@ describe("SamWitchOrderBook", function () {
       erin,
       frank,
       royaltyRecipient,
-      initialBrush,
+      initialCoin,
       tokenId,
       initialQuantity,
       maxOrdersPerPrice,
@@ -62,7 +62,7 @@ describe("SamWitchOrderBook", function () {
   }
 
   it("Initialize function constraints", async function () {
-    const {dev, brush, erc1155} = await loadFixture(deployContractsFixture);
+    const {dev, coins, erc1155} = await loadFixture(deployContractsFixture);
 
     const maxOrdersPerPrice = 100;
     const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
@@ -71,7 +71,7 @@ describe("SamWitchOrderBook", function () {
     await expect(
       upgrades.deployProxy(
         OrderBook,
-        [await erc1155.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        [await erc1155.getAddress(), await coins.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
         {
           kind: "uups",
         },
@@ -83,7 +83,7 @@ describe("SamWitchOrderBook", function () {
     await expect(
       upgrades.deployProxy(
         OrderBook,
-        [await erc1155.getAddress(), await brush.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
+        [await erc1155.getAddress(), await coins.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
         {
           kind: "uups",
         },
@@ -94,7 +94,7 @@ describe("SamWitchOrderBook", function () {
     await expect(
       upgrades.deployProxy(
         OrderBook,
-        [await erc1155.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        [await erc1155.getAddress(), await coins.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
         {
           kind: "uups",
         },
@@ -106,7 +106,7 @@ describe("SamWitchOrderBook", function () {
     await expect(
       upgrades.deployProxy(
         OrderBook,
-        [await erc721.getAddress(), await brush.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
+        [await erc721.getAddress(), await coins.getAddress(), dev.address, devFee, burntFee, maxOrdersPerPrice],
         {
           kind: "uups",
         },
@@ -117,7 +117,7 @@ describe("SamWitchOrderBook", function () {
     devFee = 0;
     await upgrades.deployProxy(
       OrderBook,
-      [await erc1155.getAddress(), await brush.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
+      [await erc1155.getAddress(), await coins.getAddress(), ethers.ZeroAddress, devFee, burntFee, maxOrdersPerPrice],
       {
         kind: "uups",
       },
@@ -127,7 +127,7 @@ describe("SamWitchOrderBook", function () {
     await expect(
       orderBook.initialize(
         erc1155.getAddress(),
-        await brush.getAddress(),
+        await coins.getAddress(),
         dev.address,
         devFee,
         burntFee,
@@ -886,7 +886,7 @@ describe("SamWitchOrderBook", function () {
 
   describe("Cancelling orders", function () {
     it("Cancel a single order", async function () {
-      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+      const {orderBook, owner, tokenId, erc1155, coins, initialCoin, initialQuantity} =
         await loadFixture(deployContractsFixture);
 
       // Set up order books
@@ -934,9 +934,9 @@ describe("SamWitchOrderBook", function () {
 
       expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
 
-      // Check you get the brush back
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      expect(await brush.balanceOf(orderBook)).to.eq(0);
+      // Check you get the coins back
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin);
+      expect(await coins.balanceOf(orderBook)).to.eq(0);
       expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
@@ -944,7 +944,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Cancel an order at the beginning, middle and end of the same segment", async function () {
-      const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
+      const {orderBook, owner, tokenId, coins, initialCoin} = await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
@@ -973,9 +973,9 @@ describe("SamWitchOrderBook", function () {
       const orders = await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price);
       expect(orders.length).to.eq(1);
       expect(orders[0].id).to.eq(orderId + 1);
-      // Check you get the brush back
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush - price * quantity);
-      expect(await brush.balanceOf(orderBook)).to.eq(price * quantity);
+      // Check you get the coins back
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin - price * quantity);
+      expect(await coins.balanceOf(orderBook)).to.eq(price * quantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
@@ -1006,7 +1006,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Cancel an order at the beginning, middle and end of the same segment which has a tombstoneOffset", async function () {
-      const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
+      const {orderBook, owner, tokenId, coins, initialCoin} = await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
@@ -1049,11 +1049,9 @@ describe("SamWitchOrderBook", function () {
       expect(orders.length).to.eq(1);
       expect(orders[0].id).to.eq(orderId + 1);
 
-      // Check you get the brush back
-      expect(await brush.balanceOf(owner)).to.eq(
-        initialBrush - price * quantity - calcFees(price * quantity * 4, true),
-      );
-      expect(await brush.balanceOf(orderBook)).to.eq(price * quantity);
+      // Check you get the coins back
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin - price * quantity - calcFees(price * quantity * 4, true));
+      expect(await coins.balanceOf(orderBook)).to.eq(price * quantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
@@ -1109,7 +1107,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Cancel an order which deletes a segment at the beginning, middle and end", async function () {
-      const {orderBook, owner, tokenId, brush, initialBrush} = await loadFixture(deployContractsFixture);
+      const {orderBook, owner, tokenId, coins, initialCoin} = await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
@@ -1149,16 +1147,16 @@ describe("SamWitchOrderBook", function () {
       expect(orders.map((order) => order.id)).to.deep.eq(orderIds);
       expect(orders[0].id).to.eq(orderIds[0]);
 
-      // Check you get the brush back
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush - price * quantity * 4);
-      expect(await brush.balanceOf(orderBook)).to.eq(price * quantity * 4);
+      // Check you get the coins back
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin - price * quantity * 4);
+      expect(await coins.balanceOf(orderBook)).to.eq(price * quantity * 4);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(price);
       expect(await orderBook.getLowestAsk(tokenId)).to.equal(0);
     });
 
     it("Bulk cancel orders", async function () {
-      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+      const {orderBook, owner, tokenId, erc1155, coins, initialCoin, initialQuantity} =
         await loadFixture(deployContractsFixture);
 
       // Set up order books
@@ -1197,7 +1195,7 @@ describe("SamWitchOrderBook", function () {
         orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Sell, tokenId, price: price + 1}]),
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFoundInTree");
 
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin);
       expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
 
       expect(await orderBook.getHighestBid(tokenId)).to.equal(0);
@@ -1391,7 +1389,7 @@ describe("SamWitchOrderBook", function () {
     });
 
     it("Remove an item, check the order can still be cancelled just not fulfilled", async function () {
-      const {orderBook, tokenId, brush, owner} = await loadFixture(deployContractsFixture);
+      const {orderBook, tokenId, coins, owner} = await loadFixture(deployContractsFixture);
 
       const price = 100;
       const quantity = 10;
@@ -1423,7 +1421,7 @@ describe("SamWitchOrderBook", function () {
       await orderBook.setTokenIdInfos([tokenId], [{tick: 0, minQuantity: 20}]);
       // Cancel should work
       const orderId = 1;
-      const preBalance = await brush.balanceOf(owner);
+      const preBalance = await coins.balanceOf(owner);
       await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
       // Selling should no longer work
@@ -1439,18 +1437,18 @@ describe("SamWitchOrderBook", function () {
       )
         .to.be.revertedWithCustomError(orderBook, "TokenDoesntExist")
         .withArgs(tokenId);
-      expect(await brush.balanceOf(owner)).to.eq(preBalance + BigInt(price * (quantity - 1)));
+      expect(await coins.balanceOf(owner)).to.eq(preBalance + BigInt(price * (quantity - 1)));
     });
 
     // Fixes: https://ftmscan.com/tx/0x69dd308e7a096ebd035bd3a3f18c2a9b116faee78ea4e0ccda06c3cfede0950b
     it("Check cancelling when the overall order amount exceed a uint72 (checks for overflow)", async function () {
-      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+      const {orderBook, owner, tokenId, erc1155, coins, initialCoin, initialQuantity} =
         await loadFixture(deployContractsFixture);
 
       const quantity = 10n;
-      const extraBrush = ethers.parseEther("1700") * quantity;
-      await brush.mint(owner.address, extraBrush);
-      await brush.approve(orderBook, extraBrush);
+      const extraCoin = ethers.parseEther("1700") * quantity;
+      await coins.mint(owner.address, extraCoin);
+      await coins.approve(orderBook, extraCoin);
 
       // Set up order books
       const price = ethers.parseEther("1700");
@@ -1463,12 +1461,12 @@ describe("SamWitchOrderBook", function () {
         },
       ]);
 
-      // Cancel buy, should not revert and return the brush
+      // Cancel buy, should not revert and return the coins
       const orderId = 1;
       await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
 
-      expect(await brush.balanceOf(owner)).to.eq(BigInt(initialBrush) + extraBrush);
-      expect(await brush.balanceOf(orderBook)).to.eq(0);
+      expect(await coins.balanceOf(owner)).to.eq(BigInt(initialCoin) + extraCoin);
+      expect(await coins.balanceOf(orderBook)).to.eq(0);
       expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
     });
   });
@@ -1587,7 +1585,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Full segment consumption, sell side", async function () {
-    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} =
+    const {orderBook, owner, alice, erc1155, coins, tokenId, initialQuantity, initialCoin} =
       await loadFixture(deployContractsFixture);
 
     // Set up order book
@@ -1635,21 +1633,21 @@ describe("SamWitchOrderBook", function () {
     expect(orders.length).to.eq(0);
     expect(await orderBook.nodeExists(OrderSide.Sell, tokenId, price)).to.be.false;
 
-    // Check erc1155/brush balances
+    // Check erc1155/coins balances
     expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(0);
     expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - quantity * 4);
     expect(await erc1155.balanceOf(alice, tokenId)).to.eq(initialQuantity + quantity * 4);
 
     const orderId = 1;
     await orderBook.claimTokens([orderId, orderId + 1, orderId + 2, orderId + 3]);
-    expect(await brush.balanceOf(owner)).to.eq(
-      initialBrush + price * quantity * 4 - calcFees(price * quantity * 4, true),
+    expect(await coins.balanceOf(owner)).to.eq(
+      initialCoin + price * quantity * 4 - calcFees(price * quantity * 4, true),
     );
-    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * quantity * 4);
+    expect(await coins.balanceOf(alice)).to.eq(initialCoin - price * quantity * 4);
   });
 
   it("Full segment & partial segment consumption, sell side", async function () {
-    const {orderBook, owner, alice, erc1155, brush, tokenId, initialQuantity, initialBrush} =
+    const {orderBook, owner, alice, erc1155, coins, tokenId, initialQuantity, initialCoin} =
       await loadFixture(deployContractsFixture);
 
     // Set up order book
@@ -1705,15 +1703,15 @@ describe("SamWitchOrderBook", function () {
     const node = await orderBook.getNode(OrderSide.Sell, tokenId, price);
     expect(node.tombstoneOffset).to.eq(1);
 
-    // Check erc1155/brush balances
+    // Check erc1155/coins balances
     expect(await erc1155.balanceOf(orderBook, tokenId)).to.eq(quantity * 5 - numToBuy);
     expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - quantity * 5);
     expect(await erc1155.balanceOf(alice, tokenId)).to.eq(initialQuantity + numToBuy);
 
     const orderId = 1;
     await orderBook.claimTokens([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4]);
-    expect(await brush.balanceOf(owner)).to.eq(initialBrush + price * numToBuy - calcFees(price * numToBuy, true));
-    expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * numToBuy);
+    expect(await coins.balanceOf(owner)).to.eq(initialCoin + price * numToBuy - calcFees(price * numToBuy, true));
+    expect(await coins.balanceOf(alice)).to.eq(initialCoin - price * numToBuy);
   });
 
   it("Partial segment consumption, buy side", async function () {
@@ -2080,7 +2078,7 @@ describe("SamWitchOrderBook", function () {
   it("Price must be modulus of tick quantity must be > min quantity, buy", async function () {
     const {
       orderBook,
-      brush,
+      coins,
       tokenId: originalTokenId,
       erc1155,
       initialQuantity,
@@ -2118,7 +2116,7 @@ describe("SamWitchOrderBook", function () {
         quantity,
       },
     ]);
-    expect(await brush.balanceOf(orderBook)).to.eq(0);
+    expect(await coins.balanceOf(orderBook)).to.eq(0);
 
     quantity = 20;
     await expect(
@@ -2131,7 +2129,7 @@ describe("SamWitchOrderBook", function () {
         },
       ]),
     ).to.not.be.reverted;
-    expect(await brush.balanceOf(orderBook)).to.eq(quantity * price);
+    expect(await coins.balanceOf(orderBook)).to.eq(quantity * price);
   });
 
   it("Change minQuantity, check other orders can still be added/taken", async function () {
@@ -2257,7 +2255,7 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("Update royalty fee for a non-erc2981 nft", async function () {
-    const {brush} = await loadFixture(deployContractsFixture);
+    const {coins} = await loadFixture(deployContractsFixture);
 
     const erc1155NoRoyalty = await ethers.deployContract("MockERC1155NoRoyalty");
 
@@ -2265,7 +2263,7 @@ describe("SamWitchOrderBook", function () {
     const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
     const orderBook = await upgrades.deployProxy(
       OrderBook,
-      [await erc1155NoRoyalty.getAddress(), await brush.getAddress(), ethers.ZeroAddress, 0, 0, maxOrdersPerPrice],
+      [await erc1155NoRoyalty.getAddress(), await coins.getAddress(), ethers.ZeroAddress, 0, 0, maxOrdersPerPrice],
       {
         kind: "uups",
       },
@@ -2276,7 +2274,7 @@ describe("SamWitchOrderBook", function () {
 
   describe("Market orders", function () {
     it("Check all fees (buying into order book)", async function () {
-      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      const {orderBook, erc1155, coins, owner, alice, dev, royaltyRecipient, tokenId, initialCoin} =
         await loadFixture(deployContractsFixture);
 
       await erc1155.setRoyaltyFee(1000); // 10%
@@ -2303,20 +2301,20 @@ describe("SamWitchOrderBook", function () {
       });
 
       // Check fees
-      expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
+      expect(await coins.balanceOf(alice)).to.eq(initialCoin - price * 10);
       const royalty = cost / 10;
       const burnt = (cost * 3) / 1000; // 0.3%
       const devAmount = (cost * 3) / 1000; // 0.3%
       const fees = royalty + burnt + devAmount;
-      expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
-      expect(await brush.balanceOf(dev)).to.eq(devAmount);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-      expect(await brush.amountBurnt()).to.eq(burnt);
+      expect(await coins.balanceOf(orderBook)).to.eq(cost - fees);
+      expect(await coins.balanceOf(dev)).to.eq(devAmount);
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin);
+      expect(await coins.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await coins.amountBurnt()).to.eq(burnt);
     });
 
     it("Check all fees (selling into order book)", async function () {
-      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      const {orderBook, erc1155, coins, owner, alice, dev, royaltyRecipient, tokenId, initialCoin} =
         await loadFixture(deployContractsFixture);
 
       await erc1155.setRoyaltyFee(1000); // 10%
@@ -2348,18 +2346,18 @@ describe("SamWitchOrderBook", function () {
       const devAmount = (cost * 3) / 1000; // 0.3%
       const fees = royalty + burnt + devAmount;
 
-      expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
-      expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
-      expect(await brush.balanceOf(dev)).to.eq(devAmount);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
-      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-      expect(await brush.amountBurnt()).to.eq(burnt);
+      expect(await coins.balanceOf(alice)).to.eq(initialCoin + cost - fees);
+      expect(await coins.balanceOf(orderBook)).to.eq(buyingCost - cost);
+      expect(await coins.balanceOf(dev)).to.eq(devAmount);
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin - buyingCost);
+      expect(await coins.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await coins.amountBurnt()).to.eq(burnt);
     });
   });
 
   describe("Limit orders", function () {
     it("Check all fees (buying into order book)", async function () {
-      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      const {orderBook, erc1155, coins, owner, alice, dev, royaltyRecipient, tokenId, initialCoin} =
         await loadFixture(deployContractsFixture);
 
       await erc1155.setRoyaltyFee(1000); // 10%
@@ -2387,20 +2385,20 @@ describe("SamWitchOrderBook", function () {
       ]);
 
       // Check fees
-      expect(await brush.balanceOf(alice)).to.eq(initialBrush - price * 10);
+      expect(await coins.balanceOf(alice)).to.eq(initialCoin - price * 10);
       const royalty = cost / 10;
       const burnt = (cost * 3) / 1000; // 0.3%
       const devAmount = (cost * 3) / 1000; // 0.3%
       const fees = royalty + burnt + devAmount;
-      expect(await brush.balanceOf(orderBook)).to.eq(cost - fees);
-      expect(await brush.balanceOf(dev)).to.eq(devAmount);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush);
-      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-      expect(await brush.amountBurnt()).to.eq(burnt);
+      expect(await coins.balanceOf(orderBook)).to.eq(cost - fees);
+      expect(await coins.balanceOf(dev)).to.eq(devAmount);
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin);
+      expect(await coins.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await coins.amountBurnt()).to.eq(burnt);
     });
 
     it("Check all fees (selling into order book)", async function () {
-      const {orderBook, erc1155, brush, owner, alice, dev, royaltyRecipient, tokenId, initialBrush} =
+      const {orderBook, erc1155, coins, owner, alice, dev, royaltyRecipient, tokenId, initialCoin} =
         await loadFixture(deployContractsFixture);
 
       await erc1155.setRoyaltyFee(1000); // 10%
@@ -2434,12 +2432,12 @@ describe("SamWitchOrderBook", function () {
       const devAmount = (cost * 3) / 1000; // 0.3%
       const fees = royalty + burnt + devAmount;
 
-      expect(await brush.balanceOf(alice)).to.eq(initialBrush + cost - fees);
-      expect(await brush.balanceOf(orderBook)).to.eq(buyingCost - cost);
-      expect(await brush.balanceOf(dev)).to.eq(devAmount);
-      expect(await brush.balanceOf(owner)).to.eq(initialBrush - buyingCost);
-      expect(await brush.balanceOf(royaltyRecipient)).to.eq(royalty);
-      expect(await brush.amountBurnt()).to.eq(burnt);
+      expect(await coins.balanceOf(alice)).to.eq(initialCoin + cost - fees);
+      expect(await coins.balanceOf(orderBook)).to.eq(buyingCost - cost);
+      expect(await coins.balanceOf(dev)).to.eq(devAmount);
+      expect(await coins.balanceOf(owner)).to.eq(initialCoin - buyingCost);
+      expect(await coins.balanceOf(royaltyRecipient)).to.eq(royalty);
+      expect(await coins.amountBurnt()).to.eq(burnt);
     });
   });
 
@@ -2457,7 +2455,7 @@ describe("SamWitchOrderBook", function () {
   describe("Claiming", function () {
     describe("Claiming tokens", function () {
       it("Claim tokens", async function () {
-        const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
+        const {orderBook, erc1155, coins, owner, alice, tokenId, initialCoin} =
           await loadFixture(deployContractsFixture);
 
         await erc1155.setRoyaltyFee(1000); // 10%
@@ -2497,11 +2495,11 @@ describe("SamWitchOrderBook", function () {
         expect((await orderBook.nftsClaimable([orderId]))[0]).to.eq(0);
         expect((await orderBook.nftsClaimable([orderId + 1]))[0]).to.eq(0);
 
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin);
         await expect(orderBook.claimTokens([orderId]))
           .to.emit(orderBook, "ClaimedTokens")
           .withArgs(owner.address, [orderId], cost, fees);
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin + cost - fees);
         expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
 
         // Try to claim twice
@@ -2522,7 +2520,7 @@ describe("SamWitchOrderBook", function () {
       });
 
       it("Claim tokens from multiple orders", async function () {
-        const {orderBook, erc1155, brush, owner, alice, tokenId, initialBrush} =
+        const {orderBook, erc1155, coins, owner, alice, tokenId, initialCoin} =
           await loadFixture(deployContractsFixture);
 
         await erc1155.setRoyaltyFee(1000); // 10%
@@ -2605,7 +2603,7 @@ describe("SamWitchOrderBook", function () {
         ).to.eq(cost - fees);
         expect(await orderBook.tokensClaimable([orderId + 5], false)).to.eq(0);
 
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin);
         await expect(orderBook.claimTokens([orderId]))
           .to.emit(orderBook, "ClaimedTokens")
           .withArgs(owner.address, [orderId], singleCost, singleOrderFees);
@@ -2619,7 +2617,7 @@ describe("SamWitchOrderBook", function () {
             fees - singleOrderFees,
           );
 
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush + cost - fees);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin + cost - fees);
         expect(await orderBook.tokensClaimable([orderId + 4], false)).to.eq(0);
 
         // Try to claim twice
@@ -2991,7 +2989,7 @@ describe("SamWitchOrderBook", function () {
 
     describe("Claiming all", function () {
       it("Claim both tokens and NFTs at once", async function () {
-        const {orderBook, erc1155, brush, owner, tokenId, initialBrush, initialQuantity} =
+        const {orderBook, erc1155, coins, owner, tokenId, initialCoin, initialQuantity} =
           await loadFixture(deployContractsFixture);
 
         await orderBook.setFees(ethers.ZeroAddress, 0, 0);
@@ -3028,11 +3026,11 @@ describe("SamWitchOrderBook", function () {
         await orderBook.claimAll([orderId], [orderId + 1]);
 
         expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin);
       });
 
       it("Check that 1 side only is allowed to be claimed", async function () {
-        const {orderBook, erc1155, brush, owner, tokenId, initialBrush, initialQuantity} =
+        const {orderBook, erc1155, coins, owner, tokenId, initialCoin, initialQuantity} =
           await loadFixture(deployContractsFixture);
 
         await orderBook.setFees(ethers.ZeroAddress, 0, 0);
@@ -3070,7 +3068,7 @@ describe("SamWitchOrderBook", function () {
         await orderBook.claimAll([], [orderId + 1]);
 
         expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
-        expect(await brush.balanceOf(owner)).to.eq(initialBrush);
+        expect(await coins.balanceOf(owner)).to.eq(initialCoin);
       });
 
       it("Check that if all arrays are empty the call reverts", async function () {
@@ -3177,7 +3175,7 @@ describe("SamWitchOrderBook", function () {
     });
   });
 
-  it("Max brush price", async function () {
+  it("Max coins price", async function () {
     const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
     const quantity = 100;
@@ -3223,11 +3221,11 @@ describe("SamWitchOrderBook", function () {
   });
 
   it("System test (many orders)", async function () {
-    const {orderBook, owner, tokenId, brush, erc1155, tick} = await loadFixture(deployContractsFixture);
+    const {orderBook, owner, tokenId, coins, erc1155, tick} = await loadFixture(deployContractsFixture);
 
-    const initialBrush = 1000000;
-    await brush.mint(owner.address, initialBrush * 30);
-    await brush.approve(orderBook, initialBrush * 30);
+    const initialCoin = 1000000;
+    await coins.mint(owner.address, initialCoin * 30);
+    await coins.approve(orderBook, initialCoin * 30);
 
     const price = 100;
     const quantity = 10;

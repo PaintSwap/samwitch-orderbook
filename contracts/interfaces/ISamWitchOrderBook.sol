@@ -94,7 +94,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function claimNFTs(uint256[] calldata orderIds) external;
 
-  function claimAll(uint256[] calldata brushOrderIds, uint256[] calldata nftOrderIds) external;
+  function claimAll(uint256[] calldata coinsOrderIds, uint256[] calldata nftOrderIds) external;
 
   function tokensClaimable(uint40[] calldata orderIds, bool takeAwayFees) external view returns (uint256 amount);
 

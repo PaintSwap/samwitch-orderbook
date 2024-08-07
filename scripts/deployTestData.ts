@@ -16,10 +16,10 @@ async function main() {
   const price = tick * 10n;
   const quantity = 10;
 
-  const brush = (await ethers.getContractAt("IERC20", "0x85dec8c4B2680793661bCA91a8F129607571863d")) as IERC20;
-  let tx = await brush.approve(orderBook, ethers.parseEther("10"));
+  const coins = (await ethers.getContractAt("IERC20", "0x85dec8c4B2680793661bCA91a8F129607571863d")) as IERC20;
+  let tx = await coins.approve(orderBook, ethers.parseEther("10"));
   await tx.wait();
-  console.log("brush.approve");
+  console.log("coins.approve");
 
   const erc1155 = (await ethers.getContractAt(
     "MockERC1155",
@@ -123,7 +123,7 @@ async function main() {
   console.log("orderBook.limitOrders - Some failed to sell");
 
   // Claim nft
-  tx = await orderBook.claimNFTs([4], [tokenId]);
+  tx = await orderBook.claimNFTs([4]);
   await tx.wait();
   console.log("claimNFTs");
   // Claim token

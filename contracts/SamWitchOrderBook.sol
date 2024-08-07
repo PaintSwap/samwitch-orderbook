@@ -13,7 +13,7 @@ import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import {BokkyPooBahsRedBlackTreeLibrary} from "./BokkyPooBahsRedBlackTreeLibrary.sol";
 
-import {IBrushToken} from "./interfaces/IBrushToken.sol";
+import {IBurnableToken} from "./interfaces/IBurnableToken.sol";
 import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 
 /// @title SamWitchOrderBook (SWOB)
@@ -29,7 +29,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   using UnsafeMath for uint40;
   using UnsafeMath for uint24;
   using UnsafeMath for uint8;
-  using SafeERC20 for IBrushToken;
+  using SafeERC20 for IBurnableToken;
 
   // constants
   uint16 private constant MAX_ORDERS_HIT = 500;
@@ -43,7 +43,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   IERC1155 private _nft;
 
   // slot_1
-  IBrushToken private _token;
+  IBurnableToken private _coin;
 
   // slot_2
   address private _devAddr;
@@ -95,7 +95,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     require(nft.supportsInterface(type(IERC1155).interfaceId), NotERC1155());
 
     _nft = nft;
-    _token = IBrushToken(token);
+    _coin = IBurnableToken(token);
     updateRoyaltyFee();
 
     // The max orders spans segments, so num segments = maxOrdersPrice / NUM_ORDER_PER_SEGMENT
@@ -110,8 +110,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256 royalty;
     uint256 dev;
     uint256 burn;
-    uint256 brushToUs;
-    uint256 brushFromUs;
+    uint256 coinsToUs;
+    uint256 coinsFromUs;
     address sender = _msgSender();
 
     uint256[] memory orderIdsPool = new uint256[](MAX_ORDERS_HIT);
@@ -122,7 +122,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     if (isBuy) {
       require(cost <= order.totalCost, TotalCostConditionNotMet());
 
-      brushToUs = cost;
+      coinsToUs = cost;
       (royalty, dev, burn) = _calcFees(cost);
     } else {
       require(cost >= order.totalCost, TotalCostConditionNotMet());
@@ -131,15 +131,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       (royalty, dev, burn) = _calcFees(cost);
 
       uint256 fees = royalty.add(dev).add(burn);
-      brushFromUs = cost.sub(fees);
+      coinsFromUs = cost.sub(fees);
     }
 
-    if (brushToUs != 0) {
-      _token.safeTransferFrom(sender, address(this), brushToUs);
+    if (coinsToUs != 0) {
+      _coin.safeTransferFrom(sender, address(this), coinsToUs);
     }
 
-    if (brushFromUs != 0) {
-      _token.safeTransfer(sender, brushFromUs);
+    if (coinsFromUs != 0) {
+      _coin.safeTransfer(sender, coinsFromUs);
     }
 
     if (!isBuy) {
@@ -159,8 +159,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256 royalty;
     uint256 dev;
     uint256 burn;
-    uint256 brushToUs;
-    uint256 brushFromUs;
+    uint256 coinsToUs;
+    uint256 coinsFromUs;
     uint256 nftsToUs;
     uint256[] memory nftIdsToUs = new uint256[](orders.length);
     uint256[] memory nftAmountsToUs = new uint256[](orders.length);
@@ -188,7 +188,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       }
 
       if (limitOrder.side == OrderSide.Buy) {
-        brushToUs = brushToUs.add(cost).add(uint(limitOrder.price).mul(quantityAddedToBook));
+        coinsToUs = coinsToUs.add(cost).add(uint(limitOrder.price).mul(quantityAddedToBook));
         if (cost != 0) {
           (uint256 _royalty, uint256 _dev, uint256 _burn) = _calcFees(cost);
           royalty = royalty.add(_royalty);
@@ -217,7 +217,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
           burn = burn.add(burn_);
 
           uint256 fees = royalty.add(dev_).add(burn_);
-          brushFromUs = brushFromUs.add(cost).sub(fees);
+          coinsFromUs = coinsFromUs.add(cost).sub(fees);
         }
       }
     }
@@ -226,12 +226,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       _nextOrderId = currentOrderId;
     }
 
-    if (brushToUs != 0) {
-      _token.safeTransferFrom(sender, address(this), brushToUs);
+    if (coinsToUs != 0) {
+      _coin.safeTransferFrom(sender, address(this), coinsToUs);
     }
 
-    if (brushFromUs != 0) {
-      _token.safeTransfer(sender, brushFromUs);
+    if (coinsFromUs != 0) {
+      _coin.safeTransfer(sender, coinsFromUs);
     }
 
     if (nftsToUs != 0) {
@@ -261,7 +261,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
     address sender = _msgSender();
 
-    uint256 brushFromUs = 0;
+    uint256 coinsFromUs = 0;
     uint256 nftsFromUs = 0;
     uint256 numberOfOrders = orderIds.length;
     uint256[] memory nftIdsFromUs = new uint256[](numberOfOrders);
@@ -273,7 +273,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       if (side == OrderSide.Buy) {
         uint256 quantity = _cancelOrdersSide(orderIds[i], price, _bidsAtPrice[tokenId][price], _bids[tokenId]);
         // Send the remaining token back to them
-        brushFromUs = brushFromUs.add(quantity.mul(price));
+        coinsFromUs = coinsFromUs.add(quantity.mul(price));
       } else {
         uint256 quantity = _cancelOrdersSide(orderIds[i], price, _asksAtPrice[tokenId][price], _asks[tokenId]);
         // Send the remaining NFTs back to them
@@ -286,8 +286,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     emit OrdersCancelled(sender, orderIds);
 
     // Transfer tokens if there are any to send
-    if (brushFromUs != 0) {
-      _token.safeTransfer(sender, brushFromUs);
+    if (coinsFromUs != 0) {
+      _coin.safeTransfer(sender, coinsFromUs);
     }
 
     // Send the NFTs
@@ -334,7 +334,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     require(amount != 0, NothingToClaim());
     (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
     uint256 fees = royalty.add(dev).add(burn);
-    _token.safeTransfer(_msgSender(), amount.sub(fees));
+    _coin.safeTransfer(_msgSender(), amount.sub(fees));
     emit ClaimedTokens(_msgSender(), orderIds, amount, fees);
   }
 
@@ -366,14 +366,14 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   /// @notice Convience function to claim both tokens and nfts in filled or partially filled orders.
   ///         Must be the maker of these orders.
-  /// @param brushOrderIds Array of order IDs from which to claim tokens
+  /// @param coinsOrderIds Array of order IDs from which to claim tokens
   /// @param nftOrderIds Array of order IDs from which to claim NFTs
-  function claimAll(uint256[] calldata brushOrderIds, uint256[] calldata nftOrderIds) external override {
-    require(brushOrderIds.length != 0 || nftOrderIds.length != 0, NothingToClaim());
-    require(brushOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
+  function claimAll(uint256[] calldata coinsOrderIds, uint256[] calldata nftOrderIds) external override {
+    require(coinsOrderIds.length != 0 || nftOrderIds.length != 0, NothingToClaim());
+    require(coinsOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
 
-    if (brushOrderIds.length != 0) {
-      claimTokens(brushOrderIds);
+    if (coinsOrderIds.length != 0) {
+      claimTokens(coinsOrderIds);
     }
 
     if (nftOrderIds.length != 0) {
@@ -940,15 +940,15 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   function _sendFees(uint256 royalty, uint256 dev, uint256 burn) private {
     if (royalty != 0) {
-      _token.safeTransfer(_royaltyRecipient, royalty);
+      _coin.safeTransfer(_royaltyRecipient, royalty);
     }
 
     if (dev != 0) {
-      _token.safeTransfer(_devAddr, dev);
+      _coin.safeTransfer(_devAddr, dev);
     }
 
     if (burn != 0) {
-      _token.burn(burn);
+      _coin.burn(burn);
     }
   }
 

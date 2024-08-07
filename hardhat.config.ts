@@ -60,7 +60,7 @@ const config: HardhatUserConfig = {
     disambiguatePaths: false,
   },
   dodoc: {
-    include: ["IBrushToken.sol", "ISamWitchOrderBook.sol", "SamWitchOrderBook.sol"],
+    include: ["IBurnableToken.sol", "ISamWitchOrderBook.sol", "SamWitchOrderBook.sol"],
   },
   networks: {
     hardhat: {

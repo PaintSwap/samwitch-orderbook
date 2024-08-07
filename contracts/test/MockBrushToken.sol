@@ -2,9 +2,9 @@
 pragma solidity ^0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IBrushToken} from "../interfaces/IBrushToken.sol";
+import {IBurnableToken} from "../interfaces/IBurnableToken.sol";
 
-contract MockBrushToken is ERC20("PaintSwap Token", "BRUSH"), IBrushToken {
+contract MockBurnableToken is ERC20("PaintSwap Token", "BRUSH"), IBurnableToken {
   uint256 public amountBurnt;
 
   function mint(address to, uint256 amount) external {

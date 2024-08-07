@@ -10,7 +10,7 @@ async function main() {
     `Deploying contracts with the account: ${owner.address} on chain id: ${(await ethers.provider.getNetwork()).chainId}`,
   );
 
-  const brush = "0x85dec8c4B2680793661bCA91a8F129607571863d";
+  const coins = "0x85dec8c4B2680793661bCA91a8F129607571863d";
   const dev = "0x045eF160107eD663D10c5a31c7D2EC5527eea1D0";
   // estforItemsLive = 0x4b9c90ebb1fa98d9724db46c4689994b46706f5a
   let estforItems = "0x1dae89b469d15b0ded980007dfdc8e68c363203d";
@@ -22,7 +22,7 @@ async function main() {
   // Deploy SamWitchOrderBook
   const maxOrdersPerPrice = 100;
   const SamWitchOrderBook = await ethers.getContractFactory("SamWitchOrderBook");
-  const swob = (await upgrades.deployProxy(SamWitchOrderBook, [estforItems, brush, dev, 30, 30, maxOrdersPerPrice], {
+  const swob = (await upgrades.deployProxy(SamWitchOrderBook, [estforItems, coins, dev, 30, 30, maxOrdersPerPrice], {
     kind: "uups",
     timeout: 600 * 1000, // 10 minutes
   })) as unknown as SamWitchOrderBook;
