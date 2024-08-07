@@ -1,0 +1,3 @@
+testLimit: 10000
+cryticArgs: ["--solc-remaps", "@=node_modules/@"]
+solcArgs: "--via-ir --optimize"
