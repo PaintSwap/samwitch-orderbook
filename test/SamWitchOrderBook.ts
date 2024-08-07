@@ -2195,13 +2195,18 @@ describe("SamWitchOrderBook", function () {
     await expect(orderBook.setTokenIdInfos([tokenId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
   });
 
-  it("Tick cannot be changed", async function () {
-    const {orderBook, tokenId, alice, tick, minQuantity} = await loadFixture(deployContractsFixture);
-
+  it("Tick change constraints", async function () {
+    const {orderBook, tokenId, tick, minQuantity} = await loadFixture(deployContractsFixture);
+    // Cannot be changed if set to a new one
     await expect(orderBook.setTokenIdInfos([tokenId], [{tick: tick + 1, minQuantity}])).to.be.revertedWithCustomError(
       orderBook,
       "TickCannotBeChanged",
     );
+    // Can be set to 0 to remove it from the book.
+    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: 0, minQuantity}])).to.not.be.reverted;
+
+    // And then can be changed from 0 (although not recommended unless it's back to the original one!)
+    await expect(orderBook.setTokenIdInfos([tokenId], [{tick: tick, minQuantity}])).to.not.be.reverted;
   });
 
   it("Set max orders per price can only be called by the owner", async function () {
