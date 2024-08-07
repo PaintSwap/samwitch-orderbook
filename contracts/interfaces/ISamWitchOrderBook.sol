@@ -38,6 +38,7 @@ interface ISamWitchOrderBook is IERC1155Receiver {
   struct ClaimableTokenInfo {
     address maker;
     uint80 amount;
+    uint16 tokenId;
   }
 
   // A helper type for a view function to return orders
@@ -91,20 +92,13 @@ interface ISamWitchOrderBook is IERC1155Receiver {
 
   function claimTokens(uint256[] calldata _orderIds) external;
 
-  function claimNFTs(uint256[] calldata orderIds, uint256[] calldata tokenIds) external;
+  function claimNFTs(uint256[] calldata orderIds) external;
 
-  function claimAll(
-    uint256[] calldata brushOrderIds,
-    uint256[] calldata nftOrderIds,
-    uint256[] calldata tokenIds
-  ) external;
+  function claimAll(uint256[] calldata brushOrderIds, uint256[] calldata nftOrderIds) external;
 
   function tokensClaimable(uint40[] calldata orderIds, bool takeAwayFees) external view returns (uint256 amount);
 
-  function nftsClaimable(
-    uint40[] calldata orderIds,
-    uint256[] calldata tokenIds
-  ) external view returns (uint256[] memory amounts);
+  function nftsClaimable(uint40[] calldata orderIds) external view returns (uint256[] memory amounts);
 
   function getHighestBid(uint256 tokenId) external view returns (uint72);
 

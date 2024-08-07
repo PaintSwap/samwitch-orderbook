@@ -2494,8 +2494,8 @@ describe("SamWitchOrderBook", function () {
         expect(await orderBook.tokensClaimable([orderId], false)).to.eq(cost);
         expect(await orderBook.tokensClaimable([orderId], true)).to.eq(cost - fees);
         expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
-        expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId]))[0]).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId + 1]))[0]).to.eq(0);
 
         expect(await brush.balanceOf(owner)).to.eq(initialBrush);
         await expect(orderBook.claimTokens([orderId]))
@@ -2805,20 +2805,17 @@ describe("SamWitchOrderBook", function () {
         const orderId = 1;
         expect(await orderBook.tokensClaimable([orderId], false)).to.eq(0);
         expect(await orderBook.tokensClaimable([orderId + 1], false)).to.eq(0);
-        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(10);
-        expect((await orderBook.nftsClaimable([orderId + 1], [tokenId]))[0]).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId]))[0]).to.eq(10);
+        expect((await orderBook.nftsClaimable([orderId + 1]))[0]).to.eq(0);
 
         // claim as the maker
-        await expect(orderBook.claimNFTs([orderId], [tokenId]))
+        await expect(orderBook.claimNFTs([orderId]))
           .to.emit(orderBook, "ClaimedNFTs")
           .withArgs(owner.address, [orderId], [tokenId], [10]);
-        expect((await orderBook.nftsClaimable([orderId], [tokenId]))[0]).to.eq(0);
+        expect((await orderBook.nftsClaimable([orderId]))[0]).to.eq(0);
 
         // Try to claim twice
-        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-          orderBook,
-          "NothingToClaim",
-        );
+        await expect(orderBook.claimNFTs([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
       });
 
       it("Claim NFTs from multiple order", async function () {
@@ -2870,19 +2867,11 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const orderId = 1;
-        expect(
-          await orderBook.nftsClaimable(
-            [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-            [tokenId, tokenId, tokenId, tokenId, tokenId],
-          ),
-        ).to.deep.eq([quantity, quantity, quantity, quantity, 2]);
+        expect(await orderBook.nftsClaimable([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4])).to.deep.eq(
+          [quantity, quantity, quantity, quantity, 2],
+        );
 
-        await expect(
-          orderBook.claimNFTs(
-            [orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4],
-            [tokenId, tokenId, tokenId, tokenId, tokenId],
-          ),
-        )
+        await expect(orderBook.claimNFTs([orderId, orderId + 1, orderId + 2, orderId + 3, orderId + 4]))
           .to.emit(orderBook, "ClaimedNFTs")
           .withArgs(
             owner.address,
@@ -2892,15 +2881,9 @@ describe("SamWitchOrderBook", function () {
           );
 
         // Try to claim twice
-        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-          orderBook,
-          "NothingToClaim",
-        );
+        await expect(orderBook.claimNFTs([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
-        await expect(orderBook.claimNFTs([orderId + 3], [tokenId])).to.be.revertedWithCustomError(
-          orderBook,
-          "NothingToClaim",
-        );
+        await expect(orderBook.claimNFTs([orderId + 3])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
         // Claim some more of the final order
         await orderBook.connect(alice).limitOrders([
@@ -2911,18 +2894,11 @@ describe("SamWitchOrderBook", function () {
             quantity: 3,
           },
         ]);
-        expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([3]);
-        await expect(orderBook.claimNFTs([orderId + 4], [tokenId]))
+        expect(await orderBook.nftsClaimable([orderId + 4])).to.deep.eq([3]);
+        await expect(orderBook.claimNFTs([orderId + 4]))
           .to.emit(orderBook, "ClaimedNFTs")
           .withArgs(owner.address, [orderId + 4], [tokenId], [3]);
-        expect(await orderBook.nftsClaimable([orderId + 4], [tokenId])).to.deep.eq([0]);
-      });
-
-      it("Claim NFTs, argument length mismatch", async function () {
-        const {orderBook} = await loadFixture(deployContractsFixture);
-
-        const orderId = 1;
-        await expect(orderBook.claimNFTs([orderId], [])).to.be.revertedWithCustomError(orderBook, "LengthMismatch");
+        expect(await orderBook.nftsClaimable([orderId + 4])).to.deep.eq([0]);
       });
 
       it("Claim NFTs, max limit should revert", async function () {
@@ -2968,15 +2944,10 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const orders = Array.from({length: 201}, (_, i) => i + 1);
-        const tokenIds = orders.map(() => tokenId);
-        await expect(orderBook.claimNFTs(orders, tokenIds)).to.be.revertedWithCustomError(
-          orderBook,
-          "ClaimingTooManyOrders",
-        );
+        await expect(orderBook.claimNFTs(orders)).to.be.revertedWithCustomError(orderBook, "ClaimingTooManyOrders");
 
         orders.pop();
-        tokenIds.pop();
-        await expect(orderBook.claimNFTs(orders, tokenIds)).to.not.be.reverted;
+        await expect(orderBook.claimNFTs(orders)).to.not.be.reverted;
       });
 
       it("Claim NFTs, defensive constraints", async function () {
@@ -2995,10 +2966,7 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const orderId = 1;
-        await expect(orderBook.claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
-          orderBook,
-          "NothingToClaim",
-        );
+        await expect(orderBook.claimNFTs([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
 
         await orderBook.connect(alice).limitOrders([
           {
@@ -3009,7 +2977,7 @@ describe("SamWitchOrderBook", function () {
           },
         ]);
 
-        await expect(orderBook.connect(alice).claimNFTs([orderId], [tokenId])).to.be.revertedWithCustomError(
+        await expect(orderBook.connect(alice).claimNFTs([orderId])).to.be.revertedWithCustomError(
           orderBook,
           "NotMaker",
         );
@@ -3017,7 +2985,7 @@ describe("SamWitchOrderBook", function () {
 
       it("Claiming no nfts, empty order id array argument", async function () {
         const {orderBook} = await loadFixture(deployContractsFixture);
-        await expect(orderBook.claimNFTs([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+        await expect(orderBook.claimNFTs([])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
       });
     });
 
@@ -3057,7 +3025,7 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const orderId = 1;
-        await orderBook.claimAll([orderId], [orderId + 1], [tokenId]);
+        await orderBook.claimAll([orderId], [orderId + 1]);
 
         expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
         expect(await brush.balanceOf(owner)).to.eq(initialBrush);
@@ -3098,8 +3066,8 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const orderId = 1;
-        await orderBook.claimAll([orderId], [], []);
-        await orderBook.claimAll([], [orderId + 1], [tokenId]);
+        await orderBook.claimAll([orderId], []);
+        await orderBook.claimAll([], [orderId + 1]);
 
         expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity - 19);
         expect(await brush.balanceOf(owner)).to.eq(initialBrush);
@@ -3107,7 +3075,7 @@ describe("SamWitchOrderBook", function () {
 
       it("Check that if all arrays are empty the call reverts", async function () {
         const {orderBook} = await loadFixture(deployContractsFixture);
-        await expect(orderBook.claimAll([], [], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
+        await expect(orderBook.claimAll([], [])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
       });
 
       it("Claiming too many orders together split between tokens and nfts", async function () {
@@ -3163,15 +3131,13 @@ describe("SamWitchOrderBook", function () {
         ]);
 
         const nftOrders = Array.from({length: maxOrdersPerPrice + 1}, (_, i) => i + 1);
-        const tokenIds = nftOrders.map(() => tokenId);
         const tokenOrders = Array.from({length: maxOrdersPerPrice}, (_, i) => i + maxOrdersPerPrice * 2 + 1);
-        await expect(orderBook.claimAll(tokenOrders, nftOrders, tokenIds)).to.be.revertedWithCustomError(
+        await expect(orderBook.claimAll(tokenOrders, nftOrders)).to.be.revertedWithCustomError(
           orderBook,
           "ClaimingTooManyOrders",
         );
         nftOrders.pop();
-        tokenIds.pop();
-        await expect(orderBook.claimAll(tokenOrders, nftOrders, tokenIds)).to.not.be.reverted;
+        await expect(orderBook.claimAll(tokenOrders, nftOrders)).to.not.be.reverted;
       });
     });
   });

@@ -16,7 +16,6 @@ It is kept gas efficient by packing data in many areas:
 
 - Four orders (`uint24` quantity + `uint40` order id) into a 256bit word giving a 4x improvement compared to using 1 storage slot per order
 - When taking from the order book no tokens/nfts are transferred. Instead the orderId is stored in a claimable array
-- The tokens claimable are packed with 3 orders per storage slot
 
 The order book is kept healthy by requiring a minimum quantity that can be added - partial quantities can still be taken from the order book. Cancelling orders shifts all entries at that price level to remove gaps.
 

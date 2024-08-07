@@ -64,8 +64,6 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private _asksAtPrice;
   // token id => price => bid(quantity (uint24), id (uint40)) x 4
   mapping(uint256 tokenId => mapping(uint256 price => bytes32[] segments)) private _bidsAtPrice;
-  // token id => order id => amount claimable, 3 per slot
-  mapping(uint256 tokenId => uint80[MAX_ORDER_ID]) private _amountClaimableForTokenId;
   // order id => (maker, amount claimable)
   ClaimableTokenInfo[MAX_ORDER_ID] private _tokenClaimable;
 
@@ -343,22 +341,23 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @notice Claim NFTs associated with filled or partially filled orders
   ///         Must be the maker of these orders.
   /// @param orderIds Array of order IDs from which to claim NFTs
-  /// @param tokenIds Array of token IDs to claim NFTs for
-  function claimNFTs(uint256[] calldata orderIds, uint256[] calldata tokenIds) public override {
+  function claimNFTs(uint256[] calldata orderIds) public override {
     require(orderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
-    require(orderIds.length == tokenIds.length, LengthMismatch());
-    require(tokenIds.length != 0, NothingToClaim());
+    require(orderIds.length != 0, NothingToClaim());
 
-    uint256[] memory nftAmountsFromUs = new uint256[](tokenIds.length);
+    uint256[] memory nftAmountsFromUs = new uint256[](orderIds.length);
+    uint256[] memory tokenIds = new uint256[](orderIds.length);
     for (uint256 i = 0; i < tokenIds.length; ++i) {
       uint40 orderId = uint40(orderIds[i]);
-      uint256 tokenId = tokenIds[i];
-      uint256 amount = _amountClaimableForTokenId[tokenId][orderId];
-      require(amount != 0, NothingToClaim());
+      ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderId];
+      uint256 tokenId = claimableTokenInfo.tokenId;
+      tokenIds[i] = tokenId;
+      uint80 claimableAmount = claimableTokenInfo.amount;
+      require(claimableAmount != 0, NothingToClaim());
       require(_tokenClaimable[orderId].maker == _msgSender(), NotMaker());
 
-      nftAmountsFromUs[i] = amount;
-      _amountClaimableForTokenId[tokenId][orderId] = 0;
+      nftAmountsFromUs[i] = claimableAmount;
+      _tokenClaimable[orderId].amount = 0;
     }
 
     _safeBatchTransferNFTsFromUs(_msgSender(), tokenIds, nftAmountsFromUs);
@@ -369,13 +368,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   ///         Must be the maker of these orders.
   /// @param brushOrderIds Array of order IDs from which to claim tokens
   /// @param nftOrderIds Array of order IDs from which to claim NFTs
-  /// @param tokenIds Array of token IDs to claim NFTs for
-  function claimAll(
-    uint256[] calldata brushOrderIds,
-    uint256[] calldata nftOrderIds,
-    uint256[] calldata tokenIds
-  ) external override {
-    require(!(brushOrderIds.length == 0 && nftOrderIds.length == 0 && tokenIds.length == 0), NothingToClaim());
+  function claimAll(uint256[] calldata brushOrderIds, uint256[] calldata nftOrderIds) external override {
+    require(brushOrderIds.length != 0 || nftOrderIds.length != 0, NothingToClaim());
     require(brushOrderIds.length + nftOrderIds.length <= MAX_CLAIMABLE_ORDERS, ClaimingTooManyOrders());
 
     if (brushOrderIds.length != 0) {
@@ -383,7 +377,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     }
 
     if (nftOrderIds.length != 0) {
-      claimNFTs(nftOrderIds, tokenIds);
+      claimNFTs(nftOrderIds);
     }
   }
 
@@ -395,7 +389,10 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     bool takeAwayFees
   ) external view override returns (uint256 amount) {
     for (uint256 i = 0; i < orderIds.length; ++i) {
-      amount = amount.add(_tokenClaimable[orderIds[i]].amount);
+      ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderIds[i]];
+      if (claimableTokenInfo.tokenId == 0) {
+        amount += claimableTokenInfo.amount;
+      }
     }
     if (takeAwayFees) {
       (uint256 royalty, uint256 dev, uint256 burn) = _calcFees(amount);
@@ -405,14 +402,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   /// @notice Get the amount of NFTs claimable for these orders
   /// @param orderIds The order IDs to get the claimable NFTs for
-  /// @param tokenIds The token IDs to get the claimable NFTs for
-  function nftsClaimable(
-    uint40[] calldata orderIds,
-    uint256[] calldata tokenIds
-  ) external view override returns (uint256[] memory amounts) {
+  function nftsClaimable(uint40[] calldata orderIds) external view override returns (uint256[] memory amounts) {
     amounts = new uint256[](orderIds.length);
     for (uint256 i = 0; i < orderIds.length; ++i) {
-      amounts[i] = _amountClaimableForTokenId[tokenIds[i]][orderIds[i]];
+      ClaimableTokenInfo storage claimableTokenInfo = _tokenClaimable[orderIds[i]];
+      if (claimableTokenInfo.tokenId != 0) {
+        amounts[i] = claimableTokenInfo.amount;
+      }
     }
   }
 
@@ -618,7 +614,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
           cost += quantityNFTClaimable * bestPrice;
 
           if (isTakingFromBuy) {
-            _amountClaimableForTokenId[tokenId][orderId] += uint80(quantityNFTClaimable);
+            _tokenClaimable[orderId].amount += uint80(quantityNFTClaimable);
           } else {
             _tokenClaimable[orderId].amount = uint80(
               _tokenClaimable[orderId].amount.add(quantityNFTClaimable.mul(bestPrice))
@@ -921,7 +917,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint72 price,
     uint24 quantity
   ) private {
-    _tokenClaimable[newOrderId] = ClaimableTokenInfo(_msgSender(), 0);
+    _tokenClaimable[newOrderId] = ClaimableTokenInfo({
+      maker: _msgSender(),
+      tokenId: uint16(OrderSide.Buy == side ? tokenId : 0),
+      amount: 0
+    });
+
     // Price can update if the price level is at capacity
     if (side == OrderSide.Buy) {
       price = _addToBookSide(_bidsAtPrice[tokenId], _bids[tokenId], price, newOrderId, quantity, -int128(tick));
