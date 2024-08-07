@@ -5,7 +5,7 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
-contract MockERC1155 is ERC1155, IERC2981 {
+contract TestERC1155 is ERC1155, IERC2981 {
   address public immutable royaltyRecipient;
   uint64 public nextId = 1;
   uint64 public royaltyFee; // Base 10000

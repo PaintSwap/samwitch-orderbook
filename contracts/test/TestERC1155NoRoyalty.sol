@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
-contract MockERC1155NoRoyalty is ERC1155 {
+contract TestERC1155NoRoyalty is ERC1155 {
   uint64 public nextId = 1;
 
   constructor() ERC1155("") {}

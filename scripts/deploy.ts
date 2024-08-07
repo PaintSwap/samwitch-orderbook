@@ -15,7 +15,7 @@ async function main() {
   // estforItemsLive = 0x4b9c90ebb1fa98d9724db46c4689994b46706f5a
   let estforItems = "0x1dae89b469d15b0ded980007dfdc8e68c363203d";
   if ((await ethers.provider.getNetwork()).chainId == 31337n) {
-    const erc1155 = await ethers.deployContract("MockERC1155", [dev]);
+    const erc1155 = await ethers.deployContract("TestERC1155", [dev]);
     estforItems = await erc1155.getAddress();
   }
 

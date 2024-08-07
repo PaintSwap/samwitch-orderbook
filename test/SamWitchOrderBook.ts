@@ -8,8 +8,8 @@ describe("SamWitchOrderBook", function () {
   async function deployContractsFixture() {
     const [owner, alice, bob, charlie, dev, erin, frank, royaltyRecipient] = await ethers.getSigners();
 
-    const coins = await ethers.deployContract("MockBurnableToken");
-    const erc1155 = await ethers.deployContract("MockERC1155", [royaltyRecipient.address]);
+    const coins = await ethers.deployContract("TestERC20");
+    const erc1155 = await ethers.deployContract("TestERC1155", [royaltyRecipient.address]);
 
     const maxOrdersPerPrice = 100;
     const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");
@@ -102,7 +102,7 @@ describe("SamWitchOrderBook", function () {
     ).to.be.revertedWithCustomError(OrderBook, "DevFeeTooHigh");
 
     devFee = 30;
-    const erc721 = await ethers.deployContract("MockERC721");
+    const erc721 = await ethers.deployContract("TestERC721");
     await expect(
       upgrades.deployProxy(
         OrderBook,
@@ -2257,7 +2257,7 @@ describe("SamWitchOrderBook", function () {
   it("Update royalty fee for a non-erc2981 nft", async function () {
     const {coins} = await loadFixture(deployContractsFixture);
 
-    const erc1155NoRoyalty = await ethers.deployContract("MockERC1155NoRoyalty");
+    const erc1155NoRoyalty = await ethers.deployContract("TestERC1155NoRoyalty");
 
     const maxOrdersPerPrice = 100;
     const OrderBook = await ethers.getContractFactory("SamWitchOrderBook");

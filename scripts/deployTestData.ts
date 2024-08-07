@@ -1,5 +1,5 @@
 import {ethers} from "hardhat";
-import {IERC20, MockERC1155, SamWitchOrderBook} from "../typechain-types";
+import {IERC20, TestERC1155, SamWitchOrderBook} from "../typechain-types";
 import {OrderSide, swobAddress} from "./helpers";
 
 async function main() {
@@ -22,9 +22,9 @@ async function main() {
   console.log("coins.approve");
 
   const erc1155 = (await ethers.getContractAt(
-    "MockERC1155",
+    "TestERC1155",
     "0x1dae89b469d15b0ded980007dfdc8e68c363203d",
-  )) as MockERC1155;
+  )) as TestERC1155;
   tx = await erc1155.setApprovalForAll(orderBook, true);
   await tx.wait();
   console.log("erc1155.setApprovalForAll");
