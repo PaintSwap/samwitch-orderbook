@@ -156,7 +156,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256[] memory nftAmountsFromUs = new uint256[](orders.length);
     address sender = _msgSender();
 
-    // This is done here so that it can be used in many limit orders without wasting too much space
+    // Reuse this array in all the orders
     uint256[] memory orderIdsPool = new uint256[](MAX_ORDERS_HIT);
     uint256[] memory quantitiesPool = new uint256[](MAX_ORDERS_HIT);
 
@@ -174,14 +174,13 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         ++currentOrderId;
       }
 
-      uint256 royaltyOrder;
-      uint256 devOrder;
-      uint256 burnOrder;
+      uint256 feesOrder;
       if (cost != 0) {
-        (royaltyOrder, devOrder, burnOrder) = _calcFees(cost);
+        (uint256 royaltyOrder, uint256 devOrder, uint256 burnOrder) = _calcFees(cost);
         royalty += royaltyOrder;
         dev += devOrder;
         burn += burnOrder;
+        feesOrder = royaltyOrder + devOrder + burnOrder;
       }
 
       if (limitOrder.side == OrderSide.Buy) {
@@ -202,8 +201,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         }
 
         // Transfer tokens to the seller if any have sold
-        uint256 fees = royaltyOrder + devOrder + burnOrder;
-        coinsFromUs += cost - fees;
+        coinsFromUs += cost - feesOrder;
       }
     }
 
