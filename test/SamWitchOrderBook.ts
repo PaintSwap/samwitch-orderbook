@@ -1569,6 +1569,35 @@ describe("SamWitchOrderBook", function () {
       expect(await brush.balanceOf(orderBook)).to.eq(0);
       expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
     });
+
+    it("Cancelling when the overall (price * quantity) order amount exceeds a uint72 (checks for overflow)", async function () {
+      const {orderBook, owner, tokenId, erc1155, brush, initialBrush, initialQuantity} =
+        await loadFixture(deployContractsFixture);
+
+      const quantity = 10n;
+      const extraBrush = ethers.parseEther("1700") * quantity;
+      await brush.mint(owner.address, extraBrush);
+      await brush.approve(orderBook, extraBrush);
+
+      // Set up order books
+      const price = ethers.parseEther("1700");
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      // Cancel buy, should not revert and return the brush
+      const orderId = 1;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      expect(await brush.balanceOf(owner)).to.eq(BigInt(initialBrush) + extraBrush);
+      expect(await brush.balanceOf(orderBook)).to.eq(0);
+      expect(await erc1155.balanceOf(owner, tokenId)).to.eq(initialQuantity);
+    });
   });
 
   it("Consume a segment and whole price level with a tombstone offset, and check it works as expected when re-added to the tree", async function () {
