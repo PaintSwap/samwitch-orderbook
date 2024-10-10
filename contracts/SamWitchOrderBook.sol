@@ -927,23 +927,26 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
     require(_tokenClaimables[orderId].maker == _msgSender(), NotMaker());
 
-    if (offset == 0 && segment >> 64 == 0) {
-      // If there is only one order at the start of the segment then remove the whole segment
+    bool isFinalSegment = index == segments.length - 1;
+    bool isOnlyOrderInSegment = (segment & ~(bytes32(uint(0xffffffffffffffff)) << (offset * 64))) == 0;
+    if (isFinalSegment && isOnlyOrderInSegment) {
+      // If there is only one order in this final segment then remove the segment
       segments.pop();
+      // There are no other segments so remove the price level
       if (segments.length == tombstoneOffset) {
         tree.remove(price);
       }
     } else {
-      uint256 indexToRemove = index * NUM_ORDER_PER_SEGMENT + offset;
+      uint256 flattenedIndexToRemove = index * NUM_ORDER_PER_SEGMENT + offset;
 
       // Although this is called next, it also acts as the "last" used later
-      uint256 nextSegmentIndex = indexToRemove / NUM_ORDER_PER_SEGMENT;
-      uint256 nextOffsetIndex = indexToRemove % NUM_ORDER_PER_SEGMENT;
+      uint256 nextSegmentIndex = flattenedIndexToRemove / NUM_ORDER_PER_SEGMENT;
+      uint256 nextOffsetIndex = flattenedIndexToRemove % NUM_ORDER_PER_SEGMENT;
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
       uint256 totalOrders = segments.length * NUM_ORDER_PER_SEGMENT - 1;
-      for (uint256 i = indexToRemove; i < totalOrders; ++i) {
+      for (uint256 i = flattenedIndexToRemove; i < totalOrders; ++i) {
         nextSegmentIndex = (i + 1) / NUM_ORDER_PER_SEGMENT;
         nextOffsetIndex = (i + 1) % NUM_ORDER_PER_SEGMENT;
 
@@ -966,7 +969,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         currentSegment |= bytes32(nextOrder) << (currentOffsetIndex * 64);
         segments[currentSegmentIndex] = currentSegment;
       }
-      // Only pop if the next offset is 0 which means there is 1 order left in that segment
+      // Only pop if the next offset is 0 which means there is only 1 order left in that segment (at the start)
       if (nextOffsetIndex == 0) {
         segments.pop();
       } else {
