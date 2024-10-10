@@ -192,6 +192,18 @@ function limitOrders(ISamWitchOrderBook.LimitOrder[] orders) external nonpayable
 | ------ | ------------------------------- | ----------- |
 | orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
 
+### marketOrder
+
+```solidity
+function marketOrder(ISamWitchOrderBook.MarketOrder order) external nonpayable
+```
+
+#### Parameters
+
+| Name  | Type                           | Description |
+| ----- | ------------------------------ | ----------- |
+| order | ISamWitchOrderBook.MarketOrder | undefined   |
+
 ### nftsClaimable
 
 ```solidity
@@ -469,6 +481,21 @@ error DevFeeNotSet()
 error DevFeeTooHigh()
 ```
 
+### FailedToTakeFromBook
+
+```solidity
+error FailedToTakeFromBook(address taker, enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint256 quantityRemaining)
+```
+
+#### Parameters
+
+| Name              | Type                              | Description |
+| ----------------- | --------------------------------- | ----------- |
+| taker             | address                           | undefined   |
+| side              | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId           | uint256                           | undefined   |
+| quantityRemaining | uint256                           | undefined   |
+
 ### LengthMismatch
 
 ```solidity
@@ -571,6 +598,12 @@ error TokenDoesntExist(uint256 tokenId)
 
 ```solidity
 error TooManyOrdersHit()
+```
+
+### TotalCostConditionNotMet
+
+```solidity
+error TotalCostConditionNotMet()
 ```
 
 ### ZeroAddress

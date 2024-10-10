@@ -1306,13 +1306,55 @@ describe("SamWitchOrderBook", function () {
       ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
     });
 
-    it("Cancelling an order after some orders in a segment are consumed", async function () {
+    it("Cancelling an order after some orders at the start of the segment are consumed should remove price level", async function () {
       const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
 
       // Set up order books
       const price = 100;
       const quantity = 10;
       await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity,
+        },
+      ]);
+
+      const orderId = 2;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.eq(false);
+    });
+
+    it("Cancelling an order after some orders at the start of the segment, where it's the final one should remove price level", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
         {
           side: OrderSide.Buy,
           tokenId,
@@ -1338,14 +1380,70 @@ describe("SamWitchOrderBook", function () {
           side: OrderSide.Sell,
           tokenId,
           price,
+          quantity: quantity * 3,
+        },
+      ]);
+
+      const orderId = 4;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.eq(false);
+    });
+
+    it("Cancelling an order after some orders at the start of the segment, where it's the final one but there are other segments after it should not remove price level", async function () {
+      const {orderBook, tokenId} = await loadFixture(deployContractsFixture);
+
+      // Set up order books
+      const price = 100;
+      const quantity = 10;
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
+          quantity,
+        },
+        {
+          side: OrderSide.Buy,
+          tokenId,
+          price,
           quantity,
         },
       ]);
 
-      const orderId = 1;
-      await expect(
-        orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]),
-      ).to.be.revertedWithCustomError(orderBook, "OrderNotFound");
+      await orderBook.limitOrders([
+        {
+          side: OrderSide.Sell,
+          tokenId,
+          price,
+          quantity: quantity * 3,
+        },
+      ]);
+
+      const orderId = 4;
+      await orderBook.cancelOrders([orderId], [{side: OrderSide.Buy, tokenId, price}]);
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.eq(true);
+
+      await orderBook.cancelOrders([orderId + 1], [{side: OrderSide.Buy, tokenId, price}]);
+      expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.eq(false);
     });
 
     it("Trying to cancel an order which has been removed inside of the last segment should revert", async function () {

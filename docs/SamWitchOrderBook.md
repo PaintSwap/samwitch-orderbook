@@ -245,6 +245,18 @@ function limitOrders(ISamWitchOrderBook.LimitOrder[] _orders) external nonpayabl
 | -------- | ------------------------------- | ----------- |
 | \_orders | ISamWitchOrderBook.LimitOrder[] | undefined   |
 
+### marketOrder
+
+```solidity
+function marketOrder(ISamWitchOrderBook.MarketOrder _marketOrder) external nonpayable
+```
+
+#### Parameters
+
+| Name          | Type                           | Description |
+| ------------- | ------------------------------ | ----------- |
+| \_marketOrder | ISamWitchOrderBook.MarketOrder | undefined   |
+
 ### nftsClaimable
 
 ```solidity
@@ -739,6 +751,21 @@ error FailedInnerCall()
 
 _A call to an address target failed. The target may have reverted._
 
+### FailedToTakeFromBook
+
+```solidity
+error FailedToTakeFromBook(address taker, enum ISamWitchOrderBook.OrderSide side, uint256 tokenId, uint256 quantityRemaining)
+```
+
+#### Parameters
+
+| Name              | Type                              | Description |
+| ----------------- | --------------------------------- | ----------- |
+| taker             | address                           | undefined   |
+| side              | enum ISamWitchOrderBook.OrderSide | undefined   |
+| tokenId           | uint256                           | undefined   |
+| quantityRemaining | uint256                           | undefined   |
+
 ### InvalidInitialization
 
 ```solidity
@@ -746,6 +773,12 @@ error InvalidInitialization()
 ```
 
 _The contract is already initialized._
+
+### KeyCannotBeZero
+
+```solidity
+error KeyCannotBeZero()
+```
 
 ### LengthMismatch
 
@@ -863,6 +896,21 @@ error PriceNotMultipleOfTick(uint256 tick)
 error PriceZero()
 ```
 
+### SafeCastOverflowedUintDowncast
+
+```solidity
+error SafeCastOverflowedUintDowncast(uint8 bits, uint256 value)
+```
+
+_Value doesn&#39;t fit in an uint of `bits` size._
+
+#### Parameters
+
+| Name  | Type    | Description |
+| ----- | ------- | ----------- |
+| bits  | uint8   | undefined   |
+| value | uint256 | undefined   |
+
 ### SafeERC20FailedOperation
 
 ```solidity
@@ -899,6 +947,12 @@ error TokenDoesntExist(uint256 tokenId)
 
 ```solidity
 error TooManyOrdersHit()
+```
+
+### TotalCostConditionNotMet
+
+```solidity
+error TotalCostConditionNotMet()
 ```
 
 ### UUPSUnauthorizedCallContext
