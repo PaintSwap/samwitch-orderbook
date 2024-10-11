@@ -215,7 +215,7 @@ Get the token ID info for a specific token ID
 ### initialize
 
 ```solidity
-function initialize(contract IERC1155 nft, address token, address devAddr, uint16 devFee, uint8 burntFee, uint16 maxOrdersPerPrice) external payable
+function initialize(contract IERC1155 nft, address token, address devAddr, uint16 devFee, uint8 burntFee, uint16 maxOrdersPerPrice) external nonpayable
 ```
 
 Initialize the contract as part of the proxy contract deployment
