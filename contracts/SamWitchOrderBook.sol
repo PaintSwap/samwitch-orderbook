@@ -26,7 +26,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
 
   // constants
   uint16 private constant MAX_ORDERS_HIT = 500;
-  uint8 private constant NUM_ORDER_PER_SEGMENT = 4;
+  uint8 private constant NUM_ORDERS_PER_SEGMENT = 4;
 
   uint256 private constant MAX_ORDER_ID = 1_099_511_627_776;
 
@@ -90,7 +90,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     _coin = IBurnableToken(token);
     updateRoyaltyFee();
 
-    // The max orders spans segments, so num segments = maxOrdersPrice / NUM_ORDER_PER_SEGMENT
+    // The max orders spans segments, so num segments = maxOrdersPrice / NUM_ORDERS_PER_SEGMENT
     setMaxOrdersPerPrice(maxOrdersPerPrice);
     _nextOrderId = 1;
   }
@@ -505,7 +505,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         segment = segments[i];
         uint256 numOrdersWithinSegmentConsumed;
         bool wholeSegmentConsumed;
-        for (uint256 offset; offset < NUM_ORDER_PER_SEGMENT && quantityRemaining != 0; ++offset) {
+        for (uint256 offset; offset < NUM_ORDERS_PER_SEGMENT && quantityRemaining != 0; ++offset) {
           uint256 remainingSegment = uint256(segment >> (offset * 64));
           uint40 orderId = uint40(remainingSegment);
           if (orderId == 0) {
@@ -524,7 +524,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
             // Consume this whole order
             quantityRemaining -= quantityL3;
             // Is the last one in the segment being fully consumed?
-            wholeSegmentConsumed = offset == NUM_ORDER_PER_SEGMENT - 1;
+            wholeSegmentConsumed = offset == NUM_ORDERS_PER_SEGMENT - 1;
             ++numOrdersWithinSegmentConsumed;
             quantityNFTClaimable = quantityL3;
           } else {
@@ -653,7 +653,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint256 numInSegmentDeleted;
     {
       uint256 segment = uint256(segments[tombstoneOffset]);
-      for (uint256 offset; offset < NUM_ORDER_PER_SEGMENT; ++offset) {
+      for (uint256 offset; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
         uint256 remainingSegment = uint64(segment >> (offset * 64));
         uint64 order = uint64(remainingSegment);
         if (order == 0) {
@@ -664,11 +664,11 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       }
     }
 
-    orders = new Order[]((segments.length - tombstoneOffset) * NUM_ORDER_PER_SEGMENT - numInSegmentDeleted);
+    orders = new Order[]((segments.length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT - numInSegmentDeleted);
     uint256 numberOfEntries;
     for (uint256 i = numInSegmentDeleted; i < orders.length + numInSegmentDeleted; ++i) {
-      uint256 segment = uint256(segments[i / NUM_ORDER_PER_SEGMENT + tombstoneOffset]);
-      uint256 offset = i % NUM_ORDER_PER_SEGMENT;
+      uint256 segment = uint256(segments[i / NUM_ORDERS_PER_SEGMENT + tombstoneOffset]);
+      uint256 offset = i % NUM_ORDERS_PER_SEGMENT;
       uint40 id = uint40(segment >> (offset * 64));
       if (id != 0) {
         uint24 quantity = uint24(segment >> (offset * 64 + 40));
@@ -778,12 +778,12 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       uint256 tombstoneOffset = tree.getNode(price).tombstoneOffset;
       // Check if this would go over the max number of orders allowed at this price level
       bool lastSegmentFilled = uint256(
-        segmentsPriceMap[price][segmentsPriceMap[price].length - 1] >> ((NUM_ORDER_PER_SEGMENT - 1) * 64)
+        segmentsPriceMap[price][segmentsPriceMap[price].length - 1] >> ((NUM_ORDERS_PER_SEGMENT - 1) * 64)
       ) != 0;
 
       // Check if last segment is full
       if (
-        (segmentsPriceMap[price].length - tombstoneOffset) * NUM_ORDER_PER_SEGMENT >= _maxOrdersPerPrice &&
+        (segmentsPriceMap[price].length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT >= _maxOrdersPerPrice &&
         lastSegmentFilled
       ) {
         // Loop until we find a suitable place to put this
@@ -793,9 +793,9 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
             tree.insert(price);
             break;
           } else if (
-            (segmentsPriceMap[price].length - tombstoneOffset) * NUM_ORDER_PER_SEGMENT < _maxOrdersPerPrice ||
+            (segmentsPriceMap[price].length - tombstoneOffset) * NUM_ORDERS_PER_SEGMENT < _maxOrdersPerPrice ||
             uint256(
-              segmentsPriceMap[price][segmentsPriceMap[price].length - 1] >> ((NUM_ORDER_PER_SEGMENT - 1) * 64)
+              segmentsPriceMap[price][segmentsPriceMap[price].length - 1] >> ((NUM_ORDERS_PER_SEGMENT - 1) * 64)
             ) ==
             0
           ) {
@@ -812,7 +812,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     if (segments.length != 0) {
       bytes32 lastSegment = segments[segments.length - 1];
       // Are there are free entries in this segment
-      for (uint256 offset = 0; offset < NUM_ORDER_PER_SEGMENT; ++offset) {
+      for (uint256 offset = 0; offset < NUM_ORDERS_PER_SEGMENT; ++offset) {
         uint256 remainingSegment = uint256(lastSegment >> (offset * 64));
         if (remainingSegment == 0) {
           // Found free entry one, so add to an existing segment
@@ -893,7 +893,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
       uint256 segment = uint256(segments[mid]);
       offset = 0;
 
-      for (uint256 i = 0; i < NUM_ORDER_PER_SEGMENT; ++i) {
+      for (uint256 i = 0; i < NUM_ORDERS_PER_SEGMENT; ++i) {
         uint40 id = uint40(segment >> (offset * 8));
         if (id == value) {
           return (mid, i); // Return the index where the ID is found
@@ -904,7 +904,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         }
       }
 
-      if (offset == NUM_ORDER_PER_SEGMENT * 8) {
+      if (offset == NUM_ORDERS_PER_SEGMENT * 8) {
         begin = mid + 1;
       } else {
         end = mid;
@@ -937,23 +937,23 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
         tree.remove(price);
       }
     } else {
-      uint256 flattenedIndexToRemove = index * NUM_ORDER_PER_SEGMENT + offset;
+      uint256 flattenedIndexToRemove = index * NUM_ORDERS_PER_SEGMENT + offset;
 
       // Although this is called next, it also acts as the "last" used later
-      uint256 nextSegmentIndex = flattenedIndexToRemove / NUM_ORDER_PER_SEGMENT;
-      uint256 nextOffsetIndex = flattenedIndexToRemove % NUM_ORDER_PER_SEGMENT;
+      uint256 nextSegmentIndex = flattenedIndexToRemove / NUM_ORDERS_PER_SEGMENT;
+      uint256 nextOffsetIndex = flattenedIndexToRemove % NUM_ORDERS_PER_SEGMENT;
       // Shift orders cross-segments.
       // This does all except the last order
       // TODO: For offset 0, 1, 2 we can shift the whole elements of the segment in 1 go.
-      uint256 totalOrders = segments.length * NUM_ORDER_PER_SEGMENT - 1;
+      uint256 totalOrders = segments.length * NUM_ORDERS_PER_SEGMENT - 1;
       for (uint256 i = flattenedIndexToRemove; i < totalOrders; ++i) {
-        nextSegmentIndex = (i + 1) / NUM_ORDER_PER_SEGMENT;
-        nextOffsetIndex = (i + 1) % NUM_ORDER_PER_SEGMENT;
+        nextSegmentIndex = (i + 1) / NUM_ORDERS_PER_SEGMENT;
+        nextOffsetIndex = (i + 1) % NUM_ORDERS_PER_SEGMENT;
 
         bytes32 currentOrNextSegment = segments[nextSegmentIndex];
 
-        uint256 currentSegmentIndex = i / NUM_ORDER_PER_SEGMENT;
-        uint256 currentOffsetIndex = i % NUM_ORDER_PER_SEGMENT;
+        uint256 currentSegmentIndex = i / NUM_ORDERS_PER_SEGMENT;
+        uint256 currentOffsetIndex = i % NUM_ORDERS_PER_SEGMENT;
 
         bytes32 currentSegment = segments[currentSegmentIndex];
         uint256 nextOrder = uint64(uint256(currentOrNextSegment >> (nextOffsetIndex * 64)));
@@ -1004,7 +1004,7 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
   /// @notice Set the maximum amount of orders allowed at a specific price level
   /// @param maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
   function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) public payable onlyOwner {
-    require(maxOrdersPerPrice % NUM_ORDER_PER_SEGMENT == 0, MaxOrdersNotMultipleOfOrdersInSegment());
+    require(maxOrdersPerPrice % NUM_ORDERS_PER_SEGMENT == 0, MaxOrdersNotMultipleOfOrdersInSegment());
     _maxOrdersPerPrice = maxOrdersPerPrice;
     emit SetMaxOrdersPerPriceLevel(maxOrdersPerPrice);
   }
