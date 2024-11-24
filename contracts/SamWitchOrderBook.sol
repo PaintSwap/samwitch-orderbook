@@ -19,7 +19,7 @@ import {ISamWitchOrderBook} from "./interfaces/ISamWitchOrderBook.sol";
 /// @notice This efficient ERC1155 order book is an upgradeable UUPS proxy contract. It has functions for bulk placing
 ///         limit orders, cancelling limit orders, and claiming NFTs and tokens from filled or partially filled orders.
 ///         It suppports ERC2981 royalties, and optional dev & burn fees on successful trades.
-contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradeable, UUPSUpgradeable {
+contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder, ISamWitchOrderBook {
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Tree;
   using BokkyPooBahsRedBlackTreeLibrary for BokkyPooBahsRedBlackTreeLibrary.Node;
   using SafeERC20 for IBurnableToken;
@@ -79,8 +79,8 @@ contract SamWitchOrderBook is ISamWitchOrderBook, ERC1155Holder, OwnableUpgradea
     uint8 burntFee,
     uint16 maxOrdersPerPrice
   ) external initializer {
-    __Ownable_init(_msgSender());
     __UUPSUpgradeable_init();
+    __Ownable_init(_msgSender());
 
     setFees(devAddr, devFee, burntFee);
     // nft must be an ERC1155 via ERC165
