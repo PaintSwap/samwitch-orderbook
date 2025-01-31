@@ -148,10 +148,10 @@ contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder
     uint256 burn;
     uint256 coinsToUs;
     uint256 coinsFromUs;
-    uint256 nftsToUs;
+    uint256 nftLengthToUs;
     uint256[] memory nftIdsToUs = new uint256[](orders.length);
     uint256[] memory nftAmountsToUs = new uint256[](orders.length);
-    uint256 lengthFromUs;
+    uint256 nftLengthFromUs;
     uint256[] memory nftIdsFromUs = new uint256[](orders.length);
     uint256[] memory nftAmountsFromUs = new uint256[](orders.length);
     address sender = _msgSender();
@@ -187,17 +187,17 @@ contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder
         coinsToUs += cost + uint256(limitOrder.price) * quantityAddedToBook;
         if (cost != 0) {
           // Transfer the NFTs taken from the order book straight to the taker
-          nftIdsFromUs[lengthFromUs] = limitOrder.tokenId;
-          nftAmountsFromUs[lengthFromUs] = uint256(limitOrder.quantity) - quantityAddedToBook;
-          ++lengthFromUs;
+          nftIdsFromUs[nftLengthFromUs] = limitOrder.tokenId;
+          nftAmountsFromUs[nftLengthFromUs] = uint256(limitOrder.quantity) - quantityAddedToBook;
+          ++nftLengthFromUs;
         }
       } else {
         // Selling, transfer all NFTs to us
         uint256 amount = limitOrder.quantity - failedQuantity;
         if (amount != 0) {
-          nftIdsToUs[nftsToUs] = limitOrder.tokenId;
-          nftAmountsToUs[nftsToUs] = amount;
-          ++nftsToUs;
+          nftIdsToUs[nftLengthToUs] = limitOrder.tokenId;
+          nftAmountsToUs[nftLengthToUs] = amount;
+          ++nftLengthToUs;
         }
 
         // Transfer tokens to the seller if any have sold
@@ -218,18 +218,18 @@ contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder
       _coin.safeTransfer(sender, coinsFromUs);
     }
 
-    if (nftsToUs != 0) {
+    if (nftLengthToUs != 0) {
       assembly ("memory-safe") {
-        mstore(nftIdsToUs, nftsToUs)
-        mstore(nftAmountsToUs, nftsToUs)
+        mstore(nftIdsToUs, nftLengthToUs)
+        mstore(nftAmountsToUs, nftLengthToUs)
       }
       _safeBatchTransferNFTsToUs(sender, nftIdsToUs, nftAmountsToUs);
     }
 
-    if (lengthFromUs != 0) {
+    if (nftLengthFromUs != 0) {
       assembly ("memory-safe") {
-        mstore(nftIdsFromUs, lengthFromUs)
-        mstore(nftAmountsFromUs, lengthFromUs)
+        mstore(nftIdsFromUs, nftLengthFromUs)
+        mstore(nftAmountsFromUs, nftLengthFromUs)
       }
       _safeBatchTransferNFTsFromUs(sender, nftIdsFromUs, nftAmountsFromUs);
     }
