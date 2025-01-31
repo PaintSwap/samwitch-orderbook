@@ -1003,7 +1003,7 @@ contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder
 
   /// @notice Set the maximum amount of orders allowed at a specific price level
   /// @param maxOrdersPerPrice The new maximum amount of orders allowed at a specific price level
-  function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) public payable onlyOwner {
+  function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) public onlyOwner {
     require(maxOrdersPerPrice % NUM_ORDERS_PER_SEGMENT == 0, MaxOrdersNotMultipleOfOrdersInSegment());
     _maxOrdersPerPrice = maxOrdersPerPrice;
     emit SetMaxOrdersPerPriceLevel(maxOrdersPerPrice);
@@ -1013,10 +1013,7 @@ contract SamWitchOrderBook is UUPSUpgradeable, OwnableUpgradeable, ERC1155Holder
   ///         placed and the minimum of specific tokenIds in this nft collection.
   /// @param tokenIds Array of token IDs for which to set TokenInfo
   /// @param tokenIdInfos Array of TokenInfo to be set
-  function setTokenIdInfos(
-    uint256[] calldata tokenIds,
-    TokenIdInfo[] calldata tokenIdInfos
-  ) external payable onlyOwner {
+  function setTokenIdInfos(uint256[] calldata tokenIds, TokenIdInfo[] calldata tokenIdInfos) external onlyOwner {
     require(tokenIds.length == tokenIdInfos.length, LengthMismatch());
 
     for (uint256 i = 0; i < tokenIds.length; ++i) {

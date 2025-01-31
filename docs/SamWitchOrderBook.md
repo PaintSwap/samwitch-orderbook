@@ -396,7 +396,7 @@ Set the fees for the contract
 ### setMaxOrdersPerPrice
 
 ```solidity
-function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) external payable
+function setMaxOrdersPerPrice(uint16 maxOrdersPerPrice) external nonpayable
 ```
 
 Set the maximum amount of orders allowed at a specific price level
@@ -410,7 +410,7 @@ Set the maximum amount of orders allowed at a specific price level
 ### setTokenIdInfos
 
 ```solidity
-function setTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenIdInfos) external payable
+function setTokenIdInfos(uint256[] tokenIds, ISamWitchOrderBook.TokenIdInfo[] tokenIdInfos) external nonpayable
 ```
 
 #### Parameters
