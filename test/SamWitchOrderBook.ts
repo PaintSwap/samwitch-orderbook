@@ -1613,10 +1613,7 @@ describe("SamWitchOrderBook", function () {
     // 2 segment
     const limitOrders = new Array<ISamWitchOrderBook.LimitOrderStruct>(4).fill(limitOrder);
     await orderBook.limitOrders(limitOrders);
-    const nextOrderIdSlot = 2;
-    let packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
-    let nextOrderId = parseInt(packedSlot.slice(2, 12), 16);
-    expect(nextOrderId).to.eq(5);
+    expect(await getNextOrderId(orderBook)).to.eq(5);
 
     // Consume 1 segment
     await orderBook.limitOrders([
@@ -1627,9 +1624,7 @@ describe("SamWitchOrderBook", function () {
         quantity: quantity * 4,
       },
     ]);
-    packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
-    nextOrderId = parseInt(packedSlot.slice(2, 12), 16);
-    expect(nextOrderId).to.eq(5);
+    expect(await getNextOrderId(orderBook)).to.eq(5);
     expect(await orderBook.nodeExists(OrderSide.Buy, tokenId, price)).to.be.false;
 
     // Re-add it, should start in the next segment
@@ -2956,7 +2951,7 @@ describe("SamWitchOrderBook", function () {
         await expect(orderBook.claimNFTs([orderId])).to.be.revertedWithCustomError(orderBook, "NothingToClaim");
       });
 
-      it("Claim NFTs from multiple order", async function () {
+      it("Claim NFTs from multiple orders", async function () {
         const {orderBook, owner, alice, tokenId} = await loadFixture(deployContractsFixture);
 
         // Set up order book
@@ -3299,10 +3294,7 @@ describe("SamWitchOrderBook", function () {
       const newOrder = {side: OrderSide.Buy, tokenId, price: price + 1 * tick, quantity: quantity + 2};
       await orderBook.cancelAndMakeLimitOrders([1], [{side: OrderSide.Buy, tokenId, price}], [newOrder]);
 
-      const nextOrderIdSlot = 2;
-      let packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
-      let nextOrderId = parseInt(packedSlot.slice(2, 12), 16);
-      expect(nextOrderId).to.eq(3);
+      expect(await getNextOrderId(orderBook)).to.eq(3);
 
       expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price)).length).to.eq(0);
       expect((await orderBook.allOrdersAtPrice(OrderSide.Buy, tokenId, price + 1 * tick)).length).to.eq(1);
@@ -3614,10 +3606,7 @@ describe("SamWitchOrderBook", function () {
         quantity: quantity + quantity + 1 + quantity + 2 + quantity + 3 + quantity + 4 + quantity,
       },
     ]);
-    const nextOrderIdSlot = 2;
-    const packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
-    const nextOrderId = parseInt(packedSlot.slice(2, 12), 16);
-    expect(nextOrderId).to.eq(32);
+    expect(await getNextOrderId(orderBook)).to.eq(32);
 
     // (Remove whole 102 price level, add 103 price level)
     // Sell
@@ -3888,4 +3877,10 @@ describe("SamWitchOrderBook", function () {
       console.log(`${order.id} | ${order.quantity}`);
     }
   };
+
+  async function getNextOrderId(orderBook: ISamWitchOrderBook) {
+    const nextOrderIdSlot = 2;
+    const packedSlot = await ethers.provider.getStorage(orderBook, nextOrderIdSlot);
+    return parseInt(packedSlot.slice(2, 12), 16);
+  }
 });
