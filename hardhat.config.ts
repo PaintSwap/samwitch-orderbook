@@ -87,8 +87,12 @@ const config: HardhatUserConfig = {
   },
   abiExporter: {
     path: "./data/abi",
+    runOnCompile: true,
     clear: true,
-    flat: false,
+    flat: true,
+    spacing: 2,
+    format: "json",
+    except: ["/interfaces", "/test", "@openzeppelin", "BokkyPooBahsRedBlackTreeLibrary.sol"],
   },
 };
 
