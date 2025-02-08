@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 // ----------------------------------------------------------------------------
 // BokkyPooBah's Red-Black Tree Library v1.0-pre-release-a
@@ -14,7 +14,6 @@ pragma solidity ^0.8.26;
 // Enjoy. (c) BokkyPooBah / Bok Consulting Pty Ltd 2020. The MIT Licence.
 // ----------------------------------------------------------------------------
 library BokkyPooBahsRedBlackTreeLibrary {
-
   error KeyCannotBeZero();
   error KeyDoesntExist();
 

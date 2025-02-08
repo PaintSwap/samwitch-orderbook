@@ -28,8 +28,8 @@
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.9",
     "@nomicfoundation/ignition-core": "^0.15.5",
-    "@openzeppelin/contracts": "^5.0.2",
-    "@openzeppelin/contracts-upgradeable": "^5.0.2",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "@openzeppelin/hardhat-upgrades": "^3.2.1",
     "@primitivefi/hardhat-dodoc": "^0.2.3",
     "@typechain/ethers-v6": "^0.5.1",
@@ -41,10 +41,10 @@
     "chai": "4.x",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.2",
-    "hardhat": "^2.22.8",
+    "hardhat": "^2.22.18",
     "hardhat-abi-exporter": "^2.10.1",
     "hardhat-contract-sizer": "^2.10.0",
-    "hardhat-deploy": "^0.12.4",
+    "hardhat-deploy": "^0.14.0",
     "hardhat-gas-reporter": "^2.2.0",
     "hardhat-storage-layout": "^0.1.7",
     "husky": "^9.1.4",
@@ -55,7 +55,7 @@
     "squirrelly": "^9.1.0",
     "ts-node": ">=10.9.2",
     "typechain": "^8.3.2",
-    "typescript": "~5.5.4"
+    "typescript": "~5.7.3"
   },
   "scripts": {
     "console": "npx hardhat console",

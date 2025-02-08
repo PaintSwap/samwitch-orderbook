@@ -361,7 +361,7 @@ _Returns the address of the current owner._
 function proxiableUUID() external view returns (bytes32)
 ```
 
-_Implementation of the ERC1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation&#39;s compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier._
+_Implementation of the ERC-1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation&#39;s compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier._
 
 #### Returns
 
@@ -684,20 +684,6 @@ _There&#39;s no code at `target` (it is not a contract)._
 | ------ | ------- | ----------- |
 | target | address | undefined   |
 
-### AddressInsufficientBalance
-
-```solidity
-error AddressInsufficientBalance(address account)
-```
-
-_The ETH balance of the account is not enough to perform the operation._
-
-#### Parameters
-
-| Name    | Type    | Description |
-| ------- | ------- | ----------- |
-| account | address | undefined   |
-
 ### ClaimingTooManyOrders
 
 ```solidity
@@ -738,10 +724,10 @@ error ERC1967NonPayable()
 
 _An upgrade function sees `msg.value &gt; 0` that may be lost._
 
-### FailedInnerCall
+### FailedCall
 
 ```solidity
-error FailedInnerCall()
+error FailedCall()
 ```
 
 _A call to an address target failed. The target may have reverted._
@@ -897,6 +883,14 @@ error PriceNotMultipleOfTick(uint256 tick)
 error PriceZero()
 ```
 
+### ReentrancyGuardReentrantCall
+
+```solidity
+error ReentrancyGuardReentrantCall()
+```
+
+_Unauthorized reentrant call._
+
 ### SafeCastOverflowedUintDowncast
 
 ```solidity
@@ -918,7 +912,7 @@ _Value doesn&#39;t fit in an uint of `bits` size._
 error SafeERC20FailedOperation(address token)
 ```
 
-_An operation with an ERC20 token failed._
+_An operation with an ERC-20 token failed._
 
 #### Parameters
 

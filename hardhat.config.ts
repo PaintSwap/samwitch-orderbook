@@ -10,9 +10,9 @@ import {SolcUserConfig} from "hardhat/types";
 import "dotenv/config";
 
 const defaultConfig: SolcUserConfig = {
-  version: "0.8.26",
+  version: "0.8.28",
   settings: {
-    evmVersion: "paris",
+    evmVersion: "cancun",
     optimizer: {
       enabled: true,
       runs: 9999999,
@@ -20,7 +20,7 @@ const defaultConfig: SolcUserConfig = {
         yul: true,
       },
     },
-    viaIR: process.env.HARDHAT_VIAIR != "false", // This cannot be used with coverage for instance
+    viaIR: true,
     outputSelection: {
       "*": {
         "*": ["storageLayout"],
