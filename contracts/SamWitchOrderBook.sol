@@ -88,6 +88,7 @@ contract SamWitchOrderBook is
   ) external initializer {
     __UUPSUpgradeable_init();
     __Ownable_init(_msgSender());
+    __ReentrancyGuardTransient_init();
 
     setFees(devAddr, devFee, burntFee);
     // nft must be an ERC1155 via ERC165
